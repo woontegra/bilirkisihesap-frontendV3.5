@@ -5,5 +5,5 @@ dist
 build
 .next
 coverage
-logs
+/logs
 *.log
