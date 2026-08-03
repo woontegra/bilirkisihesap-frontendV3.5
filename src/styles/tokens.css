@@ -1,0 +1,102 @@
+:root {
+  /* Surfaces */
+  --page: #eef1f6;
+  --page-accent: #e4e9f1;
+  --surface: #ffffff;
+  --surface-muted: #f6f8fb;
+  --surface-elevated: #fbfcfe;
+
+  /* Ink */
+  --ink: #0e1726;
+  --ink-soft: #1a2740;
+  /* Sidebar — light theme */
+  --sidebar: #ffffff;
+  --sidebar-elevated: #f7f9fc;
+  --sidebar-border: #e6ebf3;
+
+
+  /* Text */
+  --text: #2c3648;
+  --text-strong: #0e1726;
+  --muted: #6b7689;
+  --muted-soft: #8b95a8;
+
+  /* Borders & elevation */
+  --border: #d5dce8;
+  --border-subtle: #e6ebf3;
+  --shadow-sm: 0 1px 2px rgba(14, 23, 38, 0.04);
+  --shadow-md: 0 4px 16px rgba(14, 23, 38, 0.06);
+  --shadow-lg: 0 12px 32px rgba(14, 23, 38, 0.1);
+  --shadow-hover: 0 8px 24px rgba(14, 23, 38, 0.1);
+
+  /* Brand accent — steel teal, muted */
+  --accent: #1a6f7c;
+  --accent-hover: #155a65;
+  --accent-soft: #e5f3f5;
+  --accent-ring: rgba(26, 111, 124, 0.28);
+  --accent-contrast: #ffffff;
+
+  /* Semantic */
+  --success: #2a6b52;
+  --success-soft: #e8f5ef;
+  --warning: #9a6b2a;
+  --warning-soft: #f8f0e4;
+  --danger: #9b3d3d;
+  --danger-soft: #f8eaea;
+  --info: #2f5f8a;
+  --info-soft: #e8f0f7;
+
+  /* Chart palette */
+  --chart-1: #1a6f7c;
+  --chart-2: #3d7ea6;
+  --chart-3: #5b8a6a;
+  --chart-4: #b08a4a;
+  --chart-5: #8a5e7a;
+  --chart-6: #5c6b8a;
+  --chart-7: #6a8a9a;
+
+  /* Layout */
+  --sidebar-width: 16.5rem;
+  --sidebar-collapsed: 4.25rem;
+  --topbar-height: 3.75rem;
+  --content-max: 90rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Stacking — AppShell / sidebar / drawer / modal / sticky bars */
+  --z-sticky: 20;
+  --z-sidebar: 25;
+  --z-topbar: 30;
+  --z-drawer-backdrop: 40;
+  --z-drawer: 50;
+  --z-modal: 60;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --dur-fast: 150ms;
+  --dur: 220ms;
+  --dur-slow: 360ms;
+
+  /* Typography */
+  --font-sans: "Outfit", system-ui, sans-serif;
+  --font-serif: "Source Serif 4", Georgia, serif;
+  --fs-xs: 0.6875rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.875rem;
+  --fs-md: 0.9375rem;
+  --fs-lg: 1.0625rem;
+  --fs-xl: 1.25rem;
+  --fs-2xl: 1.5rem;
+  --fs-3xl: 1.875rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-slow: 0ms;
+  }
+}
