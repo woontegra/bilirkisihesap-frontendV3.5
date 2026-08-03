@@ -2,12 +2,16 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+type DevProxy = {
+  on(event: "proxyReq", listener: (proxyReq: { removeHeader: (name: string) => void }) => void): void;
+};
+
 /** Vite proxy → backend: Origin başlığını iletme (CORS false-positive önleme). */
 function apiProxy(target: string) {
   return {
     target,
     changeOrigin: true,
-    configure(proxy) {
+    configure(proxy: DevProxy) {
       proxy.on("proxyReq", (proxyReq) => {
         proxyReq.removeHeader("origin");
         proxyReq.removeHeader("referer");

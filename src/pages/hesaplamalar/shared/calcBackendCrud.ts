@@ -62,19 +62,20 @@ export function buildCalcSavePayload(opts: {
   extra?: Record<string, unknown>;
 }): Record<string, unknown> {
   const { form, result, iseGiris, istenCikis, extra } = opts;
+  const { brut, net, ...resultRest } = result;
   return {
     form,
     formValues: form,
     ...extra,
-    brut_total: result.brut,
-    net_total: result.net,
+    brut_total: brut,
+    net_total: net,
     ise_giris: iseGiris ?? null,
     isten_cikis: istenCikis ?? null,
     results: {
-      brut: result.brut,
-      net: result.net,
-      totals: { brut: result.brut, net: result.net, totalBrut: result.brut },
-      ...result,
+      brut,
+      net,
+      totals: { brut, net, totalBrut: brut },
+      ...resultRest,
     },
   };
 }
@@ -103,10 +104,7 @@ export function mapCalcRecordToListItem(record: SavedCaseRecord): CalcSavedCaseL
 export function createCalcBackendCrud<TForm>(opts: {
   recordType: string;
   isRecordType: (type: string | undefined) => boolean;
-  mapFormFromBackend: (
-    data: unknown,
-    record?: Pick<SavedCaseRecord, "ise_giris" | "isten_cikis">,
-  ) => TForm | null;
+  mapFormFromBackend: (data: unknown, record?: SavedCaseRecord) => TForm | null;
   buildSaveData: (form: TForm, result: CalcSaveResult) => Record<string, unknown>;
 }) {
   const { recordType, isRecordType, mapFormFromBackend, buildSaveData } = opts;

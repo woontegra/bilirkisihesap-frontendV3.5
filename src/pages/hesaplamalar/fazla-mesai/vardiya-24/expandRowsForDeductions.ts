@@ -5,7 +5,7 @@
 import { getAsgariUcretByDate } from "./asgariUcret";
 import { generateWorkDays24, getAnchorWeekBucketKey, groupWeeks24 } from "./workDays24";
 import type { ExclusionItem, PeriodRow } from "./model";
-import { normalizeDeductionDays as normalizeDeductionDaysCore, parseFmDate } from "../shared/deductionCore";
+import { normalizeDeductionDays as normalizeDeductionDaysCore } from "../shared/deductionCore";
 
 export const VARDIYA24_FM_HOURS_PER_WORK_DAY = 3;
 

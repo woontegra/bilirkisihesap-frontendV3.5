@@ -350,7 +350,7 @@ export function applyMode270Detailed(
   zamanasimiISO: string | null,
 ): PeriodRow[] {
   const withWeeks = applyMode270DetailedHireYear(
-    rows.map((r) => ({ ...r, originalWeekCount: r.originalWeekCount ?? r.weeks })),
+    rows.map((r) => ({ ...r, originalWeekCount: r.weeks })),
     iseGirisISO,
     istenCikisISO,
     weeklyFmHours,

@@ -11,7 +11,6 @@ import {
   Eye,
   FilePlus2,
   FolderOpen,
-  History,
   Plus,
   Save,
   ShieldCheck,

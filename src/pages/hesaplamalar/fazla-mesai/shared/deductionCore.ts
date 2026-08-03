@@ -133,15 +133,15 @@ function anchorDaysForOneExclusion(ex: DeductionExclusion, weeklyOffDay: number)
 /**
  * Motora gidecek exclusion listesi — hafta tatiline denk günler çıkarılır; diğer günler tek günlük kayıt olarak kalır.
  */
-export function filterExclusionsForWeeklyOff(
-  exclusions: DeductionExclusion[],
+export function filterExclusionsForWeeklyOff<T extends DeductionExclusion>(
+  exclusions: T[],
   weeklyOffDay: number | null | undefined,
-): DeductionExclusion[] {
+): T[] {
   if (weeklyOffDay == null || !Number.isInteger(weeklyOffDay)) {
     return exclusions;
   }
 
-  const out: DeductionExclusion[] = [];
+  const out: T[] = [];
 
   for (const ex of exclusions) {
     if (!isFmDeductionExclusionType(String(ex.type ?? ""))) {

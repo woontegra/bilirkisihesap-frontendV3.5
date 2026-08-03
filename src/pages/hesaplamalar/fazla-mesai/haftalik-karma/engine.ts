@@ -11,8 +11,6 @@ import {
   FM_DENOMINATOR,
   FM_ZAM_KATSAYISI,
   ISSIZLIK_ORANI,
-  MODE270_INCLUDED_HOURS,
-  MODE270_SIMPLE_REDUCTION_HOURS,
   PANDEMI_BASLANGIC,
   PANDEMI_BITIS,
   PANDEMI_SABIT_GUN,
@@ -176,98 +174,6 @@ function clipSegmentsByZamanasimi<T extends { start: string; end: string }>(
     }
   }
   return out;
-}
-
-/* ── 270 detaylı ── */
-
-type HireYearWindow = { fmStartMs: number; fmEndMs: number; fmWeeks: number };
-
-function buildHireYearWindows(
-  iseGirisISO: string,
-  istenCikisISO: string,
-  weeklyFmHours: number,
-  zamanasimiISO: string | null,
-): HireYearWindow[] {
-  if (!(weeklyFmHours > 0) || !isValidIsoDate(iseGirisISO) || !isValidIsoDate(istenCikisISO)) return [];
-  const DAY_MS = 86400000;
-  const WEEK_MS = 7 * DAY_MS;
-  const istenCikisMs = isoToUtcMs(istenCikisISO);
-  if (isoToUtcMs(iseGirisISO) > istenCikisMs) return [];
-  const zamanasimiMs = zamanasimiISO && isValidIsoDate(zamanasimiISO) ? isoToUtcMs(zamanasimiISO) : null;
-  const dusulecekHafta = Math.round(MODE270_INCLUDED_HOURS / weeklyFmHours);
-
-  const windows: HireYearWindow[] = [];
-  const yilBaslangicDate = new Date(isoToUtcMs(iseGirisISO));
-  while (yilBaslangicDate.getTime() <= istenCikisMs) {
-    const yilBaslangicMs = yilBaslangicDate.getTime();
-    const yilBitisDate = new Date(yilBaslangicDate);
-    yilBitisDate.setUTCFullYear(yilBitisDate.getUTCFullYear() + 1);
-    yilBitisDate.setUTCDate(yilBitisDate.getUTCDate() - 1);
-    const fiiliYilBitisMs = Math.min(yilBitisDate.getTime(), istenCikisMs);
-
-    const toplamHafta = Math.floor((fiiliYilBitisMs - yilBaslangicMs + DAY_MS) / WEEK_MS);
-    const hireYearFM = Math.max(0, toplamHafta - dusulecekHafta);
-    const fmBaslangicMs = fiiliYilBitisMs - hireYearFM * WEEK_MS;
-
-    let fmFiiliBaslangicMs = fmBaslangicMs;
-    let fmFiiliHafta = hireYearFM;
-    if (zamanasimiMs != null) {
-      if (zamanasimiMs > fiiliYilBitisMs) {
-        fmFiiliHafta = 0;
-      } else if (zamanasimiMs > fmBaslangicMs) {
-        fmFiiliBaslangicMs = zamanasimiMs;
-        fmFiiliHafta = Math.max(
-          0,
-          Math.min(Math.floor((fiiliYilBitisMs - fmFiiliBaslangicMs + DAY_MS) / WEEK_MS), hireYearFM),
-        );
-      }
-    }
-
-    if (fmFiiliHafta > 0) {
-      windows.push({ fmStartMs: fmFiiliBaslangicMs, fmEndMs: fiiliYilBitisMs, fmWeeks: fmFiiliHafta });
-    }
-
-    yilBaslangicDate.setUTCFullYear(yilBaslangicDate.getUTCFullYear() + 1);
-  }
-  return windows;
-}
-
-function applyMode270Detailed(
-  rows: PeriodRow[],
-  iseGirisISO: string,
-  istenCikisISO: string,
-  weeklyFmHours: number,
-  zamanasimiISO: string | null,
-): PeriodRow[] {
-  const windows = buildHireYearWindows(iseGirisISO, istenCikisISO, weeklyFmHours, zamanasimiISO);
-  if (windows.length === 0 || rows.length === 0) return rows.map((r) => ({ ...r, weeks: 0 }));
-
-  const spans = rows.map((r) => ({ start: isoToUtcMs(r.startISO), end: isoToUtcMs(r.endISO) }));
-  const nextWeeks = rows.map(() => 0);
-
-  for (const win of windows) {
-    let yazilan = 0;
-    const hireYearGun = win.fmEndMs - win.fmStartMs;
-    for (let i = 0; i < rows.length; i++) {
-      if (yazilan >= win.fmWeeks) break;
-      const span = spans[i];
-      const kesisimBas = Math.max(win.fmStartMs, span.start);
-      const kesisimBit = Math.min(win.fmEndMs, span.end);
-      if (kesisimBas > kesisimBit) continue;
-      const satirGun = kesisimBit - kesisimBas;
-      if (satirGun > 0 && hireYearGun > 0) {
-        const oran = satirGun / hireYearGun;
-        let eklenecek = Math.round(win.fmWeeks * oran);
-        eklenecek = Math.min(eklenecek, win.fmWeeks - yazilan);
-        if (eklenecek > 0) {
-          nextWeeks[i] += eklenecek;
-          yazilan += eklenecek;
-        }
-      }
-    }
-  }
-
-  return rows.map((r, i) => ({ ...r, weeks: nextWeeks[i] }));
 }
 
 /* ── Para formülü ── */

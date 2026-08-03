@@ -23,7 +23,6 @@ import {
 } from "../shared/deductionCore";
 import {
   newLocalId,
-  type ExclusionItem,
   type FmRow,
   type RowOverride,
   type SevenDayMode,

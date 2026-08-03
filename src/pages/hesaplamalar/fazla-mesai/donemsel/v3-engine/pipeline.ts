@@ -251,7 +251,7 @@ function buildDisplayRows(
   const insertedManualIds = new Set(mergedList.filter((r) => r.isManual).map((r) => r.id));
   mergedList.push(...manualWithOverrides.filter((m) => !insertedManualIds.has(m.id)));
 
-  let with270 = mergedList.map((r) => ({
+  let with270: FazlaMesaiRowBase[] = mergedList.map((r) => ({
     ...r,
     originalWeekCount: r.originalWeekCount ?? r.weeks,
   }));

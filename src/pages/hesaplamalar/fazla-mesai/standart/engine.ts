@@ -65,11 +65,6 @@ function isoToUtcDays(iso: string): number {
   return Date.UTC(y, m - 1, d) / 86400000;
 }
 
-function isoToUtcMs(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  return Date.UTC(y, m - 1, d);
-}
-
 export function daysBetweenIsoInclusive(startISO: string, endISO: string): number {
   return isoToUtcDays(endISO) - isoToUtcDays(startISO) + 1;
 }
@@ -573,7 +568,7 @@ export function buildPeriodRows(
   sevenDayMode: SevenDayMode,
   exclusions: ExclusionItem[],
   haftaTatiliGunu: number | "",
-  mode270: Mode270,
+  _mode270: Mode270,
   zamanasimi: ZamanasimiInfo,
 ): PeriodRow[] {
   const rawSegments = splitRangeByAsgariPeriodBounds(iseGiris, istenCikis);

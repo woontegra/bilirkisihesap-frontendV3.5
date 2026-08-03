@@ -19,7 +19,6 @@ const LEGACY_ONLY_EXCLUSION_TYPES = new Set([
   "Puantaj-Bordro",
 ]);
 
-const MOTOR_TYPES = new Set(["UBGT", "Yıllık İzin"]);
 const LEGACY_FM_TYPES = new Set([
   "Yıllık İzin",
   "UBGT",
@@ -86,6 +85,11 @@ function parseLocalDay(iso: string): Date | null {
   return parseFmDate(iso);
 }
 
+function isWorkDay(d: Date, weeklyOff: number | null): boolean {
+  if (weeklyOff == null) return true;
+  return d.getDay() !== weeklyOff;
+}
+
 export { filterExclusionsForWeeklyOff } from "../shared/deductionCore";
 
 export function normalizeDeductionDays(
@@ -134,7 +138,7 @@ function applyYargitay270ToFmHours(fmHours: number, apply: boolean): number {
 function expandWithMotor(
   rows: PeriodRow[],
   exclusions: ExclusionItem[],
-  weeklyOffDay: number | null,
+  _weeklyOffDay: number | null,
   applyYargitay270FmDeduction: boolean,
 ): PeriodRow[] {
   const out: PeriodRow[] = [];

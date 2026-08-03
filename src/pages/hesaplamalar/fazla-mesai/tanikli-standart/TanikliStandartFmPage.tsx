@@ -47,7 +47,6 @@ import {
 import {
   createEmptyForm,
   createEmptyWitness,
-  type ExclusionItem,
   type RowOverride,
   type TanikliFormSnapshot,
   type Witness,

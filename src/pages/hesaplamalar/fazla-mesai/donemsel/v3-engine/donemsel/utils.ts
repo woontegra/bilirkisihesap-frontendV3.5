@@ -192,7 +192,6 @@ export function applyWitnessOverlapSplit(witnesses: DonemselWitness[]): Donemsel
     const overlapping = sorted.filter((o, oi) => {
       if (oi === idx) return false;
       const oStart = new Date(o.dateIn);
-      const oEnd = new Date(o.dateOut);
       return oStart > wStart && oStart < wEnd;
     });
     if (overlapping.length === 0) {
@@ -428,7 +427,7 @@ export function buildIntervalsFromWitnesses(
   dateIn: string,
   dateOut: string,
   davaciSummer: SeasonalPattern,
-  davaciWinter: SeasonalPattern,
+  _davaciWinter: SeasonalPattern,
   witnesses: DonemselWitness[]
 ): Array<{ start: string; end: string; start_time: string; end_time: string; witnessData?: DonemselWitness }> {
   const splitWitnesses = applyWitnessOverlapSplit(witnesses);
@@ -561,7 +560,7 @@ export function weeklyIgnoredWeekdayFromSeasonalPattern(
 export function seasonSegmentRow(
   row: DonemselRow,
   summerMonths: number[],
-  winterMonths: number[],
+  _winterMonths: number[],
   summerPattern: SeasonalPattern,
   winterPattern: SeasonalPattern,
   katSayi: number,
@@ -663,10 +662,10 @@ export function seasonSegmentRow(
         brut,
         katsayi: katSayi,
         fmHours,
+        ...leaveMeta,
         dailyNet,
         fm: Number(fm.toFixed(2)),
         net: Number(net.toFixed(2)),
-        ...leaveMeta,
         annualLeaveWeeklyIgnoredWeekday,
       });
 

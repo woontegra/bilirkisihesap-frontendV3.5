@@ -8,8 +8,6 @@ import type { ExclusionItem, PeriodRow, SevenDayMode } from "./model";
 import { countWeeksBySevenDaySteps } from "./preserveWeeks";
 import { normalizeFmDeductionDays, parseFmDate } from "../shared/deductionCore";
 
-const MOTOR_TYPES = new Set(["UBGT", "Yıllık İzin"]);
-
 type NormalizedDay = { dateISO: string; dayWeight: number; kind: "UBGT" | "YILLIK_IZIN" };
 
 function startOfLocalDay(d: Date): Date {

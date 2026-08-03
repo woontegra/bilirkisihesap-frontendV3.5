@@ -19,8 +19,6 @@ const LEGACY_ONLY_EXCLUSION_TYPES = new Set([
   "Puantaj-Bordro",
 ]);
 
-const MOTOR_TYPES = new Set(["UBGT", "Yıllık İzin"]);
-
 type NormalizedDay = { dateISO: string; dayWeight: number; kind: "UBGT" | "YILLIK_IZIN" };
 
 function startOfLocalDay(d: Date): Date {
