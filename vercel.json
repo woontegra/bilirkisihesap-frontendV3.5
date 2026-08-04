@@ -1,16 +1,17 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://api.bilirkisihesap.com/api/:path*"
+      "source": "/api/(.*)",
+      "destination": "https://api.bilirkisihesap.com/api/$1"
     },
     {
-      "source": "/uploads/:path*",
-      "destination": "https://api.bilirkisihesap.com/uploads/:path*"
+      "source": "/uploads/(.*)",
+      "destination": "https://api.bilirkisihesap.com/uploads/$1"
     },
     {
       "source": "/(.*)",
@@ -19,6 +20,7 @@
   ],
   "build": {
     "env": {
+      "VITE_API_URL": "https://api.bilirkisihesap.com",
       "NODE_OPTIONS": "--max-old-space-size=6144"
     }
   }

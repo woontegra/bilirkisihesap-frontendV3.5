@@ -1,17 +1,15 @@
 /**
  * API kök URL.
  * - Dev: boş → Vite `/api` proxy (localhost:4000)
- * - Vercel prod: boş → vercel.json `/api` rewrite → api.bilirkisihesap.com
- * - Özel host: VITE_API_URL=https://api.bilirkisihesap.com
+ * - Prod: VITE_API_URL veya https://api.bilirkisihesap.com
  */
+const DEFAULT_PRODUCTION_API = "https://api.bilirkisihesap.com";
+
 export function resolveApiBaseUrl(): string {
-  return (import.meta.env.VITE_API_URL ?? "").trim().replace(/\/$/, "");
+  const configured = (import.meta.env.VITE_API_URL ?? "").trim().replace(/\/$/, "");
+  if (configured) return configured;
+  if (import.meta.env.DEV) return "";
+  return DEFAULT_PRODUCTION_API;
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
-
-if (import.meta.env.PROD && !API_BASE_URL) {
-  console.info(
-    "[API] VITE_API_URL boş — istekler aynı origin /api üzerinden gider (Vercel rewrite veya reverse proxy gerekir).",
-  );
-}
