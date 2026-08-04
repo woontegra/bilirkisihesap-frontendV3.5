@@ -4,23 +4,16 @@
  */
 
 import { getAsgariUcretByDate, getAsgariUcretPeriodsInRange } from "./asgariUcret";
-import { expandRowsForDeductions } from "./expandRowsForDeductions";
+import { FIXED_FM_HOURS } from "./constants";
 import { calculateIncomeTaxWithBrackets } from "./incomeTax";
 import type {
-  ExclusionItem,
   Gemi724FormSnapshot,
   Gemi724Result,
-  Mode270,
   PeriodRow,
-  RowOverride,
   WitnessInput,
 } from "./model";
 import { newLocalId } from "./model";
-import {
-  applyMode270DetailedHireYear,
-  applyMode270SimpleToRows,
-  MODE270_SIMPLE_REDUCTION_HOURS,
-} from "../shared/mode270Core";
+import { runGemi724V3Pipeline } from "./v3-engine/pipeline";
 
 /* ── Sabitler ── */
 export const WEEKLY_LIMIT = 48;
@@ -30,9 +23,8 @@ export const WEEKLY_NET_HOURS = 91;
 export const DAILY_NET_HOURS = 13;
 export const LEAVE_HOURS = 8;
 /** 91 - 48 - 8 = 35 */
-export const FIXED_FM_HOURS = WEEKLY_NET_HOURS - WEEKLY_LIMIT - LEAVE_HOURS;
-/** Yargıtay 270: haftalık FM saatinden düşüm */
-export const YARGITAY_270_DEDUCTION_HOURS = MODE270_SIMPLE_REDUCTION_HOURS;
+export { FIXED_FM_HOURS } from "./constants";
+export const YARGITAY_270_DEDUCTION_HOURS = 5 + 12 / 60;
 export const DAMGA_ORANI = 0.00759;
 /** @deprecated Satır bazlı düz oran; brütten-nete kademeli GV kullanır. */
 export const GELIR_VERGISI_ORANI = 0.15;
@@ -333,142 +325,6 @@ export function splitSegmentByAsgari(segment: DateSegment): (DateSegment & { bru
   }));
 }
 
-/* ── 270 ── */
-export function applyMode270Simple(rows: PeriodRow[]): PeriodRow[] {
-  const baseline = rows[0]?.fmHours ?? FIXED_FM_HOURS;
-  return applyMode270SimpleToRows(rows, baseline).map((r) => {
-    const { fm, net } = computeFmMoney(r.weeks, r.brut, r.katsayi, r.fmHours);
-    return { ...r, fm, net };
-  });
-}
-
-export function applyMode270Detailed(
-  rows: PeriodRow[],
-  iseGirisISO: string,
-  istenCikisISO: string,
-  weeklyFmHours: number,
-  zamanasimiISO: string | null,
-): PeriodRow[] {
-  const withWeeks = applyMode270DetailedHireYear(
-    rows.map((r) => ({ ...r, originalWeekCount: r.weeks })),
-    iseGirisISO,
-    istenCikisISO,
-    weeklyFmHours,
-    zamanasimiISO,
-  );
-  return withWeeks.map((r) => {
-    const { fm, net } = computeFmMoney(r.weeks, r.brut, r.katsayi, r.fmHours);
-    return { ...r, fm, net };
-  });
-}
-
-export function applyMode270(
-  rows: PeriodRow[],
-  mode: Mode270,
-  iseGirisISO: string,
-  istenCikisISO: string,
-  zamanasimiISO: string | null,
-): PeriodRow[] {
-  if (mode === "none") return rows;
-  if (mode === "simple") return applyMode270Simple(rows);
-  return applyMode270Detailed(rows, iseGirisISO, istenCikisISO, FIXED_FM_HOURS, zamanasimiISO);
-}
-
-/* ── Birleştirme (V3 aynı fmHours/brut/katsayi bitişik satırlar) ── */
-function mergeAdjacentRows(rows: PeriodRow[], katsayi: number): PeriodRow[] {
-  const merged: PeriodRow[] = [];
-  for (const row of rows) {
-    const last = merged[merged.length - 1];
-    if (
-      last &&
-      !last.isManual &&
-      !row.isManual &&
-      last.fmHours === row.fmHours &&
-      last.brut === row.brut &&
-      last.katsayi === row.katsayi
-    ) {
-      const mergedStart = last.startISO;
-      const mergedEnd = row.endISO;
-      let totalWeeks =
-        mergedStart.length >= 10 && mergedEnd.length >= 10
-          ? Math.max(1, calculateWeeksBetweenDates(mergedStart, mergedEnd) || 1)
-          : (last.weeks || 0) + (row.weeks || 0);
-      const spanDays = inclusiveDayCount(mergedStart, mergedEnd);
-      if (spanDays > 0 && spanDays <= 370) totalWeeks = Math.min(52, totalWeeks);
-      const { fm, net } = computeFmMoney(totalWeeks, last.brut, katsayi, last.fmHours);
-      merged[merged.length - 1] = {
-        ...last,
-        endISO: row.endISO,
-        weeks: totalWeeks,
-        fm,
-        net,
-      };
-    } else {
-      merged.push({ ...row });
-    }
-  }
-  return merged;
-}
-
-function applyOverridesAndManual(
-  rows: PeriodRow[],
-  overrides: Record<string, RowOverride>,
-  manualRows: PeriodRow[],
-  katsayi: number,
-): PeriodRow[] {
-  let result = rows
-    .filter((r) => !overrides[r.id]?.hidden)
-    .map((r) => {
-      const ov = overrides[r.id];
-      if (!ov) return r;
-      const startISO = ov.startISO ?? r.startISO;
-      const endISO = ov.endISO ?? r.endISO;
-      const weeks = ov.weeks ?? r.weeks;
-      const brut = ov.brut ?? r.brut;
-      const fmHours = ov.fmHours ?? r.fmHours;
-      const kat = ov.katsayi ?? r.katsayi ?? katsayi;
-      const { fm, net } = computeFmMoney(weeks, brut, kat, fmHours);
-      return { ...r, startISO, endISO, weeks, brut, fmHours, katsayi: kat, fm, net };
-    });
-
-  const manuals = (manualRows ?? []).map((m) => {
-    const ov = overrides[m.id];
-    const startISO = ov?.startISO ?? m.startISO;
-    const endISO = ov?.endISO ?? m.endISO;
-    const weeks = ov?.weeks ?? m.weeks;
-    const brut = ov?.brut ?? m.brut;
-    const fmHours = ov?.fmHours ?? m.fmHours;
-    const kat = ov?.katsayi ?? m.katsayi ?? katsayi;
-    const { fm, net } = computeFmMoney(weeks, brut, kat, fmHours);
-    return {
-      ...m,
-      startISO,
-      endISO,
-      weeks,
-      brut,
-      fmHours,
-      katsayi: kat,
-      fm,
-      net,
-      isManual: true,
-    };
-  });
-
-  for (const m of manuals) {
-    if (overrides[m.id]?.hidden) continue;
-    const after = m.insertAfter;
-    if (!after) {
-      result.push(m);
-      continue;
-    }
-    const idx = result.findIndex((r) => r.id === after);
-    if (idx >= 0) result.splice(idx + 1, 0, m);
-    else result.push(m);
-  }
-
-  return result;
-}
-
 export function computeTotalsFromRows(
   rows: { fm: number }[],
   exitYear: number,
@@ -513,30 +369,6 @@ export function computeTotalsFromRows(
   };
 }
 
-function emptyResult(): Gemi724Result {
-  return {
-    fixedFmHoursWeekly: FIXED_FM_HOURS,
-    rows: [],
-    totalFm: 0,
-    totalNet: 0,
-    sgk: 0,
-    issizlik: 0,
-    gelirVergisi: 0,
-    gelirVergisiDilimleri: "",
-    damgaVergisi: 0,
-    netYillik: 0,
-    hakkaniyetIndirimi: 0,
-    mahsupTutari: 0,
-    sonNet: 0,
-  };
-}
-
-function exclusionsForBackendWeeks(exclusions: ExclusionItem[]): Array<{ start: string; end: string }> {
-  return exclusions
-    .filter((e) => e && e.start && e.end && isValidRange(e.start, e.end || e.start))
-    .map((e) => ({ start: e.start.slice(0, 10), end: (e.end || e.start).slice(0, 10) }));
-}
-
 export function createManualPeriodRow(afterRowId: string, katsayi: number, fmHours = FIXED_FM_HOURS): PeriodRow {
   return {
     id: `manual-${newLocalId()}`,
@@ -555,92 +387,9 @@ export function createManualPeriodRow(afterRowId: string, katsayi: number, fmHou
 }
 
 export function computeGemi724Result(form: Gemi724FormSnapshot): Gemi724Result {
-  if (!form.iseGiris || !form.istenCikis || !isValidRange(form.iseGiris, form.istenCikis)) {
-    return emptyResult();
-  }
+  const { rows: pipeRows } = runGemi724V3Pipeline(form);
 
-  const katsayi = parseKatsayi(form.katSayi);
-  const exForWeeks = exclusionsForBackendWeeks(form.exclusions);
-
-  const nihaiBaslangic = form.zamanasimi?.nihaiBaslangic || null;
-
-  const dateSegments = buildDateSegments(form.iseGiris, form.istenCikis, form.witnesses);
-
-  let baseRows: PeriodRow[] = [];
-  for (const seg of dateSegments) {
-    for (const child of splitSegmentByAsgari(seg)) {
-      const weeks = calculateWeekCount(child.start, child.end, exForWeeks);
-      if (weeks <= 0) continue;
-      const { fm, net } = computeFmMoney(weeks, child.brut, katsayi, FIXED_FM_HOURS);
-      baseRows.push({
-        id: newLocalId("row"),
-        startISO: child.start,
-        endISO: child.end,
-        weeks,
-        brut: child.brut,
-        katsayi,
-        fmHours: FIXED_FM_HOURS,
-        fm,
-        net,
-        isDeductionRow: false,
-      });
-    }
-  }
-
-  // Zamanaşımı kırpma (backend)
-  if (nihaiBaslangic && isValidIsoDate(nihaiBaslangic)) {
-    baseRows = baseRows
-      .map((p) => {
-        if (p.endISO < nihaiBaslangic) return null;
-        if (p.startISO < nihaiBaslangic) {
-          const newStart = nihaiBaslangic;
-          const w = calculateWeekCount(newStart, p.endISO, exForWeeks);
-          const brut = getAsgariUcretByDate(newStart) ?? p.brut;
-          const { fm, net } = computeFmMoney(w, brut, katsayi, p.fmHours);
-          return { ...p, startISO: newStart, weeks: w, brut, fm, net };
-        }
-        return p;
-      })
-      .filter((p): p is PeriodRow => p != null);
-  }
-
-  // 270 — expand öncesi (backend); Yargıtay expand içinde de uygulanabilir
-  let after270 =
-    form.mode270 !== "none"
-      ? applyMode270(baseRows, form.mode270, form.iseGiris, form.istenCikis, nihaiBaslangic)
-      : baseRows;
-
-  // Bitişik satır birleştirme
-  after270 = mergeAdjacentRows(after270, katsayi);
-
-  // İstemci düşüm expand (V3 sayfa)
-  const weeklyOffNum =
-    form.haftaTatiliGunu === "" || form.haftaTatiliGunu == null
-      ? null
-      : Number(form.haftaTatiliGunu);
-  const weeklyOffDay = Number.isInteger(weeklyOffNum) ? weeklyOffNum : null;
-
-  let expanded =
-    form.exclusions.length > 0
-      ? expandRowsForDeductions({
-          rows: after270,
-          exclusions: form.exclusions,
-          weeklyOffDay,
-          // Yargıtay 270 zaten applyMode270Simple ile uygulandı; çift düşümü önlemek için false
-          applyYargitay270FmDeduction: false,
-        })
-      : after270;
-
-  // Override / manuel satırlar
-  expanded = applyOverridesAndManual(
-    expanded,
-    form.rowOverrides ?? {},
-    form.manualRows ?? [],
-    katsayi,
-  );
-
-  // Sıfır otomatik satır gizle
-  const displayRows = expanded.filter((r) => {
+  const displayRows = pipeRows.filter((r) => {
     if (r.isManual) return true;
     return Number(r.fmHours ?? 0) !== 0 && Number(r.weeks ?? 0) !== 0 && Number(r.fm ?? 0) !== 0;
   });

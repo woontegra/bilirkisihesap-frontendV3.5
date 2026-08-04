@@ -299,6 +299,15 @@
   color: var(--accent-contrast);
 }
 
+.messageImage {
+  display: block;
+  max-width: min(220px, 100%);
+  max-height: 180px;
+  margin-bottom: 0.35rem;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+}
+
 .bubbleIn time,
 .bubbleOut time {
   display: block;

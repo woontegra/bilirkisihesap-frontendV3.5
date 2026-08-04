@@ -23,6 +23,7 @@ import {
   type Witness,
 } from "./model";
 import { parseISODateLocal } from "./workDays24";
+import { buildMergedWitnessSegments } from "./witnessSegments";
 
 /* ── yardımcılar ── */
 
@@ -137,67 +138,52 @@ function normalizeDateInput(iso: string): string {
   return s.length >= 10 ? s.slice(0, 10) : s;
 }
 
-function clipDate(value: string, min: string, max: string): string {
-  if (value < min) return min;
-  if (value > max) return max;
-  return value;
-}
-
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-/** Tanık aralıklarından birleşik segmentler (örtüşenler birleşir). */
+/** Tanık aralıklarından segmentler (V3 `Vardiya24Page.buildWitnessSegments`). */
 export function buildWitnessSegments(
   dStart: string,
   dEnd: string,
   taniklar: Witness[],
 ): Array<{ start: string; end: string }> {
-  const parseMs = (raw: string): number => {
-    const s = normalizeDateInput(raw);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return Number.NaN;
-    const [y, m, d] = s.split("-").map(Number);
-    return Date.UTC(y || 0, (m || 1) - 1, d || 1);
+  const parseLocalDayToMs = (raw: string): number => {
+    const s = String(raw || "").trim();
+    if (!s) return Number.NaN;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, d] = s.split("-").map(Number);
+      return Date.UTC(y || 0, (m || 1) - 1, d || 1);
+    }
+    if (/^\d{2}\.\d{2}\.\d{4}$/.test(s)) {
+      const [d, m, y] = s.split(".").map(Number);
+      return Date.UTC(y || 0, (m || 1) - 1, d || 1);
+    }
+    const n = new Date(s).getTime();
+    return Number.isNaN(n) ? Number.NaN : n;
   };
 
-  const dStartMs = parseMs(dStart);
-  const dEndMs = parseMs(dEnd);
+  const dStartMs = parseLocalDayToMs(normalizeDateInput(dStart));
+  const dEndMs = parseLocalDayToMs(normalizeDateInput(dEnd));
   if (Number.isNaN(dStartMs) || Number.isNaN(dEndMs) || dStartMs > dEndMs) return [];
 
-  const intervals = taniklar
+  const witnesses = taniklar
     .filter((t) => t.dateIn && t.dateOut)
-    .map((t) => {
-      let s = parseMs(t.dateIn);
-      let e = parseMs(t.dateOut);
-      if (Number.isNaN(s) || Number.isNaN(e) || s > e) return null;
-      s = Math.max(s, dStartMs);
-      e = Math.min(e, dEndMs);
-      if (s > e) return null;
-      return { startMs: s, endMs: e };
-    })
-    .filter((x): x is { startMs: number; endMs: number } => !!x)
-    .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+    .map((t, idx) => ({
+      startMs: parseLocalDayToMs(normalizeDateInput(t.dateIn)),
+      endMs: parseLocalDayToMs(normalizeDateInput(t.dateOut)),
+      // Ortak segmentleyici bitişik parçaları fmHours'a göre birleştirir;
+      // tanık önceliği değişimlerini korumak için ayırt edici değer veriyoruz.
+      fmHours: idx + 1,
+    }))
+    .filter((w) => !Number.isNaN(w.startMs) && !Number.isNaN(w.endMs) && w.startMs <= w.endMs);
 
-  if (!intervals.length) return [];
+  if (witnesses.length === 0) return [];
 
-  const merged: Array<{ startMs: number; endMs: number }> = [];
-  for (const iv of intervals) {
-    const last = merged[merged.length - 1];
-    if (!last || iv.startMs > last.endMs + 86400000) {
-      merged.push({ ...iv });
-    } else {
-      last.endMs = Math.max(last.endMs, iv.endMs);
-    }
-  }
-
-  return merged.map((m) => {
-    const sd = new Date(m.startMs);
-    const ed = new Date(m.endMs);
-    return {
-      start: `${sd.getUTCFullYear()}-${String(sd.getUTCMonth() + 1).padStart(2, "0")}-${String(sd.getUTCDate()).padStart(2, "0")}`,
-      end: `${ed.getUTCFullYear()}-${String(ed.getUTCMonth() + 1).padStart(2, "0")}-${String(ed.getUTCDate()).padStart(2, "0")}`,
-    };
-  });
+  return buildMergedWitnessSegments(dStart, dEnd, witnesses).map((seg) => ({
+    start: seg.start,
+    end: seg.end,
+  }));
 }
 
 export function anchorForSegment(
@@ -571,17 +557,17 @@ export function computeTotalsFromRows(
   exitYear: number,
   mahsupInput: string,
 ): Omit<Vardiya24Result, "rows" | "warnings" | "dateError"> {
-  const toplamFm = round2(rows.reduce((sum, r) => sum + (r.fm || 0), 0));
-  const sgk = round2(toplamFm * SGK_ORANI);
-  const issizlik = round2(toplamFm * ISSIZLIK_ORANI);
+  const toplamFm = rows.reduce((sum, r) => sum + (Number(r.fm) || 0), 0);
+  const sgk = Math.round(toplamFm * SGK_ORANI * 100) / 100;
+  const issizlik = Math.round(toplamFm * ISSIZLIK_ORANI * 100) / 100;
   const matrah = Math.max(0, toplamFm - sgk - issizlik);
   const gv = calculateIncomeTaxWithBrackets(exitYear, matrah);
-  const gelirVergisi = round2(gv.tax);
-  const damgaVergisi = round2(toplamFm * DAMGA_ORAN);
-  const netYillik = round2(toplamFm - sgk - issizlik - gelirVergisi - damgaVergisi);
-  const hakkaniyetIndirimi = round2(toplamFm / 3);
+  const gelirVergisi = Math.round(gv.tax * 100) / 100;
+  const damgaVergisi = Math.round(toplamFm * DAMGA_ORAN * 100) / 100;
+  const netYillik = Math.round((toplamFm - sgk - issizlik - gelirVergisi - damgaVergisi) * 100) / 100;
+  const hakkaniyetIndirimi = toplamFm / 3;
   const mahsupTutari = parseMoneyInput(mahsupInput);
-  const sonNet = Math.max(0, round2(toplamFm - hakkaniyetIndirimi - mahsupTutari));
+  const sonNet = Math.max(0, toplamFm - hakkaniyetIndirimi - mahsupTutari);
   return {
     toplamFm,
     sgk,
@@ -634,12 +620,6 @@ export function computeVardiya24Result(form: Vardiya24FormSnapshot): Vardiya24Re
   let witnessIntervals = buildWitnessSegments(dStart, dEnd, form.taniklar || []);
   if (witnessIntervals.length === 0) {
     witnessIntervals = [{ start: dStart, end: dEnd }];
-  } else {
-    witnessIntervals = witnessIntervals.map((s) => ({
-      start: clipDate(s.start, dStart, dEnd),
-      end: clipDate(s.end, dStart, dEnd),
-    })).filter((s) => s.start && s.end && s.start <= s.end);
-    if (!witnessIntervals.length) witnessIntervals = [{ start: dStart, end: dEnd }];
   }
 
   const useLegacy = exclusionsNeedLegacySplit(form.exclusions);
@@ -707,14 +687,10 @@ export function computeVardiya24Result(form: Vardiya24FormSnapshot): Vardiya24Re
     katsayi,
   );
 
-  const visible = withOverrides.filter(
-    (r) => r.isManual || ((Number(r.fmHours) || 0) !== 0 && (Number(r.weeks) || 0) !== 0 && (Number(r.fm) || 0) !== 0),
-  );
-
   const exitYear = form.istenCikis
     ? Number(form.istenCikis.slice(0, 4))
     : new Date().getFullYear();
-  const totals = computeTotalsFromRows(visible, exitYear, form.mahsup);
+  const totals = computeTotalsFromRows(withOverrides, exitYear, form.mahsup);
 
   return {
     rows: withOverrides,

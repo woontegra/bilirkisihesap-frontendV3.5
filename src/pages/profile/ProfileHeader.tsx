@@ -1,30 +1,12 @@
+import { Camera } from "lucide-react";
 import { useEffect, useState } from "react";
 import { fetchAuthMe } from "@/api/profile";
+import { readCurrentUser } from "@/auth/session";
+import { useUserAvatar } from "@/hooks/useUserAvatar";
+import { formatUserRoleLabel } from "@/utils/userRole";
+import { resolveUserDisplayName } from "@/utils/userDisplay";
+import UploadAvatarDialog from "./UploadAvatarDialog";
 import styles from "./ProfileHeader.module.css";
-
-function readStoredUser(): {
-  name?: string;
-  email?: string;
-  role?: string;
-  licenseType?: string | null;
-} {
-  try {
-    const raw = JSON.parse(localStorage.getItem("current_user") || "null") as {
-      name?: string;
-      email?: string;
-      role?: string;
-      licenseType?: string | null;
-    } | null;
-    return {
-      name: raw?.name || undefined,
-      email: raw?.email || localStorage.getItem("email") || undefined,
-      role: raw?.role || localStorage.getItem("user_role") || undefined,
-      licenseType: raw?.licenseType ?? null,
-    };
-  } catch {
-    return { email: localStorage.getItem("email") || undefined };
-  }
-}
 
 function formatSubscriptionDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "-";
@@ -54,25 +36,25 @@ function getSubscriptionTypeLabel(type: string | null | undefined): string {
 }
 
 export default function ProfileHeader() {
-  const stored = readStoredUser();
-  const [name, setName] = useState(stored.name || "Kullanıcı");
-  const [email, setEmail] = useState(stored.email || "");
-  const [role, setRole] = useState(stored.role || "");
+  const stored = readCurrentUser();
+  const [name, setName] = useState(resolveUserDisplayName(stored?.name));
+  const [email, setEmail] = useState(stored?.email || "");
+  const [role, setRole] = useState(stored?.role || "");
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [subscriptionEndsAt, setSubscriptionEndsAt] = useState<string | null>(null);
   const [subscriptionType, setSubscriptionType] = useState<string | null>(
-    stored.licenseType ?? null,
+    stored?.licenseType ?? null,
   );
+
+  const { userId, avatarUrl, setAvatar, handleAvatarError, handleAvatarLoad } = useUserAvatar();
 
   useEffect(() => {
     let active = true;
-    const emailParam = stored.email;
-    if (!emailParam) return;
-
     void (async () => {
       try {
-        const me = await fetchAuthMe(emailParam);
+        const me = await fetchAuthMe();
         if (!active) return;
-        if (typeof me.name === "string" && me.name.trim()) setName(me.name);
+        if (typeof me.name === "string" && me.name.trim()) setName(resolveUserDisplayName(me.name));
         if (typeof me.email === "string" && me.email.trim()) setEmail(me.email);
         if (typeof me.role === "string" && me.role.trim()) setRole(me.role);
         setSubscriptionEndsAt(
@@ -83,37 +65,75 @@ export default function ProfileHeader() {
             (typeof me.licenseType === "string" ? me.licenseType : null),
         );
       } catch {
-        /* localStorage fallback yeterli */
+        /* ignore */
       }
     })();
 
     return () => {
       active = false;
     };
-  }, [stored.email]);
+  }, []);
 
-  const roleLabel =
-    role.toLowerCase() === "admin" ? "Yönetici" : role ? role.toUpperCase() : "";
+  const roleLabel = formatUserRoleLabel(role);
+
+  const initials = (name || email || "U")
+    .split(" ")
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   return (
-    <header className={styles.header}>
-      <div className={styles.avatar} aria-hidden>
-        <img src="/logo.png" alt="" className={styles.avatarImg} />
-      </div>
-      <div className={styles.meta}>
-        <h2 className={styles.name}>{name}</h2>
-        {email ? <p className={styles.email}>{email}</p> : null}
-        <div className={styles.badges}>
-          {roleLabel ? <span className={styles.role}>{roleLabel}</span> : null}
-          <span className={styles.subStatus}>
-            <span className={styles.dot} aria-hidden />
-            {getSubscriptionTypeLabel(subscriptionType)}
+    <>
+      <header className={styles.header}>
+        <button
+          type="button"
+          className={styles.avatarButton}
+          onClick={() => setDialogOpen(true)}
+          aria-label="Profil resmini değiştir"
+        >
+          <span className={styles.avatar}>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt=""
+                className={styles.avatarImg}
+                onError={handleAvatarError}
+                onLoad={handleAvatarLoad}
+              />
+            ) : (
+              <span className={styles.avatarFallback}>{initials}</span>
+            )}
           </span>
-          <span className={styles.renewal}>
-            Yenileme: {formatSubscriptionDate(subscriptionEndsAt)}
+          <span className={styles.avatarOverlay} aria-hidden>
+            <Camera size={18} />
+            <span>Değiştir</span>
           </span>
+        </button>
+        <div className={styles.meta}>
+          <h2 className={styles.name}>{resolveUserDisplayName(name)}</h2>
+          {email ? <p className={styles.email}>{email}</p> : null}
+          <div className={styles.badges}>
+            {roleLabel ? <span className={styles.role}>{roleLabel}</span> : null}
+            <span className={styles.subStatus}>
+              <span className={styles.dot} aria-hidden />
+              {getSubscriptionTypeLabel(subscriptionType)}
+            </span>
+            <span className={styles.renewal}>
+              Yenileme: {formatSubscriptionDate(subscriptionEndsAt)}
+            </span>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      <UploadAvatarDialog
+        open={dialogOpen}
+        userId={userId}
+        userName={name}
+        currentAvatarUrl={avatarUrl}
+        onOpenChange={setDialogOpen}
+        onAvatarChange={setAvatar}
+      />
+    </>
   );
 }

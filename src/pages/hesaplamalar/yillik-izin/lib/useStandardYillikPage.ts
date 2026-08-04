@@ -5,11 +5,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PreviewSection } from "@/components/calculation-preview";
 import { useToast } from "@/context/ToastContext";
+import { buildStandardYillikPreviewSections } from "./buildStandardYillikPreviewSections";
 import { newLocalId } from "./caseStorage";
-import type { CaseListEntry, StandardComputeResult, StandardYillikFormBase, UsedLeaveRow, YillikResultSnapshot } from "./types";
 import { createEmptyUsedRow } from "./core";
-import { formatDateTR, isDateOrderInvalid } from "./dates";
+import { isDateOrderInvalid } from "./dates";
 import { formatMoney } from "./money";
+import type { CaseListEntry, StandardComputeResult, StandardYillikFormBase, UsedLeaveRow, YillikResultSnapshot } from "./types";
 
 export type { StandardYillikForm, StandardYillikFormBase, StandardComputeResult } from "./types";
 
@@ -172,34 +173,9 @@ export function useStandardYillikPage<Form extends StandardYillikFormBase>(opts:
   );
 
   const previewSections: PreviewSection[] = useMemo(
-    () => {
-      const pay = Number(String((form as { employerPayment?: string }).employerPayment ?? "").replace(/\./g, "").replace(",", ".")) || 0;
-      const mahsupNet = Math.max(0, Math.round((result.netIzin - pay) * 100) / 100);
-      return [
-      {
-        id: "ozet",
-        title: opts.previewTitle,
-        headers: ["Alan", "Değer"],
-        rows: [
-          ["İşe giriş", formatDateTR(form.startDate)],
-          ["İşten çıkış", formatDateTR(form.endDate)],
-          ["Çalışma süresi", result.workPeriodLabel],
-          ["Toplam izin hakkı", `${result.totalEntitlement} gün`],
-          ["Kullanılan", `${result.usedTotal} gün`],
-          ["Kalan", `${result.remainingDays} gün`],
-          ["Brüt izin alacağı", `${formatMoney(result.brutIzin)} ₺`],
-          ["Net izin alacağı", `${formatMoney(result.netIzin)} ₺`],
-          ...(pay > 0
-            ? [
-                ["İşveren ödemesi (mahsup)", `${formatMoney(pay)} ₺`] as [string, string],
-                ["Mahsup sonrası net", `${formatMoney(mahsupNet)} ₺`] as [string, string],
-              ]
-            : []),
-        ],
-      },
-    ];
-    },
-    [form, opts.previewTitle, result],
+    () =>
+      buildStandardYillikPreviewSections({ form, result }),
+    [form, result],
   );
 
   const usedRowHandlers = {

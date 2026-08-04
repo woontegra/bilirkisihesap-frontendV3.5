@@ -11,8 +11,8 @@ import {
   unwrapCalcData,
   type CalcSaveResult,
 } from "../shared/calcBackendCrud";
-import type { IsAramaForm, SavedCase } from "./model";
-import { createEmptyForm } from "./model";
+import type { IsAramaForm, SavedCase, TarihAralikDusum } from "./model";
+import { createEmptyForm, newLocalId } from "./model";
 
 export const IS_ARAMA_IZNI_TYPE = "is_arama_izni" as const;
 
@@ -48,6 +48,26 @@ function str(value: unknown): string {
   return String(value);
 }
 
+function mapTarihAralikDusumler(raw: unknown): TarihAralikDusum[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item, index) => {
+      const row = asRecord(item);
+      if (!row) return null;
+      const baslangic = str(row.baslangic ?? row.start ?? row.startDate);
+      const bitis = str(row.bitis ?? row.end ?? row.endDate);
+      const gunlukSaat = str(row.gunlukSaat ?? row.dailyHours ?? row.saat);
+      if (!baslangic && !bitis && !gunlukSaat) return null;
+      return {
+        id: str(row.id) || newLocalId(`dusum-${index}`),
+        baslangic,
+        bitis,
+        gunlukSaat,
+      };
+    })
+    .filter((row): row is TarihAralikDusum => row !== null);
+}
+
 export function resolveSavedCaseDisplayName(record: SavedCaseRecord): string {
   const name = record.name ?? record.kayit_adi;
   return name && String(name).trim() ? String(name).trim() : `Kayıt #${record.id}`;
@@ -70,7 +90,7 @@ export function mapIsAramaFormFromBackend(data: unknown): IsAramaForm | null {
       extras: empty.extras,
       haftalikCalismaGunu: str(form.haftalikCalismaGunu) || empty.haftalikCalismaGunu,
       kullandirilanIzinGun: str(form.kullandirilanIzinGun) || empty.kullandirilanIzinGun,
-      tarihAralikDusumler: empty.tarihAralikDusumler,
+      tarihAralikDusumler: mapTarihAralikDusumler(form.tarihAralikDusumler),
     };
   } catch {
     return null;

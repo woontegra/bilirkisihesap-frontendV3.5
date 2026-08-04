@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { UbgtDayEntry } from "./lib/holidays";
-import { formatMoney } from "./engine";
+import { formatDateTR, formatMoney } from "./engine";
 import {
   createEmptyManualDay,
   dayRowKey,
@@ -282,7 +282,7 @@ export default function UbgtDayYearAccordion({
                                         aria-label="UBGT gün tarihi"
                                       />
                                     ) : (
-                                      e.date
+                                      formatDateTR(e.date)
                                     )}
                                   </td>
                                   <td>
@@ -364,18 +364,10 @@ export default function UbgtDayYearAccordion({
                 </div>
               );
             })}
-          </div>
-
-          <div className={styles.tableWrap} style={{ paddingTop: 0 }}>
-            <table className={`${styles.resultTable} ${styles.framedTable}`}>
-              <tfoot>
-                <tr className={styles.totalsRow}>
-                  <td colSpan={4}>Toplam UBGT Günü</td>
-                  <td className={`${styles.moneyCell} ${styles.moneyRight}`}>{totals.daySum}</td>
-                  <td colSpan={3} />
-                </tr>
-              </tfoot>
-            </table>
+            <div className={styles.accordionTotalRow}>
+              <span>Toplam UBGT Günü</span>
+              <span className={styles.accordionMeta}>{totals.daySum} gün</span>
+            </div>
           </div>
         </>
       )}

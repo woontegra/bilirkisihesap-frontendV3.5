@@ -1,2 +1,8 @@
-export { computeYillikStandartResult as computeYillikMevsimResult } from "../standart/engine";
-export { clampYear, formatDateTR, isDateOrderInvalid, formatMoney, parseNum } from "../standart/engine";
+import { withSyncedSpan, type MultiPeriodYillikForm } from "../lib/multiPeriodModel";
+import { computeYillikStandartResult } from "../standart/engine";
+
+export function computeYillikMevsimResult(form: MultiPeriodYillikForm) {
+  return computeYillikStandartResult(withSyncedSpan(form));
+}
+
+export { clampYear, formatDateTR, isDateOrderInvalid } from "../standart/engine";

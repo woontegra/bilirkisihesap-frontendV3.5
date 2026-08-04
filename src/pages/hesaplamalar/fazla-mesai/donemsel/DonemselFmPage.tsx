@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput } from "@/components/form";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
@@ -355,7 +357,7 @@ export default function DonemselFmPage() {
 
   const isDirty = useMemo(() => snapshotKey(form) !== baseline, [form, baseline]);
   const dateError = useMemo(() => validateDateRange(form.dateIn, form.dateOut), [form.dateIn, form.dateOut]);
-  const result = useMemo(() => computeDonemselResultV3(form), [form]);
+  const result = useDeferredFormMemo(form, computeDonemselResultV3);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -825,21 +827,11 @@ export default function DonemselFmPage() {
           <div className={styles.grid2}>
             <label className={styles.field}>
               <span>İşe Giriş Tarihi</span>
-              <input
-                type="date"
-                className={styles.input}
-                value={form.dateIn}
-                onChange={(e) => setField("dateIn", e.target.value)}
-              />
+              <DraftDateInput className={styles.input} value={form.dateIn} onCommit={(v) => setField("dateIn", v)} />
             </label>
             <label className={styles.field}>
               <span>İşten Çıkış Tarihi</span>
-              <input
-                type="date"
-                className={styles.input}
-                value={form.dateOut}
-                onChange={(e) => setField("dateOut", e.target.value)}
-              />
+              <DraftDateInput className={styles.input} value={form.dateOut} onCommit={(v) => setField("dateOut", v)} />
             </label>
           </div>
           {dateError ? <p className={styles.fieldError}>{dateError}</p> : null}
@@ -910,21 +902,11 @@ export default function DonemselFmPage() {
                 <div className={styles.grid2}>
                   <label className={styles.field}>
                     <span>İşe Giriş</span>
-                    <input
-                      type="date"
-                      className={styles.input}
-                      value={w.dateIn}
-                      onChange={(e) => updateWitness(w.id, { dateIn: e.target.value })}
-                    />
+                    <DraftDateInput className={styles.input} value={w.dateIn} onCommit={(v) => updateWitness(w.id, { dateIn: v })} />
                   </label>
                   <label className={styles.field}>
                     <span>İşten Çıkış</span>
-                    <input
-                      type="date"
-                      className={styles.input}
-                      value={w.dateOut}
-                      onChange={(e) => updateWitness(w.id, { dateOut: e.target.value })}
-                    />
+                    <DraftDateInput className={styles.input} value={w.dateOut} onCommit={(v) => updateWitness(w.id, { dateOut: v })} />
                   </label>
                 </div>
                 <SeasonPatternEditor

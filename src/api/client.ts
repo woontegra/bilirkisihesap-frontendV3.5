@@ -1,11 +1,15 @@
 import {
   clearSession,
+  decodeAccessTokenClaims,
   getAccessToken,
+  getSessionTenantId,
   isTokenExpired,
   refreshAccessToken,
 } from "@/auth/session";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+
+export { API_BASE_URL };
 
 export class ApiError extends Error {
   status: number;
@@ -26,12 +30,9 @@ export type RequestOptions = {
   adminRole?: boolean;
 };
 
-function getTenantId(): string {
-  try {
-    return localStorage.getItem("tenant_id") || "1";
-  } catch {
-    return "1";
-  }
+function getTenantId(): string | null {
+  const tenantId = getSessionTenantId();
+  return tenantId != null ? String(tenantId) : null;
 }
 
 function getDeviceId(): string {
@@ -48,6 +49,8 @@ function getDeviceId(): string {
 }
 
 function getUserId(): string | null {
+  const claims = decodeAccessTokenClaims();
+  if (claims?.userId) return String(claims.userId);
   try {
     return localStorage.getItem("user_id");
   } catch {
@@ -90,7 +93,10 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
   }
 
   if (!options.skipTenantId && !path.startsWith("/api/auth/") && !path.startsWith("/api/health")) {
-    headers["X-Tenant-Id"] = getTenantId();
+    const tenantId = getTenantId();
+    if (tenantId) {
+      headers["X-Tenant-Id"] = tenantId;
+    }
   }
 
   const deviceId = getDeviceId();
@@ -131,6 +137,24 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
   }
 
   const data = await parseBody(response);
+
+  if (!response.ok && response.status === 403 && !options.skipAuth) {
+    const licenseCode =
+      typeof data === "object" && data
+        ? String((data as { error?: unknown; code?: unknown }).error ?? (data as { code?: unknown }).code ?? "")
+        : "";
+    if (licenseCode === "DEMO_EXPIRED") {
+      window.dispatchEvent(new CustomEvent("demo-expired"));
+    } else if (licenseCode === "DEVICE_LIMIT_EXCEEDED") {
+      window.dispatchEvent(new CustomEvent("device-limit-exceeded"));
+    } else if (licenseCode === "activation_required") {
+      if (!window.location.pathname.startsWith("/professional-license-activation")) {
+        window.location.href = "/professional-license-activation";
+      }
+    } else if (licenseCode === "expired" || licenseCode === "INACTIVE") {
+      window.location.href = "/professional-license-activation?expired=true";
+    }
+  }
 
   if (!response.ok) {
     const message =

@@ -68,6 +68,7 @@ export function computeYillikStandartResult(form: YillikStandartForm): StandardC
   return {
     workPeriodLabel: wp.label,
     entitlementLines: buildEntitlementLines(core.breakdown),
+    breakdown: core.breakdown,
     totalEntitlement: core.totalEntitlement,
     usedTotal: core.usedTotal,
     remainingDays: core.remainingDays,

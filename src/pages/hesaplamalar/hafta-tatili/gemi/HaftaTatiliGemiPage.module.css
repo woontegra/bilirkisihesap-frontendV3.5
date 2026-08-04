@@ -589,7 +589,39 @@
 .sectionTitle { margin: 0 0 0.55rem; font-size: var(--fs-sm); font-weight: 650; color: var(--text-strong); }
 .sectionHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.55rem; }
 .sectionHead .sectionTitle { margin: 0; }
-.rangeRow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: 0.45rem; }
+.rangeRow {
+  display: grid;
+  grid-template-columns: minmax(8.5rem, 1fr) auto minmax(8.5rem, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+
+.rangeRow > span {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.rangeRow .input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.exclusionRow {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.9fr) minmax(8rem, 1fr) minmax(8rem, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+
+.exclusionRow .input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
 .grid3 { display: grid; gap: 0.45rem; grid-template-columns: 1fr; }
 @media (min-width: 640px) { .grid3 { grid-template-columns: repeat(3, 1fr); } }
 .checkRow { display: flex; align-items: center; gap: 0.45rem; font-size: var(--fs-sm); }

@@ -15,9 +15,11 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftTextInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
 import {
   buildPrimAlacagiSaveResult,
   listPrimAlacagiCasesFromBackend,
@@ -142,6 +144,7 @@ export default function PrimAlacagiPage() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -149,6 +152,10 @@ export default function PrimAlacagiPage() {
   const [confirmNew, setConfirmNew] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [caseSaving, setCaseSaving] = useState(false);
+
+  useEffect(() => {
+    document.title = `${PAGE_TITLE} | Bilirkişi Hesap`;
+  }, []);
 
   const setCaseIdParam = useCallback(
     (id: string) => {
@@ -371,12 +378,16 @@ export default function PrimAlacagiPage() {
         id: "detay",
         title: "Prim Alacağı Detayı",
         headers: ["#", "Prim Matrahı (Brüt Ücret)", "Prim Oranı (%)", "Prim Tutarı"],
-        rows: result.rows.map((row, idx) => [
-          String(idx + 1),
-          row.principal > 0 ? `${formatMoney(row.principal)} ₺` : "—",
-          row.percent > 0 ? `%${formatMoney(row.percent)}` : "—",
-          `${formatMoney(row.amount)} ₺`,
-        ]),
+        rows: [
+          ...result.rows.map((row, idx) => [
+            String(idx + 1),
+            row.principal > 0 ? `${formatMoney(row.principal)} ₺` : "—",
+            row.percent > 0 ? `%${formatMoney(row.percent)}` : "—",
+            `${formatMoney(row.amount)} ₺`,
+          ]),
+          ["", "", "TOPLAM:", `${formatMoney(result.total)} ₺`],
+        ],
+        lastRowTone: "blue",
       },
       {
         id: "brutten-nete",
@@ -384,9 +395,10 @@ export default function PrimAlacagiPage() {
         headers: ["Kalem", "Tutar"],
         rows: [
           ["Brüt Prim Alacağı", `${formatMoney(result.brutForNetConversion)} ₺`],
-          ["Damga Vergisi (Binde 7,59)", `-${formatMoney(result.damgaVergisi)} ₺`],
+          ["Damga Vergisi (Binde 7,59)", `−${formatMoney(result.damgaVergisi)} ₺`],
           ["Net Prim Alacağı", `${formatMoney(result.netTotal)} ₺`],
         ],
+        lastRowTone: "green",
       },
     ];
     return sections;
@@ -395,19 +407,41 @@ export default function PrimAlacagiPage() {
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div className={styles.heroIcon} aria-hidden>
-          <Coins size={20} />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <h1 className={styles.title}>{PAGE_TITLE}</h1>
-          <p className={styles.desc}>
-            Sözleşme/toplu iş sözleşmesi kapsamında hak edilen prim kalemleri ve brütten nete
-            çevrimi (damga vergisi binde 7,59). Hesaplama tamamen lokal çalışır.
-          </p>
-          <div className={styles.privacyBadge}>
-            <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <Coins size={20} />
           </div>
-          {activeName ? <div className={styles.recordBadge}>Kayıt: {activeName}</div> : null}
+          <div style={{ minWidth: 0 }}>
+            <h1 className={styles.title}>{PAGE_TITLE}</h1>
+            <p className={styles.desc}>
+              Sözleşme/toplu iş sözleşmesi kapsamında hak edilen prim kalemleri ve brütten nete
+              çevrimi (damga vergisi binde 7,59). Hesaplama tamamen lokal çalışır.
+            </p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <span>{activeName}</span>
+            </div>
+          ) : null}
+          <div className={styles.quickTotal}>
+            <span>Net prim alacağı</span>
+            <span className={styles.quickTotalValue}>
+              <AnimatedMoney value={result.netTotal} /> ₺
+            </span>
+          </div>
+          <div className={styles.heroActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
+              <FolderOpen size={14} /> Kayıtlar
+            </Button>
+            <Button type="button" variant="soft" size="sm" onClick={handleNew}>
+              <FilePlus2 size={14} /> Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -445,26 +479,26 @@ export default function PrimAlacagiPage() {
                       <label className={styles.label} htmlFor={`pr-principal-${r.id}`}>
                         Prim Matrahı (Brüt Ücret)
                       </label>
-                      <input
+                      <DraftTextInput
                         id={`pr-principal-${r.id}`}
                         className={styles.input}
                         inputMode="decimal"
                         placeholder="Örn: 50.000"
                         value={r.principal}
-                        onChange={(e) => patchRow(r.id, "principal", e.target.value)}
+                        onCommit={(value) => patchRow(r.id, "principal", value)}
                       />
                     </div>
                     <div className={styles.field} style={{ maxWidth: "7rem" }}>
                       <label className={styles.label} htmlFor={`pr-percent-${r.id}`}>
                         Prim Oranı (%)
                       </label>
-                      <input
+                      <DraftTextInput
                         id={`pr-percent-${r.id}`}
                         className={styles.input}
                         inputMode="decimal"
                         placeholder="10"
                         value={r.percent}
-                        onChange={(e) => patchRow(r.id, "percent", e.target.value)}
+                        onCommit={(value) => patchRow(r.id, "percent", value)}
                       />
                     </div>
                     <div className={styles.field} style={{ minWidth: "8rem" }}>
@@ -527,13 +561,13 @@ export default function PrimAlacagiPage() {
               <label className={styles.label} htmlFor="pr-brut-net-ops">
                 Brüt tutar (opsiyonel)
               </label>
-              <input
+              <DraftTextInput
                 id="pr-brut-net-ops"
                 className={styles.input}
                 inputMode="decimal"
                 placeholder={`Varsayılan: ${formatMoney(result.total)}`}
                 value={form.brutInputForNet}
-                onChange={(e) => setBrutInputForNet(e.target.value)}
+                onCommit={setBrutInputForNet}
               />
               <p className={styles.helper}>Boş bırakırsanız toplam prim alacağı kullanılır.</p>
             </div>
@@ -574,9 +608,6 @@ export default function PrimAlacagiPage() {
                 : "Yeni hesaplama"}
           </div>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => setPreviewOpen(true)}>
               <Eye size={14} /> Önizleme
             </Button>

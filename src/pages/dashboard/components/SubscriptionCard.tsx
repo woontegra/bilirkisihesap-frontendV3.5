@@ -1,15 +1,24 @@
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import type { SubscriptionProgress } from "@/utils/subscription";
+import {
+  subscriptionStatusLabel,
+  type SubscriptionUiStatus,
+} from "@/utils/subscriptionStatus";
 import { formatDate } from "@/utils/format";
 import styles from "./SubscriptionCard.module.css";
 
 type Props = {
   planLabel: string;
   sub: SubscriptionProgress;
+  uiStatus: SubscriptionUiStatus;
 };
 
-export function SubscriptionCard({ planLabel, sub }: Props) {
-  const active = sub.hasSubscription && sub.daysRemaining > 0;
+export function SubscriptionCard({ planLabel, sub, uiStatus }: Props) {
+  const active = uiStatus === "active";
+  const statusText =
+    uiStatus === "active" && sub.hasSubscription
+      ? `${sub.daysRemaining} gün kaldı`
+      : subscriptionStatusLabel(uiStatus);
   const progressClass =
     sub.daysRemaining <= 7
       ? styles.barDanger
@@ -30,7 +39,7 @@ export function SubscriptionCard({ planLabel, sub }: Props) {
           <span className={styles.plan}>{planLabel}</span>
           <span className={active ? styles.statusOk : styles.statusBad}>
             {active ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-            {active ? `${sub.daysRemaining} gün kaldı` : "Süresi doldu"}
+            {statusText}
           </span>
         </div>
       </header>
@@ -81,11 +90,13 @@ export function SubscriptionCard({ planLabel, sub }: Props) {
           <div className={progressClass} style={{ width: `${sub.remainingPct}%` }} />
         </div>
         <p className={styles.progressHint}>
-          {!sub.hasSubscription
-            ? "Abonelik bilgisi bulunamadı"
+          {uiStatus === "unknown"
+            ? "Abonelik bilgisi alınamadı"
             : active
               ? `${sub.daysUsed} gün tamamlandı · ${sub.daysRemaining} gün kaldı`
-              : "Aboneliğinizin süresi doldu"}
+              : uiStatus === "expired"
+                ? "Aboneliğinizin süresi doldu"
+                : "Abonelik bilgisi alınamadı"}
         </p>
       </div>
     </section>

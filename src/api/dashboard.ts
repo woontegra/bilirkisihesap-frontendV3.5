@@ -1,52 +1,43 @@
 import { ApiError } from "@/api/client";
 import type { DashboardData, FinancialSummary, SavedCase, UserInfo } from "./types";
 import { apiClient } from "./client";
-
-function readCurrentUser(): { email?: string; role?: string } | null {
-  try {
-    return JSON.parse(localStorage.getItem("current_user") || "null") as {
-      email?: string;
-      role?: string;
-    } | null;
-  } catch {
-    return null;
-  }
-}
+import { readCurrentUser } from "@/auth/session";
+import { fetchAuthMe } from "./profile";
 
 export function readIsAdmin(): boolean {
   const currentUser = readCurrentUser();
-  const tenantId = Number(localStorage.getItem("tenant_id") || "1");
-  return currentUser?.role === "admin" || tenantId === 1;
+  return currentUser?.role === "admin";
 }
 
 /** Verified FrontendV3 dashboard endpoints — unchanged contracts. */
 export async function fetchDashboardFromApi(isAdmin: boolean): Promise<DashboardData> {
   let savedCases: SavedCase[] = [];
   let connectionError: string | null = null;
+  let userInfo: UserInfo | null = null;
+
+  try {
+    const me = await fetchAuthMe();
+    if (typeof me.id === "number") {
+      userInfo = me as UserInfo;
+    }
+  } catch (err) {
+    userInfo = null;
+    connectionError =
+      err instanceof ApiError && err.status === 401
+        ? "Oturum bulunamadı veya geçersiz. Lütfen tekrar giriş yapın."
+        : "Kullanıcı bilgileri alınamadı.";
+  }
 
   try {
     const data = await apiClient<SavedCase[]>("/api/saved-cases");
     savedCases = Array.isArray(data) ? data : [];
   } catch (err) {
     savedCases = [];
-    connectionError =
-      err instanceof ApiError && err.status === 401
-        ? "Oturum bulunamadı veya geçersiz. Lütfen tekrar giriş yapın."
-        : "Kayıtlı hesaplamalar yüklenemedi. API bağlantısını kontrol edin.";
-  }
-
-  const currentUser = readCurrentUser();
-  const emailRaw = localStorage.getItem("email") || currentUser?.email;
-
-  let userInfo: UserInfo | null = null;
-  if (emailRaw) {
-    try {
-      userInfo = await apiClient<UserInfo>(`/api/auth/me?email=${encodeURIComponent(emailRaw)}`);
-    } catch {
-      userInfo = null;
-      if (!connectionError) {
-        connectionError = "Kullanıcı bilgileri alınamadı.";
-      }
+    if (!connectionError) {
+      connectionError =
+        err instanceof ApiError && err.status === 401
+          ? "Oturum bulunamadı veya geçersiz. Lütfen tekrar giriş yapın."
+          : "Kayıtlı hesaplamalar yüklenemedi. API bağlantısını kontrol edin.";
     }
   }
 

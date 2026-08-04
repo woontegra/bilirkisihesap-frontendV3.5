@@ -17,9 +17,12 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTextInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import {
   applyExtraSetItems,
   collectExtraSetItems,
@@ -188,6 +191,7 @@ export default function KotuNiyetTazminatiPage() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -201,6 +205,10 @@ export default function KotuNiyetTazminatiPage() {
   const [savedExtraSets, setSavedExtraSets] = useState<LocalExtraSet[]>([]);
   const [caseSaving, setCaseSaving] = useState(false);
 
+  useEffect(() => {
+    document.title = `${PAGE_TITLE} | Bilirkişi Hesap`;
+  }, []);
+
   const setCaseIdParam = useCallback(
     (id: string) => {
       const next = new URLSearchParams(searchParams);
@@ -210,7 +218,7 @@ export default function KotuNiyetTazminatiPage() {
     [searchParams, setSearchParams],
   );
 
-  const result = useMemo(() => computeKotuNiyet(form), [form]);
+  const result = useDeferredFormMemo(form, computeKotuNiyet);
   const dirty = snapshotKey(form) !== baseline;
 
   const refreshExtraSets = useCallback(() => {
@@ -532,6 +540,12 @@ export default function KotuNiyetTazminatiPage() {
           ["Çalışma Süresi", result.workPeriod.label],
           ["Aylık Toplam Ücret (giydirilmiş)", `${formatMoney(result.toplamBrut)} ₺`],
           ["İhbar Süresi (Hafta)", String(result.weeks)],
+          [
+            "Hesaplama",
+            result.toplamBrut > 0
+              ? `(${formatMoney(result.toplamBrut)} ₺ / 30 × ${result.weeks} × 7 × ${KOTU_NIYET_CARPAN})`
+              : "—",
+          ],
         ],
       },
       {
@@ -557,7 +571,7 @@ export default function KotuNiyetTazminatiPage() {
         headers: ["Kalem", "Tutar"],
         rows: [
           ["Brüt Kötü Niyet Tazminatı", `${formatMoney(result.brutAmount)} ₺`],
-          ["Damga Vergisi (Binde 7,59)", `-${formatMoney(result.damgaVergisi)} ₺`],
+          ["Damga Vergisi (Binde 7,59)", `−${formatMoney(result.damgaVergisi)} ₺`],
           ["Net Kötü Niyet Tazminatı", `${formatMoney(result.netAmount)} ₺`],
         ],
         lastRowTone: "green",
@@ -568,19 +582,41 @@ export default function KotuNiyetTazminatiPage() {
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div className={styles.heroIcon} aria-hidden>
-          <Scale size={20} />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <h1 className={styles.title}>{PAGE_TITLE}</h1>
-          <p className={styles.desc}>
-            İhbar süresinin 3 katı tutarında kötü niyet tazminatı; giydirilmiş brüt ücret ve kıdem süresine göre
-            hesaplanır. Yalnızca damga vergisi kesilir.
-          </p>
-          <div className={styles.privacyBadge}>
-            <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <Scale size={20} />
           </div>
-          {activeName ? <div className={styles.recordBadge}>Kayıt: {activeName}</div> : null}
+          <div style={{ minWidth: 0 }}>
+            <h1 className={styles.title}>{PAGE_TITLE}</h1>
+            <p className={styles.desc}>
+              İhbar süresinin 3 katı tutarında kötü niyet tazminatı; giydirilmiş brüt ücret ve kıdem süresine göre
+              hesaplanır. Yalnızca damga vergisi kesilir.
+            </p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <span>{activeName}</span>
+            </div>
+          ) : null}
+          <div className={styles.quickTotal}>
+            <span>Net kötü niyet tazminatı</span>
+            <span className={styles.quickTotalValue}>
+              <AnimatedMoney value={result.netAmount} /> ₺
+            </span>
+          </div>
+          <div className={styles.heroActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
+              <FolderOpen size={14} /> Kayıtlar
+            </Button>
+            <Button type="button" variant="soft" size="sm" onClick={handleNew}>
+              <FilePlus2 size={14} /> Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -617,13 +653,16 @@ export default function KotuNiyetTazminatiPage() {
                 <label className={styles.label} htmlFor="kn-ise-giris">
                   İşe giriş
                 </label>
-                <input
+                <DraftDateInput
                   id="kn-ise-giris"
-                  type="date"
                   max="9999-12-31"
                   className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                   value={form.startDate}
-                  onChange={(e) => patch("startDate", clampYear(e.target.value))}
+                  onCommit={(value) => {
+                    const next = clampYear(value);
+                    patch("startDate", next);
+                    if (next && form.endDate) validateDates(next, form.endDate);
+                  }}
                   onBlur={() => {
                     if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
                   }}
@@ -633,13 +672,16 @@ export default function KotuNiyetTazminatiPage() {
                 <label className={styles.label} htmlFor="kn-isten-cikis">
                   İşten çıkış
                 </label>
-                <input
+                <DraftDateInput
                   id="kn-isten-cikis"
-                  type="date"
                   max="9999-12-31"
                   className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                   value={form.endDate}
-                  onChange={(e) => patch("endDate", clampYear(e.target.value))}
+                  onCommit={(value) => {
+                    const next = clampYear(value);
+                    patch("endDate", next);
+                    if (form.startDate && next) validateDates(form.startDate, next);
+                  }}
                   onBlur={() => {
                     if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
                   }}
@@ -680,13 +722,13 @@ export default function KotuNiyetTazminatiPage() {
                 <label className={styles.label} htmlFor="kn-brut">
                   Çıplak brüt ücret
                 </label>
-                <input
+                <DraftTextInput
                   id="kn-brut"
                   className={styles.input}
                   inputMode="decimal"
                   placeholder="Örn: 25.000"
                   value={form.brut}
-                  onChange={(e) => patch("brut", e.target.value)}
+                  onCommit={(value) => patch("brut", value)}
                 />
               </div>
             </div>
@@ -696,13 +738,13 @@ export default function KotuNiyetTazminatiPage() {
                   <label className={styles.label} htmlFor={`kn-${key}`}>
                     {WAGE_LABELS[key]}
                   </label>
-                  <input
+                  <DraftTextInput
                     id={`kn-${key}`}
                     className={styles.input}
                     inputMode="decimal"
                     placeholder="0"
                     value={form[key]}
-                    onChange={(e) => patch(key, e.target.value)}
+                    onCommit={(value) => patch(key, value)}
                   />
                   <Button type="button" variant="soft" size="sm" onClick={() => openEklenti({ kind: "field", field: key })}>
                     <Calculator size={13} /> Eklenti Hesapla
@@ -714,18 +756,18 @@ export default function KotuNiyetTazminatiPage() {
               <div className={styles.extrasGrid} style={{ marginTop: "0.6rem" }}>
                 {form.extras.map((it) => (
                   <div key={it.id} className={styles.extraRow}>
-                    <input
+                    <DraftTextInput
                       className={styles.input}
                       placeholder="Kalem adı"
                       value={it.label}
-                      onChange={(e) => updateExtra(it.id, { label: e.target.value })}
+                      onCommit={(value) => updateExtra(it.id, { label: value })}
                     />
-                    <input
+                    <DraftTextInput
                       className={styles.input}
                       inputMode="decimal"
                       placeholder="Tutar"
                       value={it.value}
-                      onChange={(e) => updateExtra(it.id, { value: e.target.value })}
+                      onCommit={(value) => updateExtra(it.id, { value })}
                     />
                     <Button type="button" variant="soft" size="sm" onClick={() => openEklenti({ kind: "extra", id: it.id })}>
                       <Calculator size={13} /> Eklenti Hesapla
@@ -821,9 +863,6 @@ export default function KotuNiyetTazminatiPage() {
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
           </div>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => setPreviewOpen(true)}>
               <Eye size={14} /> Önizleme
             </Button>

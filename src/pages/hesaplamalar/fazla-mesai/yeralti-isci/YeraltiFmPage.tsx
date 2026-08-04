@@ -23,7 +23,9 @@ import {
 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTimeInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -42,15 +44,19 @@ import { MetinHesaplamasi } from "./MetinHesaplamasi";
 import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
+import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
 import {
-  computeYeraltiResult,
   createManualRow,
   formatMoney,
   isValidRange,
   parseKatsayi,
   sanitizeMoneyTyping,
 } from "./engine";
+import {
+  computeYeraltiResultV3,
+  logYeraltiFmV3EngineCheck,
+} from "./v3-engine/adapter";
 import {
   createEmptyForm,
   newLocalId,
@@ -217,7 +223,16 @@ export default function YeraltiFmPage() {
     return null;
   }, [form.davaciDateIn, form.davaciDateOut]);
 
-  const result = useMemo(() => computeYeraltiResult(form), [form]);
+  const result = useDeferredFormMemo(form, computeYeraltiResultV3);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __yeraltiFmV3Check?: () => void }).__yeraltiFmV3Check = () =>
+      logYeraltiFmV3EngineCheck(form);
+    return () => {
+      delete (window as unknown as { __yeraltiFmV3Check?: () => void }).__yeraltiFmV3Check;
+    };
+  }, [form]);
 
   const katSayiNum = parseKatsayi(form.katsayi);
   const hasCustomKatsayi = katSayiNum > 0 && katSayiNum !== 1;
@@ -568,7 +583,7 @@ export default function YeraltiFmPage() {
       lastRowTone: "green",
     });
 
-    return sections;
+    return insertExclusionsPreviewSection(sections, form.exclusions);
   }, [form, result]);
 
   return (
@@ -643,21 +658,19 @@ export default function YeraltiFmPage() {
           <div className={styles.basicGrid}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>İşe Giriş</span>
-              <input
-                type="date"
+              <DraftDateInput
                 className={styles.dateInput}
                 value={form.davaciDateIn}
-                onChange={(e) => setField("davaciDateIn", e.target.value)}
+                onCommit={(v) => setField("davaciDateIn", v)}
               />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>İşten Çıkış</span>
               <div className={`${styles.dateWrap} ${dateError ? styles.inputWrapError : ""}`}>
-                <input
-                  type="date"
+                <DraftDateInput
                   className={styles.dateInput}
                   value={form.davaciDateOut}
-                  onChange={(e) => setField("davaciDateOut", e.target.value)}
+                  onCommit={(v) => setField("davaciDateOut", v)}
                   aria-invalid={dateError ? true : undefined}
                 />
               </div>
@@ -681,20 +694,18 @@ export default function YeraltiFmPage() {
 
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Giriş Saati</span>
-              <input
-                type="time"
+              <DraftTimeInput
                 className={styles.dateInput}
                 value={form.davaciIn}
-                onChange={(e) => setField("davaciIn", e.target.value)}
+                onCommit={(v) => setField("davaciIn", v)}
               />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Çıkış Saati</span>
-              <input
-                type="time"
+              <DraftTimeInput
                 className={styles.dateInput}
                 value={form.davaciOut}
-                onChange={(e) => setField("davaciOut", e.target.value)}
+                onCommit={(v) => setField("davaciOut", v)}
               />
             </label>
 

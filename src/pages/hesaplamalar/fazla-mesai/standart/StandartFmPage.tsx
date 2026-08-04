@@ -15,7 +15,9 @@ import {
 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTimeInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -41,6 +43,7 @@ import { NotlarAccordion } from "./NotlarAccordion";
 import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
+import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import {
   computeBaselineWeeklyFmHours,
   formatMoney,
@@ -202,7 +205,7 @@ export default function StandartFmPage() {
 
   const dateError = useMemo(() => validateDateRange(form.iseGiris, form.istenCikis), [form.iseGiris, form.istenCikis]);
 
-  const result = useMemo(() => computeStandartFmResultV3(form), [form]);
+  const result = useDeferredFormMemo(form, computeStandartFmResultV3);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -596,7 +599,7 @@ export default function StandartFmPage() {
       lastRowTone: "green",
     });
 
-    return sections;
+    return insertExclusionsPreviewSection(sections, form.exclusions);
   }, [form, result]);
 
   return (
@@ -666,21 +669,19 @@ export default function StandartFmPage() {
           <div className={styles.basicGrid}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>İşe Giriş</span>
-              <input
-                type="date"
+              <DraftDateInput
                 className={styles.dateInput}
                 value={form.iseGiris}
-                onChange={(e) => setField("iseGiris", e.target.value)}
+                onCommit={(v) => setField("iseGiris", v)}
               />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>İşten Çıkış</span>
               <div className={`${styles.dateWrap} ${dateError ? styles.inputWrapError : ""}`}>
-                <input
-                  type="date"
+                <DraftDateInput
                   className={styles.dateInput}
                   value={form.istenCikis}
-                  onChange={(e) => setField("istenCikis", e.target.value)}
+                  onCommit={(v) => setField("istenCikis", v)}
                   aria-invalid={dateError ? true : undefined}
                 />
               </div>
@@ -739,20 +740,18 @@ export default function StandartFmPage() {
           <div className={styles.basicGrid}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Giriş Saati</span>
-              <input
-                type="time"
+              <DraftTimeInput
                 className={styles.dateInput}
                 value={form.davaciIn}
-                onChange={(e) => setField("davaciIn", e.target.value)}
+                onCommit={(v) => setField("davaciIn", v)}
               />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Çıkış Saati</span>
-              <input
-                type="time"
+              <DraftTimeInput
                 className={styles.dateInput}
                 value={form.davaciOut}
-                onChange={(e) => setField("davaciOut", e.target.value)}
+                onCommit={(v) => setField("davaciOut", v)}
               />
             </label>
           </div>

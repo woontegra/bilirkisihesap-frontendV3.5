@@ -230,7 +230,7 @@ export function getCaseRouteInfo(type: string): CaseRouteInfo {
     return { path: "/ise-almama-tazminati", supported: true, label: "İşe Başlatmama Tazminatı" };
   }
   if (t.includes("ayrimcilik")) {
-    return { path: "/ayrimcilik-tazminati", supported: false, label: "Ayrımcılık Tazminatı" };
+    return { path: "/ayrimcilik-tazminati", supported: true, label: "Ayrımcılık Tazminatı" };
   }
   if (t.includes("haksiz_fesih")) {
     return { path: "/haksiz-fesih-tazminati", supported: true, label: "Haksız Fesih Tazminatı" };

@@ -48,12 +48,8 @@ export function clampYear(value: string): string {
   return parts.join("-");
 }
 
-/** Gelir vergisi yılı: form endDate veya mevcut yıl. */
-export function resolveTaxYear(endDateISO: string): number {
-  if (endDateISO && /^\d{4}-\d{2}-\d{2}$/.test(endDateISO)) {
-    const y = new Date(endDateISO).getFullYear();
-    if (Number.isFinite(y) && y >= 2010 && y <= 2030) return y;
-  }
+/** Gelir vergisi yılı: mevcut yıl (V3 formda tarih alanı yok). */
+export function resolveTaxYear(_endDateISO?: string): number {
   return new Date().getFullYear();
 }
 

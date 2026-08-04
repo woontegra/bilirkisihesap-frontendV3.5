@@ -237,6 +237,147 @@
   color: #64748b;
 }
 
+.renewalSection {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.sectionHeading {
+  margin: 0 0 0.75rem;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.fieldHint {
+  margin: 0.35rem 0 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.customerCode {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-strong);
+}
+
+.progressSection {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.progressHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.progressLabel {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.progressPct {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.progressPctOk {
+  color: #15803d;
+}
+
+.progressPctWarn {
+  color: #b45309;
+}
+
+.progressPctDanger {
+  color: #b91c1c;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  overflow: hidden;
+  position: relative;
+}
+
+.progressElapsed {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: #94a3b8;
+  transition: width var(--dur-fast) var(--ease-out);
+}
+
+.progressRemaining {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  transition: width var(--dur-fast) var(--ease-out);
+}
+
+.progressRemainingOk {
+  background: #22c55e;
+}
+
+.progressRemainingWarn {
+  background: #ef4444;
+}
+
+.progressMeta {
+  margin: 0.35rem 0 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.statusActive {
+  color: #15803d;
+}
+
+.statusExpired {
+  color: #b91c1c;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+}
+
+.skeletonBlock {
+  height: 3.25rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--surface-muted) 0%,
+    color-mix(in srgb, var(--border) 40%, var(--surface-muted)) 50%,
+    var(--surface-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
 .switchRow {
   display: flex;
   align-items: center;
@@ -370,6 +511,10 @@
 
   .priceGrid {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .skeletonGrid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

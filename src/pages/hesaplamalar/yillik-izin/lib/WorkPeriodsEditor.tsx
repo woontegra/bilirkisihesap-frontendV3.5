@@ -3,6 +3,7 @@
  */
 
 import { Plus, Trash2 } from "lucide-react";
+import { DraftDateInput, DraftTextInput } from "@/components/form";
 import { calculateDaysBetween } from "./gemiCore";
 import type { GemiWorkPeriod } from "./types";
 import { periodDaysDisplay, type SimpleWorkPeriod } from "./workPeriods";
@@ -84,50 +85,42 @@ export function WorkPeriodsEditor({
                 </button>
               ) : null}
             </div>
-            <div className={styles.fields2}>
+            <div className={showDayOverride ? styles.fields3Row : styles.fields2}>
               <div className={styles.field}>
                 <label className={styles.label}>İşe giriş</label>
-                <input
-                  type="date"
+                <DraftDateInput
                   max="9999-12-31"
                   className={styles.input}
                   value={period.iseGiris}
-                  onChange={(e) =>
-                    update(period.id, { iseGiris: clampYear(e.target.value) }, showDayOverride)
-                  }
+                  onCommit={(v) => update(period.id, { iseGiris: clampYear(v) }, showDayOverride)}
                   onBlur={onDateBlur}
                 />
               </div>
               <div className={styles.field}>
                 <label className={styles.label}>İşten çıkış</label>
-                <input
-                  type="date"
+                <DraftDateInput
                   max="9999-12-31"
                   className={styles.input}
                   value={period.istenCikis}
-                  onChange={(e) =>
-                    update(period.id, { istenCikis: clampYear(e.target.value) }, showDayOverride)
-                  }
+                  onCommit={(v) => update(period.id, { istenCikis: clampYear(v) }, showDayOverride)}
                   onBlur={onDateBlur}
                 />
-                {showDayOverride ? (
-                  <div className={styles.periodDaysRow}>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      className={styles.dayOverrideInput}
-                      value={daysShown}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        const value = v === "" ? 0 : Number(v) || 0;
-                        update(period.id, { gunSayisi: value });
-                      }}
-                      aria-label="Gün sayısı"
-                    />
-                    <span className={styles.helper}>≈ {daysShown} gün</span>
-                  </div>
-                ) : null}
               </div>
+              {showDayOverride ? (
+                <div className={`${styles.field} ${styles.dayCountField}`}>
+                  <label className={styles.label}>Gün sayısı</label>
+                  <DraftTextInput
+                    inputMode="numeric"
+                    className={`${styles.input} ${styles.dayCountInput}`}
+                    value={String(daysShown)}
+                    onCommit={(v) => {
+                      const value = v === "" ? 0 : Number(v) || 0;
+                      update(period.id, { gunSayisi: value });
+                    }}
+                    aria-label="Gün sayısı"
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         );

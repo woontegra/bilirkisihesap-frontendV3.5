@@ -19,7 +19,9 @@ import {
 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -60,6 +62,7 @@ import { MetinHesaplamasi } from "./MetinHesaplamasi";
 import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
+import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
 import styles from "./Vardiya48FmPage.module.css";
 
@@ -197,7 +200,17 @@ export default function Vardiya48FmPage() {
 
   const isDirty = useMemo(() => snapshotKey(form) !== baseline, [form, baseline]);
   const dateError = useMemo(() => validateDateRange(form.iseGiris, form.istenCikis), [form.iseGiris, form.istenCikis]);
-  const result = useMemo(() => computeVardiya48Result(form), [form]);
+  const result = useDeferredFormMemo(form, computeVardiya48Result);
+
+  const displayRows = useMemo(
+    () =>
+      result.rows.filter(
+        (r) =>
+          r.isManual ||
+          ((Number(r.fmHours) || 0) !== 0 && (Number(r.weeks) || 0) !== 0 && (Number(r.fm) || 0) !== 0),
+      ),
+    [result.rows],
+  );
 
   const katSayiNum = parseKatsayi(form.katSayi);
   const hasCustomKatsayi = katSayiNum > 0 && katSayiNum !== 1;
@@ -481,7 +494,8 @@ export default function Vardiya48FmPage() {
       const [y, m, d] = s.split("-");
       return d && m && y ? `${d}.${m}.${y}` : s;
     };
-    return [
+    return insertExclusionsPreviewSection(
+      [
       {
         id: "ust",
         title: "Genel Bilgiler",
@@ -493,7 +507,7 @@ export default function Vardiya48FmPage() {
         title: "Fazla Mesai Cetveli",
         headers: ["Dönem", "Hafta Tipi", "Toplam Hafta", "Ücret (BRÜT)", "Katsayı", "Fazla Mesai Saati", "225", "1,5", "Fazla Mesai"],
         rows: [
-          ...result.rows.map((r) => {
+          ...displayRows.map((r) => {
             const period = `${fmtTr(r.startISO)}–${fmtTr(r.endISO)}`;
             const withNote = r.yillikIzinAciklama ? `${period} ${r.yillikIzinAciklama}` : period;
             return [
@@ -537,8 +551,10 @@ export default function Vardiya48FmPage() {
           ["Son Net Alacak", formatMoney(result.sonNet)],
         ],
       },
-    ];
-  }, [form.iseGiris, form.istenCikis, result]);
+      ],
+      form.exclusions,
+    );
+  }, [form.iseGiris, form.istenCikis, displayRows, result]);
 
   return (
     <div className={`${styles.page} ${formSwap ? styles.formSwap : ""}`} data-page="fazla-mesai-vardiya-48">
@@ -610,20 +626,18 @@ export default function Vardiya48FmPage() {
           <div className={styles.basicGrid}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>İşe giriş</span>
-              <input
-                type="date"
+              <DraftDateInput
                 className={styles.input}
                 value={form.iseGiris}
-                onChange={(e) => setField("iseGiris", e.target.value)}
+                onCommit={(v) => setField("iseGiris", v)}
               />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>İşten çıkış</span>
-              <input
-                type="date"
+              <DraftDateInput
                 className={styles.input}
                 value={form.istenCikis}
-                onChange={(e) => setField("istenCikis", e.target.value)}
+                onCommit={(v) => setField("istenCikis", v)}
               />
             </label>
             <label className={styles.field}>

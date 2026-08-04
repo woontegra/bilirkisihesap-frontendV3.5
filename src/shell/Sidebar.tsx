@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useCalculationTools } from "@/context/CalculationToolsContext";
+import { usePanelBranding } from "@/context/PanelBrandingContext";
 import { NAV_GROUPS } from "./navConfig";
 import styles from "./Sidebar.module.css";
 
@@ -22,6 +24,24 @@ export function Sidebar({
   onCloseMobile,
 }: Props) {
   const narrow = isDesktop && collapsed;
+  const tools = useCalculationTools();
+  const { branding, panelLogoSrc, faviconSrc } = usePanelBranding();
+  const collapsedLogoSrc = faviconSrc || panelLogoSrc;
+  const useFaviconMark = narrow && Boolean(faviconSrc);
+  const panelLogoStyle = narrow
+    ? undefined
+    : {
+        maxHeight: branding.panelLogoMaxHeight,
+        maxWidth: branding.panelLogoMaxWidth,
+        height: branding.panelLogoMaxHeight,
+      };
+
+  const runToolAction = (action: NonNullable<(typeof NAV_GROUPS)[number]["items"][number]["action"]>) => {
+    if (action === "add-note") tools.addNote();
+    if (action === "add-tag") tools.openTagModal();
+    if (action === "open-interest") tools.openInterestCalculator();
+    if (!isDesktop) onCloseMobile();
+  };
 
   return (
     <>
@@ -45,9 +65,14 @@ export function Sidebar({
       >
         <div className={styles.brandRow}>
           <img
-            src="/logo.png"
+            src={narrow ? collapsedLogoSrc : panelLogoSrc}
             alt="Bilirkişi Hesaplama Araçları Hizmetleri"
-            className={styles.brandLogo}
+            className={clsx(
+              styles.brandLogo,
+              narrow && styles.brandLogoCollapsed,
+              narrow && !useFaviconMark && styles.brandLogoCrop,
+            )}
+            style={panelLogoStyle}
           />
           {!isDesktop ? (
             <button type="button" className={styles.iconBtn} onClick={onCloseMobile} aria-label="Kapat">
@@ -83,7 +108,9 @@ export function Sidebar({
                             className={clsx(styles.link, styles.disabled)}
                             title={narrow ? item.label : "Yakında"}
                           >
-                            <Icon size={18} strokeWidth={1.75} className={styles.linkIcon} />
+                            <span className={styles.linkIconWrap} aria-hidden>
+                              <Icon size={16} strokeWidth={1.65} className={styles.linkIcon} />
+                            </span>
                             {!narrow ? (
                               <>
                                 <span className={styles.linkLabel}>{item.label}</span>
@@ -94,10 +121,27 @@ export function Sidebar({
                         </li>
                       );
                     }
+                    if (item.action) {
+                      return (
+                        <li key={item.id}>
+                          <button
+                            type="button"
+                            className={styles.link}
+                            title={narrow ? item.label : undefined}
+                            onClick={() => runToolAction(item.action!)}
+                          >
+                            <span className={styles.linkIconWrap} aria-hidden>
+                              <Icon size={16} strokeWidth={1.65} className={styles.linkIcon} />
+                            </span>
+                            {!narrow ? <span className={styles.linkLabel}>{item.label}</span> : null}
+                          </button>
+                        </li>
+                      );
+                    }
                     return (
                       <li key={item.id}>
                         <NavLink
-                          to={item.path}
+                          to={item.path!}
                           className={({ isActive }) =>
                             clsx(styles.link, isActive && styles.active)
                           }
@@ -108,7 +152,9 @@ export function Sidebar({
                             }
                           }}
                         >
-                          <Icon size={18} strokeWidth={1.75} className={styles.linkIcon} />
+                          <span className={styles.linkIconWrap} aria-hidden>
+                            <Icon size={16} strokeWidth={1.65} className={styles.linkIcon} />
+                          </span>
                           {!narrow ? (
                             <>
                               <span className={styles.linkLabel}>{item.label}</span>

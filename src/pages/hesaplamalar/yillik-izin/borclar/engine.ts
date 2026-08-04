@@ -34,6 +34,7 @@ export function computeYillikBorclarResult(form: YillikBorclarForm): StandardCom
   return {
     workPeriodLabel: wp.label,
     entitlementLines,
+    breakdown: core.breakdown,
     totalEntitlement: core.totalEntitlement,
     usedTotal: core.usedTotal,
     remainingDays: core.remainingDays,

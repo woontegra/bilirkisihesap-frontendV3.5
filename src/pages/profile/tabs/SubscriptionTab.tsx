@@ -9,25 +9,24 @@ import {
   type RenewalOption,
   type RenewalOptions,
 } from "@/api/profile";
+import { readCurrentUser } from "@/auth/session";
 import { FormField } from "@/components/admin/FormField";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/context/ToastContext";
+import { formatDate } from "@/utils/format";
+import {
+  buildSubscriptionProgress,
+  resolveSubscriptionEndsAt,
+  resolveSubscriptionStartsAt,
+  type SubscriptionDateSource,
+} from "@/utils/subscription";
 import styles from "./profileTabShared.module.css";
 
-const renewalEnabled = import.meta.env.VITE_SUBSCRIPTION_RENEWAL_ENABLED === "true";
 const CUSTOMER_RENEWAL_URL = "https://bilirkisihesap.com/abonelik-yenile";
 const PURCHASE_URL = "https://bilirkisihesap.com/satin-al";
 
-function formatDate(value: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("tr-TR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+function formatSubscriptionDate(value: string | null) {
+  return formatDate(value);
 }
 
 function formatMoney(value: number | null, currency: string) {
@@ -57,25 +56,281 @@ function subscriptionExpiryWarningThreshold(productType: string | null) {
   return null;
 }
 
+function getSubscriptionTypeLabel(type: string | null) {
+  if (!type) return "Abonelik Yok";
+  const labels: Record<string, string> = {
+    starter: "Starter",
+    professional: "Professional",
+    demo: "Demo",
+    annual: "Yıllık Standart",
+    monthly: "Aylık Standart",
+    trial: "Deneme",
+    premium: "Professional",
+  };
+  return labels[type] || type;
+}
+
+type LegacySubscriptionData = {
+  subscriptionType: string | null;
+  subscriptionEndsAt: string | null;
+  subscriptionStartsAt: string | null;
+  autoRenew: boolean;
+};
+
+function resolveSubscriptionFields(source: SubscriptionDateSource) {
+  const endsAt = resolveSubscriptionEndsAt(source);
+  return {
+    startsAt: resolveSubscriptionStartsAt(source, endsAt),
+    endsAt,
+  };
+}
+
+type DemoSubscriptionData = {
+  startsAt: string | null;
+  endsAt: string | null;
+  licenseActive: boolean;
+  licenseStatus: string | null;
+};
+
+function SubscriptionProgressBar({
+  startsAt,
+  endsAt,
+}: {
+  startsAt: string | null;
+  endsAt: string | null;
+}) {
+  const progress = buildSubscriptionProgress({ subscriptionStartsAt: startsAt, subscriptionEndsAt: endsAt });
+  if (!progress.hasSubscription || progress.daysRemaining === null) return null;
+
+  const isExpired = progress.daysRemaining <= 0;
+  const isExpiringSoon = progress.daysRemaining <= 30;
+  const remaining = progress.remainingPct;
+  const elapsed = 100 - remaining;
+
+  return (
+    <div className={styles.progressSection}>
+      <div className={styles.progressHeader}>
+        <p className={styles.progressLabel}>
+          {isExpired ? "Abonelik Süresi Doldu" : `Kalan Süre: ${progress.daysRemaining} gün`}
+        </p>
+        <span
+          className={`${styles.progressPct} ${
+            isExpired || isExpiringSoon
+              ? styles.progressPctDanger
+              : styles.progressPctOk
+          }`}
+        >
+          {remaining.toFixed(1)}% kaldı
+        </span>
+      </div>
+      <div className={styles.progressTrack}>
+        {elapsed > 0 ? (
+          <div className={styles.progressElapsed} style={{ width: `${Math.min(100, elapsed)}%` }} />
+        ) : null}
+        {remaining > 0 ? (
+          <div
+            className={`${styles.progressRemaining} ${
+              isExpired || isExpiringSoon
+                ? styles.progressRemainingWarn
+                : styles.progressRemainingOk
+            }`}
+            style={{ width: `${Math.min(100, remaining)}%` }}
+          />
+        ) : null}
+      </div>
+      {progress.daysRemaining > 0 ? (
+        <p className={styles.progressMeta}>
+          {progress.daysUsed} gün geçti, {progress.daysRemaining} gün kaldı
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function LegacySubscriptionSection({ licenseType }: { licenseType: string }) {
+  const toast = useToast();
+  const [loading, setLoading] = useState(true);
+  const [subscriptionData, setSubscriptionData] = useState<LegacySubscriptionData | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      setLoading(true);
+      try {
+        const data = await fetchAuthMe();
+        if (!active) return;
+        const resolved = resolveSubscriptionFields(data);
+        setSubscriptionData({
+          subscriptionType:
+            (typeof data.subscriptionType === "string" ? data.subscriptionType : null) ||
+            (typeof data.licenseType === "string" ? data.licenseType : null),
+          subscriptionEndsAt: resolved.endsAt,
+          subscriptionStartsAt: resolved.startsAt,
+          autoRenew: data.autoRenew === true,
+        });
+      } catch {
+        if (active) {
+          toast.error("Abonelik bilgileri yüklenemedi.");
+          setSubscriptionData(null);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [toast]);
+
+  const typeLabel = subscriptionData?.subscriptionType
+    ? getSubscriptionTypeLabel(subscriptionData.subscriptionType)
+    : licenseType
+      ? getSubscriptionTypeLabel(licenseType)
+      : "Abonelik Yok";
+
+  return (
+    <section className={styles.panel}>
+      <h3 className={styles.panelTitle}>Abonelik Bilgileri</h3>
+      <p className={styles.panelDesc}>Mevcut abonelik planınız</p>
+
+      {loading ? (
+        <div className={styles.skeletonGrid} aria-busy="true">
+          {[1, 2, 3, 4].map((item) => (
+            <div key={item} className={styles.skeletonBlock} />
+          ))}
+        </div>
+      ) : (
+        <>
+          <dl className={styles.dl}>
+            <div>
+              <dt>Abonelik Tipi</dt>
+              <dd>{typeLabel}</dd>
+            </div>
+            <div>
+              <dt>Başlangıç Tarihi</dt>
+              <dd>{formatSubscriptionDate(subscriptionData?.subscriptionStartsAt ?? null)}</dd>
+            </div>
+            <div>
+              <dt>Bitiş Tarihi</dt>
+              <dd>{formatSubscriptionDate(subscriptionData?.subscriptionEndsAt ?? null)}</dd>
+            </div>
+            <div>
+              <dt>Yenileme Tarihi</dt>
+              <dd>{formatSubscriptionDate(subscriptionData?.subscriptionEndsAt ?? null)}</dd>
+            </div>
+          </dl>
+
+          {subscriptionData?.subscriptionEndsAt ? (
+            <SubscriptionProgressBar
+              startsAt={subscriptionData.subscriptionStartsAt}
+              endsAt={subscriptionData.subscriptionEndsAt}
+            />
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
+
+function DemoSubscriptionSection() {
+  const [loading, setLoading] = useState(true);
+  const [demo, setDemo] = useState<DemoSubscriptionData | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      setLoading(true);
+      try {
+        const payload = await fetchAuthMe();
+        if (!active) return;
+        const resolved = resolveSubscriptionFields(payload);
+        setDemo({
+          startsAt: resolved.startsAt,
+          endsAt: resolved.endsAt,
+          licenseActive: payload.licenseActive === true,
+          licenseStatus:
+            typeof payload.licenseStatus === "string" && payload.licenseStatus.trim()
+              ? payload.licenseStatus
+              : null,
+        });
+      } catch {
+        if (active) setDemo(null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const progress = buildSubscriptionProgress({
+    subscriptionStartsAt: demo?.startsAt,
+    subscriptionEndsAt: demo?.endsAt,
+  });
+  const remainingDays = progress.hasSubscription ? Math.max(0, progress.daysRemaining) : 0;
+  const expired =
+    demo?.licenseStatus === "EXPIRED" ||
+    (demo != null && demo.licenseActive === false) ||
+    (progress.hasSubscription && progress.daysRemaining <= 0);
+
+  return (
+    <section className={styles.panel}>
+      <h3 className={styles.panelTitle}>Abonelik Bilgileri</h3>
+      <p className={styles.panelDesc}>7 günlük demo erişiminizin durumu</p>
+
+      {loading ? (
+        <div className={styles.skeletonGrid} aria-busy="true">
+          {[1, 2, 3, 4, 5].map((item) => (
+            <div key={item} className={styles.skeletonBlock} />
+          ))}
+        </div>
+      ) : demo ? (
+        <>
+          <dl className={styles.dl}>
+            <div>
+              <dt>Durum</dt>
+              <dd>7 Günlük Demo</dd>
+            </div>
+            <div>
+              <dt>Demo Başlangıç Tarihi</dt>
+              <dd>{formatSubscriptionDate(demo.startsAt)}</dd>
+            </div>
+            <div>
+              <dt>Demo Bitiş Tarihi</dt>
+              <dd>{formatSubscriptionDate(demo.endsAt)}</dd>
+            </div>
+            <div>
+              <dt>Kalan Gün</dt>
+              <dd>{remainingDays} gün</dd>
+            </div>
+            <div>
+              <dt>Hesap Durumu</dt>
+              <dd className={expired ? styles.statusExpired : styles.statusActive}>
+                {expired ? "Süresi dolmuş" : "Aktif"}
+              </dd>
+            </div>
+          </dl>
+          {demo.endsAt ? (
+            <SubscriptionProgressBar startsAt={demo.startsAt} endsAt={demo.endsAt} />
+          ) : null}
+        </>
+      ) : (
+        <p className={styles.muted}>Demo erişim bilgileri şu anda görüntülenemiyor.</p>
+      )}
+    </section>
+  );
+}
+
 function readStoredUser(): {
-  email?: string;
   customerCode?: string;
   licenseType?: string | null;
 } {
-  try {
-    const raw = JSON.parse(localStorage.getItem("current_user") || "null") as {
-      email?: string;
-      customerCode?: string;
-      licenseType?: string | null;
-    } | null;
-    return {
-      email: raw?.email || localStorage.getItem("email") || undefined,
-      customerCode: raw?.customerCode,
-      licenseType: raw?.licenseType ?? null,
-    };
-  } catch {
-    return { email: localStorage.getItem("email") || undefined };
-  }
+  const user = readCurrentUser();
+  return {
+    customerCode: user?.customerCode,
+    licenseType: user?.licenseType ?? null,
+  };
 }
 
 export default function SubscriptionTab() {
@@ -89,17 +344,20 @@ export default function SubscriptionTab() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [renewalStarting, setRenewalStarting] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [subscriptionDates, setSubscriptionDates] = useState<{
+    startsAt: string | null;
+    endsAt: string | null;
+  } | null>(null);
 
   const isDemo = licenseType.toLowerCase() === "demo";
 
   useEffect(() => {
     let active = true;
-    const email = stored.email;
-    if (!email) return;
     void (async () => {
       try {
-        const me = await fetchAuthMe(email);
+        const me = await fetchAuthMe();
         if (!active) return;
+        setSubscriptionDates(resolveSubscriptionFields(me));
         if (typeof me.customerCode === "string") setCustomerCode(me.customerCode);
         if (typeof me.licenseType === "string") setLicenseType(me.licenseType);
         else if (typeof me.subscriptionType === "string") setLicenseType(me.subscriptionType);
@@ -110,12 +368,13 @@ export default function SubscriptionTab() {
     return () => {
       active = false;
     };
-  }, [stored.email]);
+  }, []);
 
   useEffect(() => {
-    if (isDemo || !renewalEnabled) {
+    if (isDemo) {
       setLoading(false);
       setRenewal(null);
+      setLoadError(null);
       return;
     }
     let active = true;
@@ -143,10 +402,12 @@ export default function SubscriptionTab() {
   }, [isDemo, reloadKey]);
 
   const selectedOption: RenewalOption | null = renewal?.options[selectedIndex] ?? null;
+  const selectedCampaign = selectedOption?.campaign ?? renewal?.campaign ?? null;
   const pricing = useMemo(
     () => (renewal ? getOptionPricing(renewal, selectedOption) : null),
     [renewal, selectedOption],
   );
+  const hasRenewalUi = !isDemo && Boolean(renewal);
 
   const warningThreshold = subscriptionExpiryWarningThreshold(renewal?.currentPackage ?? null);
   const isExpired =
@@ -186,93 +447,90 @@ export default function SubscriptionTab() {
     }
   }, [renewalStarting, selectedOption, toast]);
 
+  const handlePrimaryAction = () => {
+    if (isDemo) {
+      window.open(PURCHASE_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (hasRenewalUi && selectedOption) {
+      void startSelectedRenewal();
+      return;
+    }
+    if (customerCode) {
+      window.open(buildCustomerRenewalUrl(customerCode), "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const primaryActionLabel = isDemo
+    ? "Abonelik Satın Al"
+    : renewalStarting
+      ? "Hazırlanıyor..."
+      : "Aboneliği Uzat";
+
+  const primaryActionDisabled =
+    isDemo
+      ? false
+      : hasRenewalUi
+        ? !selectedOption || renewalStarting
+        : !customerCode;
+
   return (
     <div className={styles.stack}>
       <section className={styles.panel}>
         <div className={styles.rowBetween}>
           <div>
-            <h3 className={styles.panelTitle}>Müşteri Numarası</h3>
-            <p className={styles.panelDesc} style={{ marginBottom: 0 }}>
-              {customerCode || "Müşteri numarası henüz atanmadı"}
-            </p>
+            <h3 className={styles.panelTitle}>Müşteri Numaranız</h3>
+            <p className={styles.panelDesc}>Abonelik işlemlerinizde bu kodu kullanabilirsiniz.</p>
+            <p className={styles.customerCode}>{customerCode || "-"}</p>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
-            {customerCode ? (
-              <>
-                <Button variant="soft" size="sm" onClick={() => void copyCustomerCode()}>
-                  <Copy size={14} aria-hidden /> Kopyala
-                </Button>
-                <Button
-                  variant="soft"
-                  size="sm"
-                  onClick={() =>
-                    window.open(buildCustomerRenewalUrl(customerCode), "_blank", "noopener,noreferrer")
-                  }
-                >
-                  <ExternalLink size={14} aria-hidden /> Yenileme Sayfası
-                </Button>
-              </>
-            ) : null}
-            {isDemo ? (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => window.open(PURCHASE_URL, "_blank", "noopener,noreferrer")}
-              >
-                Abonelik Satın Al
-              </Button>
-            ) : renewalEnabled ? (
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={!selectedOption || renewalStarting}
-                onClick={() => void startSelectedRenewal()}
-              >
-                {renewalStarting ? "Başlatılıyor..." : "Aboneliği Uzat"}
-              </Button>
-            ) : null}
+            <Button
+              variant="soft"
+              size="sm"
+              onClick={() => void copyCustomerCode()}
+              disabled={!customerCode}
+            >
+              <Copy size={14} aria-hidden /> Kopyala
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={primaryActionDisabled}
+              onClick={handlePrimaryAction}
+            >
+              <ExternalLink size={14} aria-hidden /> {primaryActionLabel}
+            </Button>
           </div>
         </div>
       </section>
 
       {isDemo ? (
+        <DemoSubscriptionSection />
+      ) : loading ? (
         <section className={styles.panel}>
-          <h3 className={styles.panelTitle}>Demo Abonelik</h3>
-          <p className={styles.panelDesc}>
-            Demo hesabınız sınırlı süreli erişim sağlar. Tam abonelik için satın alma sayfasını
-            ziyaret edin.
-          </p>
-          <Button
-            variant="primary"
-            onClick={() => window.open(PURCHASE_URL, "_blank", "noopener,noreferrer")}
-          >
-            Satın Al
-          </Button>
+          <h3 className={styles.panelTitle}>Abonelik Bilgileri</h3>
+          <p className={styles.panelDesc}>Mevcut paketiniz ve yenileme seçenekleriniz</p>
+          <div className={styles.skeletonGrid} aria-busy="true">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className={styles.skeletonBlock} />
+            ))}
+          </div>
         </section>
-      ) : renewalEnabled ? (
+      ) : renewal ? (
         <section className={styles.panel}>
           <h3 className={styles.panelTitle}>Abonelik Bilgileri</h3>
           <p className={styles.panelDesc}>Mevcut paketiniz ve yenileme seçenekleriniz</p>
 
-          {loading ? (
-            <p className={styles.muted}>Abonelik bilgileri yükleniyor...</p>
-          ) : loadError ? (
-            <div className={styles.error}>
-              <p>{loadError}</p>
-              <div style={{ marginTop: "0.55rem" }}>
-                <Button variant="soft" size="sm" onClick={() => setReloadKey((v) => v + 1)}>
-                  <RefreshCw size={14} aria-hidden /> Tekrar Dene
-                </Button>
-              </div>
-            </div>
-          ) : renewal ? (
-            <>
-              {expiringSoon ? (
-                <p className={styles.warn}>
+          <>
+            {expiringSoon ? (
+              <div className={styles.warn}>
+                <strong>Abonelik süreniz yakında sona eriyor</strong>
+                <p style={{ margin: "0.35rem 0 0" }}>
                   {renewal.remainingDays !== null && renewal.remainingDays <= 0
-                    ? "Abonelik süreniz sona ermiş."
-                    : `Aboneliğinizin bitmesine ${renewal.remainingDays} gün kaldı.`}
-                </p>
+                      ? "Abonelik süreniz sona ermiş."
+                      : `Aboneliğinizin bitmesine ${renewal.remainingDays} gün kaldı.`}
+                  </p>
+                </div>
               ) : null}
 
               <dl className={styles.dl} style={{ marginTop: "0.75rem" }}>
@@ -285,13 +543,21 @@ export default function SubscriptionTab() {
                   </dd>
                 </div>
                 <div>
-                  <dt>Lisans Bitiş Tarihi</dt>
-                  <dd>{formatDate(renewal.licenseEnd)}</dd>
+                  <dt>Başlangıç Tarihi</dt>
+                  <dd>{formatSubscriptionDate(subscriptionDates?.startsAt ?? null)}</dd>
+                </div>
+                <div>
+                  <dt>Bitiş Tarihi</dt>
+                  <dd>{formatSubscriptionDate(subscriptionDates?.endsAt ?? null)}</dd>
+                </div>
+                <div>
+                  <dt>Yenileme Tarihi</dt>
+                  <dd>{formatSubscriptionDate(subscriptionDates?.endsAt ?? null)}</dd>
                 </div>
                 <div>
                   <dt>Kalan Süre</dt>
                   <dd>
-                    {renewal.remainingDays === null ? "-" : `${renewal.remainingDays} gün`}
+                    {renewal.remainingDays === null ? "—" : `${renewal.remainingDays} gün`}
                   </dd>
                 </div>
                 <div>
@@ -300,17 +566,35 @@ export default function SubscriptionTab() {
                 </div>
               </dl>
 
-              <div style={{ marginTop: "1rem" }}>
-                <h4 className={styles.panelTitle} style={{ fontSize: "var(--fs-sm)" }}>
-                  Yenileme Fiyatı
-                </h4>
-                {renewal.campaign ? (
-                  <p className={styles.success}>
-                    {renewal.campaign.name ?? "Aktif yenileme kampanyası"} —{" "}
-                    {formatDate(renewal.campaign.startsAt)} – {formatDate(renewal.campaign.endsAt)}
-                  </p>
+              {subscriptionDates?.endsAt ? (
+                <SubscriptionProgressBar
+                  startsAt={subscriptionDates.startsAt}
+                  endsAt={subscriptionDates.endsAt}
+                />
+              ) : null}
+
+              <div className={styles.renewalSection}>
+                <h4 className={styles.sectionHeading}>Yenileme Fiyatı</h4>
+                {selectedCampaign ? (
+                  <div className={styles.success}>
+                    <strong>{selectedCampaign.name ?? "Aktif yenileme kampanyası"}</strong>
+                    <p style={{ margin: "0.35rem 0 0" }}>
+                      Bu kampanya backend tarafından şu anda geçerli olarak bildirildi.
+                      {(selectedCampaign.startsAt || selectedCampaign.endsAt) && (
+                        <>
+                          {" "}
+                          ({formatDate(selectedCampaign.startsAt)} – {formatDate(selectedCampaign.endsAt)})
+                        </>
+                      )}
+                    </p>
+                  </div>
                 ) : (
-                  <p className={styles.muted}>Aktif yenileme kampanyası yok</p>
+                  <div className={styles.infoBanner}>
+                    <div>
+                      <strong>Aktif yenileme kampanyası yok</strong>
+                      <span>Kampanya geçerli olmadığında normal fiyat uygulanır.</span>
+                    </div>
+                  </div>
                 )}
 
                 {renewal.options.length > 0 ? (
@@ -325,6 +609,9 @@ export default function SubscriptionTab() {
                         </option>
                       ))}
                     </select>
+                    <p className={styles.fieldHint}>
+                      Yalnızca backend tarafından izin verilen seçenekler gösterilir.
+                    </p>
                   </FormField>
                 ) : (
                   <p className={styles.muted}>Kullanılabilir paket seçeneği yok.</p>
@@ -340,8 +627,14 @@ export default function SubscriptionTab() {
                     </div>
                     <div>
                       <dt className={styles.muted}>Kampanya İndirimi</dt>
-                      <dd style={{ margin: "0.2rem 0 0", fontWeight: 600 }}>
-                        {renewal.campaign
+                      <dd
+                        style={{
+                          margin: "0.2rem 0 0",
+                          fontWeight: 600,
+                          color: selectedCampaign ? "#15803d" : undefined,
+                        }}
+                      >
+                        {selectedCampaign
                           ? pricing.discountPercent !== null
                             ? `%${pricing.discountPercent}`
                             : pricing.discountAmount !== null
@@ -354,7 +647,7 @@ export default function SubscriptionTab() {
                       <dt className={styles.muted}>Ödenecek Tutar</dt>
                       <dd style={{ margin: "0.2rem 0 0", fontWeight: 700, color: "var(--accent-hover)" }}>
                         {formatMoney(
-                          renewal.campaign
+                          selectedCampaign
                             ? (pricing.finalAmount ?? pricing.normalPrice)
                             : (pricing.normalPrice ?? pricing.finalAmount),
                           pricing.currency,
@@ -364,18 +657,39 @@ export default function SubscriptionTab() {
                   </div>
                 ) : null}
 
+                <p className={styles.fieldHint}>
+                  {selectedCampaign
+                    ? "Kampanya geçerliliği ve tutarlar backend yanıtına göre gösterilir."
+                    : "Aktif kampanya olmadığından normal fiyat esas alınır."}
+                </p>
+
                 {renewal.message ? <p className={styles.muted}>{renewal.message}</p> : null}
               </div>
-            </>
-          ) : null}
+          </>
         </section>
+      ) : loadError ? (
+        <>
+          <section className={styles.panel}>
+            <h3 className={styles.panelTitle}>Abonelik Bilgileri</h3>
+            <div className={styles.error}>
+              <p>{loadError}</p>
+              <p className={styles.fieldHint} style={{ marginTop: "0.45rem" }}>
+                Yenileme servisi yanıt vermediği için temel abonelik bilgileri aşağıda
+                gösteriliyor. Backend&apos;de{" "}
+                <code>SUBSCRIPTION_RENEWAL_ENABLED=true</code> ve webapi bağlantısını kontrol
+                edin.
+              </p>
+              <div style={{ marginTop: "0.55rem" }}>
+                <Button variant="soft" size="sm" onClick={() => setReloadKey((v) => v + 1)}>
+                  <RefreshCw size={14} aria-hidden /> Tekrar Dene
+                </Button>
+              </div>
+            </div>
+          </section>
+          <LegacySubscriptionSection licenseType={licenseType} />
+        </>
       ) : (
-        <section className={styles.panel}>
-          <h3 className={styles.panelTitle}>Abonelik Bilgileri</h3>
-          <p className={styles.panelDesc}>
-            Abonelik yenileme şu anda bu ortamda etkin değil. Destek için ticket açabilirsiniz.
-          </p>
-        </section>
+        <LegacySubscriptionSection licenseType={licenseType} />
       )}
     </div>
   );

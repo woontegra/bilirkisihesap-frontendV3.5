@@ -1,17 +1,38 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Award,
+  Banknote,
+  Bell,
+  Briefcase,
+  Building2,
   Calculator,
+  Calendar,
+  CalendarDays,
+  Clock,
+  Flag,
+  Gavel,
+  Hourglass,
   LayoutDashboard,
   Scale,
+  Search,
   Shield,
+  ShieldAlert,
+  StickyNote,
+  Tag,
+  UserX,
+  Users,
+  Wallet,
   Wrench,
 } from "lucide-react";
+
+export type ToolAction = "add-note" | "add-tag" | "open-interest";
 
 export type NavItem = {
   id: string;
   label: string;
-  path: string;
   icon: LucideIcon;
+  path?: string;
+  action?: ToolAction;
   badge?: string;
   disabled?: boolean;
 };
@@ -62,6 +83,24 @@ export const NAV_GROUPS: NavGroup[] = [
         path: "/araclar/manuel-brut-ucret",
         icon: Wrench,
       },
+      {
+        id: "hesaplama-notu",
+        label: "Hesaplama Notu",
+        action: "add-note",
+        icon: StickyNote,
+      },
+      {
+        id: "kategori-etiketi",
+        label: "Kategori Etiketi",
+        action: "add-tag",
+        icon: Tag,
+      },
+      {
+        id: "faiz-hesaplayici",
+        label: "Faiz Hesaplayıcı",
+        action: "open-interest",
+        icon: Calculator,
+      },
     ],
   },
   {
@@ -69,26 +108,26 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Hesaplamalar",
     items: [
       { id: "davaci", label: "Davacı Ücreti", path: "/davaci-ucreti", icon: Scale },
-      { id: "kidem", label: "Kıdem Tazminatı", path: "/kidem-tazminati", icon: Calculator },
-      { id: "ihbar", label: "İhbar Tazminatı", path: "/ihbar-tazminati", icon: Calculator },
-      { id: "fazla-mesai", label: "Fazla Mesai Alacağı", path: "/fazla-mesai", icon: Calculator },
-      { id: "yillik-izin", label: "Yıllık Ücretli İzin Alacağı", path: "/yillik-izin", icon: Calculator },
-      { id: "ubgt", label: "UBGT Alacağı", path: "/ubgt", icon: Calculator },
-      { id: "hafta-tatili", label: "Hafta Tatili Alacağı", path: "/hafta-tatili", icon: Calculator },
-      { id: "ucret", label: "Ücret Alacağı", path: "/ucret-alacagi", icon: Calculator },
-      { id: "is-arama", label: "İş Arama İzni Ücreti", path: "/is-arama-izni-ucreti", icon: Calculator },
-      { id: "bakiye", label: "Bakiye Ücret Alacağı", path: "/bakiye-ucret-alacagi", icon: Calculator },
-      { id: "prim", label: "Prim Alacağı", path: "/prim-alacagi", icon: Calculator },
-      { id: "kotu-niyet", label: "Kötü Niyet Tazminatı", path: "/kotu-niyet-tazminati", icon: Calculator },
-      { id: "bosta", label: "Boşta Geçen Süre Ücreti", path: "/bosta-gecen-sure-ucreti", icon: Calculator },
-      { id: "ise-baslatmama", label: "İşe Başlatmama Tazminatı", path: "/ise-almama-tazminati", icon: Calculator },
-      { id: "ayrimcilik", label: "Ayrımcılık Tazminatı", path: "/ayrimcilik-tazminati", icon: Calculator },
-      { id: "haksiz-fesih", label: "Haksız Fesih Tazminatı", path: "/haksiz-fesih-tazminati", icon: Calculator },
+      { id: "kidem", label: "Kıdem Tazminatı", path: "/kidem-tazminati", icon: Briefcase },
+      { id: "ihbar", label: "İhbar Tazminatı", path: "/ihbar-tazminati", icon: Bell },
+      { id: "fazla-mesai", label: "Fazla Mesai Alacağı", path: "/fazla-mesai", icon: Clock },
+      { id: "yillik-izin", label: "Yıllık Ücretli İzin Alacağı", path: "/yillik-izin", icon: Calendar },
+      { id: "ubgt", label: "UBGT Alacağı", path: "/ubgt", icon: Flag },
+      { id: "hafta-tatili", label: "Hafta Tatili Alacağı", path: "/hafta-tatili", icon: CalendarDays },
+      { id: "ucret", label: "Ücret Alacağı", path: "/ucret-alacagi", icon: Banknote },
+      { id: "is-arama", label: "İş Arama İzni Ücreti", path: "/is-arama-izni-ucreti", icon: Search },
+      { id: "bakiye", label: "Bakiye Ücret Alacağı", path: "/bakiye-ucret-alacagi", icon: Wallet },
+      { id: "prim", label: "Prim Alacağı", path: "/prim-alacagi", icon: Award },
+      { id: "kotu-niyet", label: "Kötü Niyet Tazminatı", path: "/kotu-niyet-tazminati", icon: ShieldAlert },
+      { id: "bosta", label: "Boşta Geçen Süre Ücreti", path: "/bosta-gecen-sure-ucreti", icon: Hourglass },
+      { id: "ise-baslatmama", label: "İşe Başlatmama Tazminatı", path: "/ise-almama-tazminati", icon: UserX },
+      { id: "ayrimcilik", label: "Ayrımcılık Tazminatı", path: "/ayrimcilik-tazminati", icon: Users },
+      { id: "haksiz-fesih", label: "Haksız Fesih Tazminatı", path: "/haksiz-fesih-tazminati", icon: Gavel },
       {
         id: "icra",
         label: "İcra Takip Brütten Nete",
         path: "/icra-takip-brutten-nete",
-        icon: Calculator,
+        icon: Building2,
         badge: "YENİ",
       },
     ],
@@ -176,4 +215,6 @@ export const PAGE_TITLES: Record<string, string> = {
   "/admin/bar-associations": "Baro Yönetimi",
   "/admin/bar-campaign-performance": "Baro Kampanya Performansı",
   "/admin/feedback": "Kullanıcı Geri Bildirimleri",
+  "/admin/branding": "Marka & Logo Ayarları",
+  "/admin/interest-rates": "Mevduat Faiz Oranları",
 };

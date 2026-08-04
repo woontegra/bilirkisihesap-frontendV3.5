@@ -1,53 +1,150 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ship } from "lucide-react";
-import { useToast } from "@/context/ToastContext";
+import { useCallback, useMemo, useState } from "react";
 import { YillikPageView } from "../lib/YillikPageView";
-import { WorkPeriodsEditor } from "../lib/WorkPeriodsEditor";
+import { buildGemiYillikPreviewSections } from "../lib/buildGemiYillikPreviewSections";
 import { createEmptyUsedRow } from "../lib/core";
-import type { GemiWorkPeriod } from "../lib/types";
-import { clampYear, computeYillikGemiResult } from "./engine";
-import { createEmptyForm, snapshotKey, type SavedCase, type YillikGemiForm } from "./model";
-import { NOTE_BLOCKS } from "./notes";
-import { clearCorruptCases, deleteCase, loadCasesSafe, saveCase } from "./storage";
+import { makeYillikBackendConfig } from "../lib/makeYillikBackendConfig";
 import { formatMoney } from "../lib/money";
+import type { CaseListEntry, GemiWorkPeriod, UsedLeaveRow } from "../lib/types";
+import { useYillikCaseBackend } from "../lib/useYillikCaseBackend";
+import { WorkPeriodsEditor } from "../lib/WorkPeriodsEditor";
+import { gemiYillikSaveGate, yillikGemiBackend } from "./backendCase";
+import { clampYear, computeYillikGemiResult } from "./engine";
+import { createEmptyForm, snapshotKey } from "./model";
+import { NOTE_BLOCKS } from "./notes";
+import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
 
 const PAGE_TITLE = "Yıllık Ücretli İzin — Gemi Adamları";
 const PREVIEW_TITLE = "Yıllık İzin — Gemi Adamları Raporu";
 
+const backendConfig = makeYillikBackendConfig({
+  backend: yillikGemiBackend,
+  createEmptyForm,
+  snapshotKey,
+  loadCasesSafe,
+  deleteCase,
+  clearCorruptCases,
+  getSavePayload: gemiYillikSaveGate,
+});
+
+function resolveGemiDates(form: ReturnType<typeof createEmptyForm>) {
+  const first = form.workPeriods[0];
+  const last = form.workPeriods[form.workPeriods.length - 1];
+  return {
+    startDate: first?.iseGiris ?? "",
+    endDate: last?.istenCikis ?? "",
+  };
+}
+
 export default function YillikGemiPage() {
-  const { success, error: showError } = useToast();
-  const [form, setForm] = useState<YillikGemiForm>(createEmptyForm);
-  const [cases, setCases] = useState<SavedCase[]>([]);
-  const [storageError, setStorageError] = useState<string | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeName, setActiveName] = useState<string | null>(null);
+  const [form, setForm] = useState(createEmptyForm);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
-  const [nameOpen, setNameOpen] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [confirmNew, setConfirmNew] = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const applyLoadedForm = useCallback((loaded: ReturnType<typeof createEmptyForm>) => {
+    setForm(loaded);
+    setBaseline(snapshotKey(loaded));
+  }, []);
+
+  const {
+    cases,
+    storageError,
+    activeId,
+    activeName,
+    nameOpen,
+    setNameOpen,
+    listOpen,
+    setListOpen,
+    confirmDeleteId,
+    setConfirmDeleteId,
+    caseSaving,
+    caseLoading,
+    resetActiveCase,
+    persist,
+    handleSaveClick: saveFromBackend,
+    onOpenCase,
+    onConfirmDelete,
+    clearStorageError,
+  } = useYillikCaseBackend(backendConfig, applyLoadedForm);
 
   const result = useMemo(() => computeYillikGemiResult(form), [form]);
   const dirty = snapshotKey(form) !== baseline;
+  const { startDate, endDate } = resolveGemiDates(form);
 
-  const reloadCases = useCallback(() => {
-    const loaded = loadCasesSafe();
-    if (!loaded.ok) { setStorageError(loaded.reason); setCases([]); return; }
-    setStorageError(null); setCases(loaded.items);
+  const patch = useCallback(<K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
-  useEffect(() => { reloadCases(); }, [reloadCases]);
 
-  const persist = useCallback((name: string) => {
-    if (result.error) { showError(result.error); return; }
-    const saved = saveCase(name, form, {
-      totalEntitlement: result.totalEntitlement, remainingDays: result.remainingDays, brutIzin: result.brutIzin,
-      sgk: result.sgk, issizlik: result.issizlik, gelirVergisi: result.gelirVergisi, damgaVergisi: result.damgaVergisi, netIzin: result.netIzin,
-    }, activeId || undefined);
-    if (!saved) { showError("Kayıt yapılamadı"); return; }
-    setActiveId(saved.id); setActiveName(saved.name); setBaseline(snapshotKey(form)); reloadCases(); success("Kayıt kaydedildi"); setNameOpen(false);
-  }, [activeId, form, reloadCases, result, showError, success]);
+  const doNew = useCallback(() => {
+    setConfirmNew(false);
+    const empty = createEmptyForm();
+    setForm(empty);
+    resetActiveCase();
+    setBaseline(snapshotKey(empty));
+  }, [resetActiveCase]);
 
+  const handleNewClick = useCallback(() => {
+    if (dirty) setConfirmNew(true);
+    else doNew();
+  }, [dirty, doNew]);
+
+  const savePayload = useMemo(
+    () => ({
+      brutIzin: result.brutIzin,
+      netIzin: result.netIzin,
+      totalEntitlement: result.totalEntitlement,
+      remainingDays: result.remainingDays,
+      usedTotal: result.usedTotal,
+      sgk: result.sgk,
+      issizlik: result.issizlik,
+      gelirVergisi: result.gelirVergisi,
+      damgaVergisi: result.damgaVergisi,
+      breakdown: result.breakdown,
+      startDate,
+      endDate,
+    }),
+    [endDate, result, startDate],
+  );
+
+  const onPersist = useCallback(
+    (name: string) => {
+      void persist(name, form, snapshotKey(form), savePayload, setBaseline, activeId);
+    },
+    [activeId, form, persist, savePayload],
+  );
+
+  const handleSaveClick = useCallback(() => {
+    saveFromBackend(savePayload, form, snapshotKey(form), setBaseline);
+  }, [form, saveFromBackend, savePayload]);
+
+  const caseList: CaseListEntry[] = useMemo(
+    () =>
+      cases.map((c) => ({
+        id: c.id,
+        name: c.name,
+        updatedAt: c.updatedAt,
+        subtitle: `${formatMoney(c.results.netIzin)} ₺ net`,
+      })),
+    [cases],
+  );
+
+  const previewSections = useMemo(
+    () => buildGemiYillikPreviewSections({ form, result }),
+    [form, result],
+  );
+
+  const usedRowHandlers = {
+    onAddUsedRow: () => setForm((prev) => ({ ...prev, usedRows: [...prev.usedRows, createEmptyUsedRow()] })),
+    onUpdateUsedRow: (id: string, patchRow: Partial<UsedLeaveRow>) =>
+      setForm((prev) => ({
+        ...prev,
+        usedRows: prev.usedRows.map((r) => (r.id === id ? { ...r, ...patchRow } : r)),
+      })),
+    onRemoveUsedRow: (id: string) =>
+      setForm((prev) => ({ ...prev, usedRows: prev.usedRows.filter((r) => r.id !== id) })),
+    onReplaceUsedRows: (rows: UsedLeaveRow[]) => setForm((prev) => ({ ...prev, usedRows: rows })),
+  };
 
   return (
     <YillikPageView
@@ -55,35 +152,33 @@ export default function YillikGemiPage() {
       pageTitle={PAGE_TITLE}
       pageDescription="Deniz İş Kanunu — 30/360 gün kuralı ile gemi adamı yıllık izin alacağı."
       previewTitle={PREVIEW_TITLE}
+      previewContentId="yillik-gemi-preview-content"
       notes={NOTE_BLOCKS}
-      startDate={form.workPeriods[0]?.iseGiris || ""}
-      endDate={form.workPeriods[form.workPeriods.length - 1]?.istenCikis || ""}
+      startDate={startDate}
+      endDate={endDate}
       workPeriodLabel={result.workDaysLabel}
       onStartDateChange={() => {}}
       onEndDateChange={() => {}}
       onDateBlur={() => {}}
       dateError={result.error || null}
       brut={form.brut}
-      onBrutChange={(v) => setForm((f) => ({ ...f, brut: v }))}
+      onBrutChange={(v) => patch("brut", v)}
       asgariUcretHatasi={result.asgariUcretHatasi}
       usedRows={form.usedRows}
-      onAddUsedRow={() => setForm((f) => ({ ...f, usedRows: [...f.usedRows, createEmptyUsedRow()] }))}
-      onUpdateUsedRow={(id, row) => setForm((f) => ({ ...f, usedRows: f.usedRows.map((r) => (r.id === id ? { ...r, ...row } : r)) }))}
-      onRemoveUsedRow={(id) => setForm((f) => ({ ...f, usedRows: f.usedRows.filter((r) => r.id !== id) }))}
-      onReplaceUsedRows={(rows) => setForm((f) => ({ ...f, usedRows: rows }))}
-      usedLeaveSetsModuleId="yillik-izin-used-leave"
+      {...usedRowHandlers}
+      usedLeaveSetsModuleId="yillik-izin-gemi-used-leave"
       workPeriodsSlot={
         <WorkPeriodsEditor
           title="Çalışma dönemleri (30/360)"
           periods={form.workPeriods}
-          onChange={(next) => setForm((f) => ({ ...f, workPeriods: next as GemiWorkPeriod[] }))}
+          onChange={(next) => patch("workPeriods", next as GemiWorkPeriod[])}
           clampYear={clampYear}
           showDayOverride
         />
       }
       entitlementLines={result.entitlementLines}
       totalEntitlementLabel="Toplam hak"
-      usedTotal={result.usedDays}
+      usedTotal={result.usedTotal}
       remainingDays={result.remainingDays}
       formulaText={result.formulaText}
       brutIzin={result.brutIzin}
@@ -94,13 +189,15 @@ export default function YillikGemiPage() {
       damgaVergisi={result.damgaVergisi}
       netIzin={result.netIzin}
       employerPayment={form.employerPayment}
-      onEmployerPaymentChange={(v) => setForm((f) => ({ ...f, employerPayment: v }))}
+      onEmployerPaymentChange={(v) => patch("employerPayment", v)}
       dirty={dirty}
       activeName={activeName}
-      isUpdate={!!activeId}
+      isUpdate={!!(activeId && activeName)}
+      caseSaving={caseSaving}
+      caseLoading={caseLoading}
       storageError={storageError}
-      onClearStorageError={() => { clearCorruptCases(); setStorageError(null); reloadCases(); }}
-      cases={cases.map((c) => ({ id: c.id, name: c.name, updatedAt: c.updatedAt, subtitle: `${formatMoney(c.results.netIzin)} ₺` }))}
+      onClearStorageError={clearStorageError}
+      cases={caseList}
       nameOpen={nameOpen}
       setNameOpen={setNameOpen}
       listOpen={listOpen}
@@ -111,13 +208,13 @@ export default function YillikGemiPage() {
       setConfirmNew={setConfirmNew}
       confirmDeleteId={confirmDeleteId}
       setConfirmDeleteId={setConfirmDeleteId}
-      onNewClick={() => (dirty ? setConfirmNew(true) : (setForm(createEmptyForm()), setActiveId(null), setActiveName(null), setBaseline(snapshotKey(createEmptyForm()))))}
-      onConfirmNew={() => { setConfirmNew(false); setForm(createEmptyForm()); setActiveId(null); setActiveName(null); setBaseline(snapshotKey(createEmptyForm())); }}
-      onSaveClick={() => (activeName ? persist(activeName) : setNameOpen(true))}
-      onPersist={persist}
-      onOpenCase={(id) => { const c = cases.find((x) => x.id === id); if (c) { setForm(c.form); setActiveId(c.id); setActiveName(c.name); setBaseline(snapshotKey(c.form)); setListOpen(false); } }}
-      onConfirmDelete={() => { if (confirmDeleteId) { deleteCase(confirmDeleteId); if (activeId === confirmDeleteId) { setActiveId(null); setActiveName(null); } setConfirmDeleteId(null); reloadCases(); } }}
-      previewSections={[{ id: "gemi", title: PREVIEW_TITLE, headers: ["Alan", "Değer"], rows: [["Toplam gün", result.workDaysLabel], ["Net", `${formatMoney(result.netIzin)} ₺`]] }]}
+      onNewClick={handleNewClick}
+      onConfirmNew={doNew}
+      onSaveClick={handleSaveClick}
+      onPersist={onPersist}
+      onOpenCase={(id) => onOpenCase(id, setForm, setBaseline)}
+      onConfirmDelete={onConfirmDelete}
+      previewSections={previewSections}
     />
   );
 }

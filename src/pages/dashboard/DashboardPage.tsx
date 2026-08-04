@@ -1,11 +1,13 @@
 import { Calendar, FileText, Scale, WifiOff } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { StatePanel } from "@/components/ui/StatePanel";
 import { useDashboard } from "@/hooks/useDashboard";
 import {
-  calculateSubscription,
+  buildSubscriptionProgress,
   getSubscriptionTypeLabel,
 } from "@/utils/subscription";
+import { resolveSubscriptionUiStatus } from "@/utils/subscriptionStatus";
 import { formatDate } from "@/utils/format";
 import { DashboardSkeleton } from "./components/DashboardSkeleton";
 import { FinancialSummaryCard } from "./components/FinancialSummary";
@@ -27,15 +29,29 @@ export default function DashboardPage() {
     isAdmin,
     reload,
   } = useDashboard();
+  const location = useLocation();
 
-  const sub = useMemo(() => {
-    const start = userInfo?.demoLicense?.activatedAt ?? userInfo?.subscriptionStartsAt;
-    const end = userInfo?.demoLicense?.expiresAt ?? userInfo?.subscriptionEndsAt;
-    return calculateSubscription(start, end);
-  }, [userInfo]);
+  useEffect(() => {
+    if (location.pathname === "/dashboard") {
+      reload();
+    }
+  }, [location.pathname, reload]);
+
+  const sub = useMemo(() => buildSubscriptionProgress(userInfo ?? {}), [userInfo]);
+
+  const subscriptionUiStatus = useMemo(() => {
+    if (userInfo?.licenseActive === true && sub.hasSubscription && sub.daysRemaining > 0) {
+      return "active" as const;
+    }
+    return resolveSubscriptionUiStatus(sub, userInfo?.licenseActive, userInfo?.licenseStatus);
+  }, [sub, userInfo?.licenseActive, userInfo?.licenseStatus]);
 
   const planLabel = useMemo(
-    () => getSubscriptionTypeLabel(userInfo?.subscriptionType, Boolean(userInfo?.demoLicense)),
+    () =>
+      getSubscriptionTypeLabel(
+        userInfo?.licenseType ?? userInfo?.subscriptionType,
+        Boolean(userInfo?.demoLicense),
+      ),
     [userInfo],
   );
 
@@ -123,7 +139,7 @@ export default function DashboardPage() {
         <FinancialSummaryCard financial={financial} error={financialError} />
       ) : null}
 
-      <SubscriptionCard planLabel={planLabel} sub={sub} />
+      <SubscriptionCard planLabel={planLabel} sub={sub} uiStatus={subscriptionUiStatus} />
 
       <div className={styles.chartGrid}>
         <TypeDistributionChart savedCases={savedCases} />

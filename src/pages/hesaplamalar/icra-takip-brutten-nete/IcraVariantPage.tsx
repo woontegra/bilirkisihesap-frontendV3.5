@@ -1,16 +1,31 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Eye, FilePlus2, FolderOpen, Save, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Calculator, Eye, FilePlus2, FolderOpen, Save, Scale, Trash2, X } from "lucide-react";
+import { ApiError } from "@/api/client";
+import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTextInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationTools } from "@/context/CalculationToolsContext";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import {
+  buildIcraSaveResult,
+  getIcraCaseCrud,
+  listIcraCasesFromBackend,
+  mapIcraFormFromBackend,
+  resolveSavedCaseDisplayName,
+} from "./backendCase";
 import {
   calculateInterest,
   type InterestType,
 } from "./lib/interestCalculator";
 import { useDepositInterestRates } from "./lib/useDepositInterestRates";
 import {
+  buildSegmentedBreakdownRows,
+  breakdownRowToPreview,
   computeDamgaOnly,
   computeNetFromGrossSingle,
   computeStandartBrutNetFromGross,
@@ -26,7 +41,7 @@ import {
   type IcraVariant,
   type SavedCase,
 } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe, saveCase } from "./storage";
+import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
 import { InterestResultPanel } from "./InterestResultPanel";
 import { fmtDateTR } from "./lib/format";
 import pageStyles from "./IcraVariantPage.module.css";
@@ -38,6 +53,25 @@ type Props = {
   variant: IcraVariant;
   title: string;
   backTo?: string;
+};
+
+const VARIANT_DESCRIPTIONS: Record<IcraVariant, string> = {
+  damga:
+    "Yalnızca damga vergisi kesintisi uygulanır. Yasal faiz veya bankalarca mevduatlara uygulanan en yüksek faiz (TCMB EVDS) ile faiz hesabı yapılır.",
+  "gelir-damga":
+    "Brütten nete çeviri, asgari ücret gelir/damga vergi istisnası dahil hesaplanır. Çift asgari ücret dönemi olan yıllarda dönem seçimi uygulanır.",
+  "istisnali-full":
+    "Brütten nete çeviri (asgari ücret gelir/damga vergi istisnası dahil) hesaplaması.",
+  "istisnasiz-full":
+    "Brütten nete çeviri, standart fazla mesai hesaplamasıyla aynıdır (SGK %14 ve işsizlik %1 matrahtan düşülür; gelir vergisi yıla göre kademeli; damga binde 7,59; asgari ücret vergi istisnası uygulanmaz). Çift asgari dönemli yıllarda referans dönemi seçilebilir.",
+};
+
+const SEGMENTED_GROSS_LABEL: Partial<Record<IcraVariant, string>> = {
+  "istisnali-full": "Brüt ücret",
+};
+
+const GROSS_INPUT_LABEL: Partial<Record<IcraVariant, string>> = {
+  "istisnali-full": "Brüt ücret",
 };
 
 function computeBrutNet(
@@ -115,26 +149,64 @@ function NameModal({
 }
 
 export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-brutten-nete" }: Props) {
-  const { success } = useToast();
+  const { success, error: showError } = useToast();
+  const { beginNewCalculation } = useCalculationTools();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const caseIdParam = searchParams.get("caseId");
+  const backendLoadedCaseIdRef = useRef<string | null>(null);
+
   const [form, setForm] = useState<IcraForm>(createEmptyForm);
   const [cases, setCases] = useState<SavedCase[]>([]);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [confirmNew, setConfirmNew] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [caseSaving, setCaseSaving] = useState(false);
 
-  const grossVal = parseNum(form.grossForNet);
-  const twoPeriods = hasTwoPeriods(form.year);
-  const brutNet = useMemo(
-    () => computeBrutNet(variant, grossVal, form.year, form.period),
-    [variant, grossVal, form.year, form.period],
+  useEffect(() => {
+    document.title = `${title} | Bilirkişi Hesap`;
+  }, [title]);
+
+  const setCaseIdParam = useCallback(
+    (id: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("caseId", id);
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
   );
-  const netTutar = "net" in brutNet ? brutNet.net : 0;
+
+  const { grossVal, brutNet, netTutar } = useDeferredFormMemo(form, (f) => {
+    const gross = parseNum(f.grossForNet);
+    const panel = computeBrutNet(variant, gross, f.year, f.period);
+    return { grossVal: gross, brutNet: panel, netTutar: panel.net };
+  });
+
+  const twoPeriods = hasTwoPeriods(form.year);
+  const currentYear = new Date().getFullYear();
+  const yearOptions = useMemo(
+    () => Array.from({ length: currentYear - 2009 }, (_, i) => currentYear - i),
+    [currentYear],
+  );
+
+  const segmentedBreakdown = useMemo(() => {
+    if (!("sgk" in brutNet) || grossVal <= 0) return [];
+    return buildSegmentedBreakdownRows(brutNet, {
+      grossLabel: SEGMENTED_GROSS_LABEL[variant] ?? "Brüt alacak",
+      netLabel:
+        variant === "istisnasiz-full"
+          ? "Ödenecek net tutar"
+          : variant === "gelir-damga" || variant === "istisnali-full"
+            ? "Net tutar (anapara)"
+            : "Ödenecek net tutar",
+    });
+  }, [brutNet, grossVal, variant]);
 
   const interestType: InterestType = form.faizTuru === "yasal" ? "LEGAL_INTEREST" : "HIGHEST_DEPOSIT_INTEREST";
   const depositEnabled = interestType === "HIGHEST_DEPOSIT_INTEREST";
@@ -180,20 +252,68 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
   const takipToplami = isInterestOk ? netTutar + totalInterest : netTutar;
   const dirty = snapshotKey(form) !== baseline;
 
-  const reloadCases = useCallback(() => {
-    const loaded = loadCasesSafe(variant);
-    if (!loaded.ok) {
-      setStorageError(loaded.reason);
-      setCases([]);
-      return;
+  const reloadCases = useCallback(async () => {
+    try {
+      const items = await listIcraCasesFromBackend(variant);
+      setStorageError(null);
+      setCases(items);
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Kayıtlar yüklenemedi";
+      setStorageError(message);
+      const local = loadCasesSafe(variant);
+      setCases(local.ok ? local.items : []);
     }
-    setStorageError(null);
-    setCases(loaded.items);
   }, [variant]);
 
   useEffect(() => {
     reloadCases();
   }, [reloadCases]);
+
+  useEffect(() => {
+    if (!caseIdParam) {
+      backendLoadedCaseIdRef.current = null;
+      return;
+    }
+    if (backendLoadedCaseIdRef.current === caseIdParam) return;
+    const numericId = Number(caseIdParam);
+    if (!Number.isFinite(numericId) || numericId <= 0) {
+      showError("Geçersiz kayıt kimliği");
+      return;
+    }
+    let cancelled = false;
+    void getSavedCase(numericId)
+      .then((record) => {
+        if (cancelled) return;
+        const mapped = mapIcraFormFromBackend(record.data);
+        if (!mapped) {
+          showError("Kayıt formu okunamadı");
+          return;
+        }
+        setForm(mapped);
+        setActiveId(String(numericId));
+        setActiveName(resolveSavedCaseDisplayName(record));
+        setBaseline(snapshotKey(mapped));
+        backendLoadedCaseIdRef.current = caseIdParam;
+        success(`Kayıt yüklendi: ${resolveSavedCaseDisplayName(record)}`);
+        const next = new URLSearchParams(searchParams);
+        next.delete("caseId");
+        setSearchParams(next, { replace: true });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          backendLoadedCaseIdRef.current = null;
+          showError("Kayıt yüklenemedi");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseIdParam, searchParams, setSearchParams, showError, success]);
 
   const applyCase = (c: SavedCase) => {
     setForm({ ...c.form });
@@ -204,6 +324,7 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
   };
 
   const resetForm = () => {
+    beginNewCalculation();
     const empty = createEmptyForm();
     setForm(empty);
     setActiveId(null);
@@ -211,35 +332,73 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
     setBaseline(snapshotKey(empty));
   };
 
-  const handleSave = (name: string) => {
-    const results = { netTutar, totalInterest, takipToplami, totalDays };
-    const saved = saveCase(variant, name, form, results, activeId);
-    if (!saved) return;
-    setActiveId(saved.id);
-    setActiveName(saved.name);
-    setBaseline(snapshotKey(form));
-    setNameOpen(false);
-    reloadCases();
-    success("Kayıt kaydedildi.");
-  };
+  const handleSave = useCallback(
+    async (name: string, existingId?: string | null) => {
+      if (!isInterestOk) {
+        showError("Önce geçerli bir faiz hesaplaması yapın");
+        return;
+      }
+      const results = { netTutar, totalInterest, takipToplami, totalDays };
+      setCaseSaving(true);
+      const wasUpdate = !!(existingId && /^\d+$/.test(existingId));
+      try {
+        const record = await getIcraCaseCrud(variant).saveCase(
+          name,
+          form,
+          buildIcraSaveResult(grossVal, results),
+          existingId,
+        );
+        const recordId = String(record.id);
+        setActiveId(recordId);
+        setActiveName(resolveSavedCaseDisplayName(record));
+        setBaseline(snapshotKey(form));
+        setCaseIdParam(recordId);
+        backendLoadedCaseIdRef.current = recordId;
+        setNameOpen(false);
+        await reloadCases();
+        success(wasUpdate ? "Kayıt güncellendi" : "Kayıt kaydedildi");
+      } catch (error) {
+        showError(
+          error instanceof ApiError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : "Kayıt yapılamadı",
+        );
+      } finally {
+        setCaseSaving(false);
+      }
+    },
+    [
+      form,
+      grossVal,
+      isInterestOk,
+      netTutar,
+      reloadCases,
+      setCaseIdParam,
+      showError,
+      success,
+      takipToplami,
+      totalDays,
+      totalInterest,
+      variant,
+    ],
+  );
 
   const previewSections = useMemo((): PreviewSection[] => {
-    const kesintiRows: string[][] = [["Brüt alacak", `${formatMoney(grossVal)} ₺`]];
-    if (variant !== "damga") {
-      kesintiRows.push(["Yıl / dönem", `${form.year} / ${form.period}`]);
-    }
-    if (variant === "damga" && "damgaVergisi" in brutNet) {
-      kesintiRows.push(["Damga vergisi (binde 7,59)", `-${formatMoney(brutNet.damgaVergisi)} ₺`]);
-    }
-    if ("sgk" in brutNet) {
-      kesintiRows.push(
-        ["SGK (%14)", `-${formatMoney(brutNet.sgk)} ₺`],
-        ["İşsizlik (%1)", `-${formatMoney(brutNet.issizlik)} ₺`],
-        [`Gelir vergisi ${brutNet.gelirVergisiDilimleri}`.trim(), `-${formatMoney(brutNet.gelirVergisi)} ₺`],
-        ["Damga (binde 7,59)", `-${formatMoney(brutNet.damgaVergisi)} ₺`],
-      );
-    }
-    kesintiRows.push(["Net tutar (anapara)", `${formatMoney(netTutar)} ₺`]);
+    const kesintiRows: string[][] =
+      variant === "damga"
+        ? [
+            ["Brüt alacak", `${formatMoney(grossVal)} ₺`],
+            ...( "damgaVergisi" in brutNet
+              ? [["Damga vergisi (binde 7,59)", `−${formatMoney(brutNet.damgaVergisi)} ₺`]]
+              : []),
+            ["Net tutar (anapara)", `${formatMoney(netTutar)} ₺`],
+          ]
+        : [
+            ["Yıl / dönem", `${form.year} / ${form.period}`],
+            ...segmentedBreakdown.map(breakdownRowToPreview),
+          ];
 
     const sections: PreviewSection[] = [
       {
@@ -300,6 +459,7 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
     netTutar,
     takipToplami,
     totalDays,
+    segmentedBreakdown,
     totalInterest,
     variant,
   ]);
@@ -307,68 +467,127 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <p className={styles.helper}>
-            <Link to={backTo}>← İcra Takip</Link>
-          </p>
-          <h1 className={styles.title}>{title}</h1>
-          <p className={styles.desc}>
-            Brütten nete çevirme ve faiz hesabı. Yasal faiz ve bankalarca mevduatlara uygulanan en yüksek faiz (TCMB EVDS).
-          </p>
-          {storageError ? (
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <Scale size={20} />
+          </div>
+          <div style={{ minWidth: 0 }}>
             <p className={styles.helper}>
-              {storageError}{" "}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  clearCorruptCases(variant);
-                  setStorageError(null);
-                  reloadCases();
-                }}
-              >
-                Bozuk kaydı temizle
-              </Button>
+              <Link to={backTo}>← İcra Takip Brütten Nete</Link>
             </p>
+            <h1 className={styles.title}>{title}</h1>
+            <p className={styles.desc}>{VARIANT_DESCRIPTIONS[variant]}</p>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <span>{activeName}</span>
+            </div>
           ) : null}
+          <div className={styles.quickTotal}>
+            <span>{isInterestOk ? "Takip toplamı" : "Net tutar"}</span>
+            <span className={styles.quickTotalValue}>
+              {formatMoney(isInterestOk ? takipToplami : netTutar)} ₺
+            </span>
+          </div>
+          <div className={styles.heroActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
+              <FolderOpen size={14} /> Kayıtlar
+            </Button>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              onClick={() => (dirty ? setConfirmNew(true) : resetForm())}
+            >
+              <FilePlus2 size={14} /> Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
 
+      {storageError ? (
+        <div className={styles.storageBanner}>
+          {storageError}{" "}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              clearCorruptCases(variant);
+              setStorageError(null);
+              reloadCases();
+            }}
+          >
+            Temizle
+          </Button>
+        </div>
+      ) : null}
+
       <div className={styles.layout}>
         <section className={styles.card}>
+          <div className={styles.cardHead}>
+            <Calculator size={16} />
+            <h2 className={styles.cardTitle}>Brütten nete çevir</h2>
+          </div>
           <div className={styles.fields}>
             <div>
-              <label className={styles.label}>Brüt alacak</label>
-              <input
+              <label className={styles.label} htmlFor="icra-brut">
+                {GROSS_INPUT_LABEL[variant] ?? "Brüt alacak tutarı"}
+              </label>
+              <DraftTextInput
+                id="icra-brut"
                 className={styles.input}
+                inputMode="decimal"
+                placeholder="Örn: 30.000,00"
                 value={form.grossForNet}
-                onChange={(e) => setForm((f) => ({ ...f, grossForNet: e.target.value }))}
-                placeholder="Brüt tutar"
+                onCommit={(value) => setForm((f) => ({ ...f, grossForNet: value }))}
               />
             </div>
 
             {variant !== "damga" ? (
               <>
                 <div>
-                  <label className={styles.label}>Gelir vergisi yılı</label>
-                  <input
-                    type="number"
+                  <label className={styles.label} htmlFor="icra-yil">
+                    Gelir vergisi yılı
+                  </label>
+                  <select
+                    id="icra-yil"
                     className={styles.input}
                     value={form.year}
-                    onChange={(e) => setForm((f) => ({ ...f, year: Number(e.target.value) || f.year }))}
-                  />
+                    onChange={(e) => {
+                      const nextYear = Number(e.target.value);
+                      setForm((f) => ({
+                        ...f,
+                        year: nextYear,
+                        period: hasTwoPeriods(nextYear) ? f.period : 2,
+                      }));
+                    }}
+                  >
+                    {yearOptions.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 {twoPeriods ? (
-                  <div className={styles.fields} style={{ gridTemplateColumns: "1fr 1fr" }}>
-                    <label className={styles.label}>
-                      <input type="radio" checked={form.period === 1} onChange={() => setForm((f) => ({ ...f, period: 1 }))} /> 1.
-                      dönem
+                  <div>
+                    <label className={styles.label} htmlFor="icra-donem">
+                      {variant === "istisnasiz-full" ? "Dönem (referans)" : "Dönem"}
                     </label>
-                    <label className={styles.label}>
-                      <input type="radio" checked={form.period === 2} onChange={() => setForm((f) => ({ ...f, period: 2 }))} /> 2.
-                      dönem
-                    </label>
+                    <select
+                      id="icra-donem"
+                      className={styles.input}
+                      value={form.period}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, period: Number(e.target.value) === 1 ? 1 : 2 }))
+                      }
+                    >
+                      <option value={1}>Oca–Haz</option>
+                      <option value={2}>Tem–Ara</option>
+                    </select>
                   </div>
                 ) : null}
               </>
@@ -376,52 +595,50 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
           </div>
 
           <div className={pageStyles.brutBreakdown}>
-            <div className={pageStyles.breakdownRow}>
-              <span className={pageStyles.breakdownLabel}>Brüt alacak tutarı</span>
-              <span className={pageStyles.breakdownValue}>{formatMoney(grossVal)} ₺</span>
-            </div>
+            {variant === "damga" ? (
+              <div className={pageStyles.breakdownRow}>
+                <span className={pageStyles.breakdownLabel}>Brüt alacak tutarı</span>
+                <span className={pageStyles.breakdownValue}>{formatMoney(grossVal)} ₺</span>
+              </div>
+            ) : null}
             {variant === "damga" && "damgaVergisi" in brutNet ? (
               <div className={pageStyles.breakdownRow}>
                 <span className={pageStyles.breakdownLabel}>Damga vergisi (binde 7,59)</span>
                 <span className={`${pageStyles.breakdownValue} ${pageStyles.breakdownDeduction}`}>
-                  -{formatMoney(brutNet.damgaVergisi)} ₺
+                  −{formatMoney(brutNet.damgaVergisi)} ₺
                 </span>
               </div>
             ) : null}
-            {"sgk" in brutNet ? (
-              <>
-                <div className={pageStyles.breakdownRow}>
-                  <span className={pageStyles.breakdownLabel}>SGK primi</span>
-                  <span className={`${pageStyles.breakdownValue} ${pageStyles.breakdownDeduction}`}>
-                    -{formatMoney(brutNet.sgk)} ₺
-                  </span>
-                </div>
-                <div className={pageStyles.breakdownRow}>
-                  <span className={pageStyles.breakdownLabel}>İşsizlik primi</span>
-                  <span className={`${pageStyles.breakdownValue} ${pageStyles.breakdownDeduction}`}>
-                    -{formatMoney(brutNet.issizlik)} ₺
-                  </span>
-                </div>
-                <div className={pageStyles.breakdownRow}>
-                  <span className={pageStyles.breakdownLabel}>Gelir vergisi</span>
-                  <span className={`${pageStyles.breakdownValue} ${pageStyles.breakdownDeduction}`}>
-                    -{formatMoney(brutNet.gelirVergisi)} ₺
-                  </span>
-                </div>
-                <div className={pageStyles.breakdownRow}>
-                  <span className={pageStyles.breakdownLabel}>Damga vergisi</span>
-                  <span className={`${pageStyles.breakdownValue} ${pageStyles.breakdownDeduction}`}>
-                    -{formatMoney(brutNet.damgaVergisi)} ₺
-                  </span>
-                </div>
-              </>
+            {segmentedBreakdown.map((row) => (
+              <div
+                key={row.label}
+                className={`${pageStyles.breakdownRow}${row.emphasize ? ` ${pageStyles.breakdownEmphasis}` : ""}`}
+              >
+                <span className={pageStyles.breakdownLabel}>{row.label}</span>
+                <span
+                  className={`${pageStyles.breakdownValue} ${
+                    row.display === "deduction"
+                      ? pageStyles.breakdownDeduction
+                      : row.display === "positive"
+                        ? pageStyles.breakdownPositive
+                        : row.display === "net"
+                          ? pageStyles.breakdownNet
+                          : ""
+                  }`}
+                >
+                  {row.display === "positive" ? "+" : row.display === "deduction" ? "−" : ""}
+                  {formatMoney(row.amount)} ₺
+                </span>
+              </div>
+            ))}
+            {variant === "damga" ? (
+              <div className={pageStyles.breakdownRow}>
+                <span className={pageStyles.breakdownLabel}>Net tutar (anapara)</span>
+                <span className={`${pageStyles.breakdownValue} ${pageStyles.breakdownNet}`}>
+                  {formatMoney(netTutar)} ₺
+                </span>
+              </div>
             ) : null}
-            <div className={pageStyles.breakdownRow}>
-              <span className={pageStyles.breakdownLabel}>Net tutar (anapara)</span>
-              <span className={`${pageStyles.breakdownValue} ${pageStyles.breakdownNet}`}>
-                {formatMoney(netTutar)} ₺
-              </span>
-            </div>
           </div>
         </section>
 
@@ -431,40 +648,49 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
           </div>
           <div className={styles.fields}>
             <div>
-              <label className={styles.label}>Faiz başlangıç</label>
-              <input
-                type="date"
+              <label className={styles.label} htmlFor="icra-faiz-bas">
+                Faiz başlangıç tarihi
+              </label>
+              <DraftDateInput
+                id="icra-faiz-bas"
+                max="9999-12-31"
                 className={styles.input}
                 value={form.faizBaslangic}
-                onChange={(e) => setForm((f) => ({ ...f, faizBaslangic: e.target.value }))}
+                onCommit={(value) => setForm((f) => ({ ...f, faizBaslangic: value }))}
               />
             </div>
             <div>
-              <label className={styles.label}>İcra takip tarihi</label>
-              <input
-                type="date"
+              <label className={styles.label} htmlFor="icra-takip-tarih">
+                İcra takip tarihi
+              </label>
+              <DraftDateInput
+                id="icra-takip-tarih"
+                max="9999-12-31"
                 className={styles.input}
                 value={form.icraTakip}
-                onChange={(e) => setForm((f) => ({ ...f, icraTakip: e.target.value }))}
+                onCommit={(value) => setForm((f) => ({ ...f, icraTakip: value }))}
               />
             </div>
-            <div className={styles.fields} style={{ gridTemplateColumns: "1fr 1fr" }}>
-              <label className={styles.label}>
-                <input
-                  type="radio"
-                  checked={form.faizTuru === "yasal"}
-                  onChange={() => setForm((f) => ({ ...f, faizTuru: "yasal" }))}
-                />{" "}
-                Yasal faiz
+            <div>
+              <label className={styles.label} htmlFor="icra-faiz-turu">
+                Faiz türü
               </label>
-              <label className={styles.label}>
-                <input
-                  type="radio"
-                  checked={form.faizTuru === "en_yuksek_mevduat"}
-                  onChange={() => setForm((f) => ({ ...f, faizTuru: "en_yuksek_mevduat" }))}
-                />{" "}
-                En yüksek mevduat faizi
-              </label>
+              <select
+                id="icra-faiz-turu"
+                className={styles.input}
+                value={form.faizTuru}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    faizTuru: e.target.value as "yasal" | "en_yuksek_mevduat",
+                  }))
+                }
+              >
+                <option value="yasal">Yasal Faiz</option>
+                <option value="en_yuksek_mevduat">
+                  Bankalarca mevduatlara uygulanan en yüksek faiz
+                </option>
+              </select>
             </div>
           </div>
           {form.faizTuru === "en_yuksek_mevduat" ? (
@@ -507,9 +733,6 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
           </div>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => setPreviewOpen(true)} disabled={grossVal <= 0}>
               <Eye size={14} /> Önizleme
             </Button>
@@ -520,18 +743,28 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
               type="button"
               variant="primary"
               size="sm"
+              disabled={caseSaving || !isInterestOk}
               onClick={() => {
-                if (activeId && activeName) handleSave(activeName);
-                else setNameOpen(true);
+                if (activeId && activeName && /^\d+$/.test(activeId)) {
+                  void handleSave(activeName, activeId);
+                  return;
+                }
+                setNameOpen(true);
               }}
             >
-              <Save size={14} /> {activeId ? "Güncelle" : "Kaydet"}
+              <Save size={14} />{" "}
+              {caseSaving ? "Kaydediliyor…" : activeId && /^\d+$/.test(activeId) ? "Güncelle" : "Kaydet"}
             </Button>
           </div>
         </div>
       </div>
 
-      <NameModal open={nameOpen} initial={activeName ?? title} onClose={() => setNameOpen(false)} onConfirm={handleSave} />
+      <NameModal
+        open={nameOpen}
+        initial={activeName ?? title}
+        onClose={() => setNameOpen(false)}
+        onConfirm={(name) => void handleSave(name, null)}
+      />
 
       {listOpen ? (
         <div className={styles.modalOverlay} role="dialog" aria-modal="true">
@@ -593,14 +826,27 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
         description="Bu kayıt kalıcı olarak silinecek."
         confirmLabel="Sil"
         danger
-        onConfirm={() => {
-          if (confirmDeleteId) {
-            deleteCase(variant, confirmDeleteId);
+        onConfirm={async () => {
+          if (!confirmDeleteId) return;
+          try {
+            if (/^\d+$/.test(confirmDeleteId)) {
+              await getIcraCaseCrud(variant).removeCase(confirmDeleteId);
+            } else {
+              deleteCase(variant, confirmDeleteId);
+            }
             if (activeId === confirmDeleteId) resetForm();
-            reloadCases();
-            success("Kayıt silindi.");
+            setConfirmDeleteId(null);
+            await reloadCases();
+            success("Kayıt silindi");
+          } catch (error) {
+            showError(
+              error instanceof ApiError
+                ? error.message
+                : error instanceof Error
+                  ? error.message
+                  : "Kayıt silinemedi",
+            );
           }
-          setConfirmDeleteId(null);
         }}
         onCancel={() => setConfirmDeleteId(null)}
       />

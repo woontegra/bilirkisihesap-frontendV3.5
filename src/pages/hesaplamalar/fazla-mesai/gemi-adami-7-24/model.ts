@@ -63,6 +63,9 @@ export type PeriodRow = {
   note?: string;
   isManual?: boolean;
   insertAfter?: string;
+  dailyNet?: number;
+  annualLeaveHg?: number;
+  annualLeaveSevenDay?: "tatilli" | "tatilsiz";
 };
 
 export type Gemi724FormSnapshot = {

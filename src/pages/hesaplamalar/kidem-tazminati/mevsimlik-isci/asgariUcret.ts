@@ -46,6 +46,8 @@ const ASGARI_UCRET_BRUT: Readonly<Record<string, number>> = {
   "2024-2": 20002.5,
   "2025-1": 26005.5,
   "2025-2": 26005.5,
+  "2026-1": 33030,
+  "2026-2": 33030,
 };
 
 /** ISO tarih (YYYY-MM-DD) için dönem asgari brütünü döner. */

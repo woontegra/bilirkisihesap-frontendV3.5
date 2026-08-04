@@ -6,6 +6,7 @@ import { DESKTOP_MQ, useMediaQuery } from "@/hooks/useMediaQuery";
 import { PAGE_TITLES } from "./navConfig";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import ChatWidget from "@/components/chat/ChatWidget";
 import styles from "./AppShell.module.css";
 
 const COLLAPSE_KEY = "v35_sidebarCollapsed";
@@ -84,7 +85,8 @@ export function AppShell({ onRefresh }: Props) {
           onRefresh={onRefresh}
           userName={userInfo?.name}
           userEmail={userInfo?.email}
-          userRoleLabel={isAdmin ? "YÖNETİCİ" : undefined}
+          userRole={userInfo?.role}
+          isAdmin={isAdmin}
         />
         <main className={styles.content}>
           <div className={styles.contentInner}>
@@ -92,6 +94,7 @@ export function AppShell({ onRefresh }: Props) {
           </div>
         </main>
       </div>
+      <ChatWidget />
     </div>
   );
 }

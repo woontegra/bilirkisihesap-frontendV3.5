@@ -1,4 +1,5 @@
 import { apiClient, apiClientAsUser } from "@/api/client";
+import { applyAuthMeResponse } from "@/auth/session";
 
 /* ── User profile ─────────────────────────────────────────────── */
 
@@ -27,13 +28,19 @@ export type BillingProfile = {
 };
 
 export type AuthMe = {
+  id?: number;
   email?: string;
   name?: string;
   role?: string;
+  tenantId?: number;
   customerCode?: string;
+  subscriptionStartsAt?: string | null;
   subscriptionType?: string | null;
   subscriptionEndsAt?: string | null;
+  createdAt?: string | null;
   licenseType?: string | null;
+  profilePicture?: string | null;
+  profilePictureUrl?: string | null;
   emailNotifications?: boolean;
   loginAlerts?: boolean;
   [key: string]: unknown;
@@ -189,9 +196,10 @@ export async function updateBillingProfile(
   return parseBillingProfile(data);
 }
 
-export async function fetchAuthMe(email?: string): Promise<AuthMe> {
-  const q = email ? `?email=${encodeURIComponent(email)}` : "";
-  return apiClient<AuthMe>(`/api/auth/me${q}`);
+export async function fetchAuthMe(): Promise<AuthMe> {
+  const me = await apiClient<AuthMe>("/api/auth/me");
+  applyAuthMeResponse(me);
+  return me;
 }
 
 export async function changePassword(body: {

@@ -7,6 +7,8 @@ import { useSearchParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { getSavedCase, type SavedCaseRecord } from "@/api/savedCases";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationTools } from "@/context/CalculationToolsContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
 import type { CalcSaveResult } from "../../shared/calcBackendCrud";
 import type { IhbarResultSnapshot } from "./types";
 
@@ -60,6 +62,8 @@ export function useIhbarCaseBackend<TForm, TSaved extends { id: string; name: st
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  const { beginNewCalculation } = useCalculationTools();
+  useCalculationCaseBinding(activeId);
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -148,10 +152,11 @@ export function useIhbarCaseBackend<TForm, TSaved extends { id: string; name: st
   }, [caseIdParam, config, searchParams, setSearchParams, showError, success]);
 
   const resetActiveCase = useCallback(() => {
+    beginNewCalculation();
     setActiveId(null);
     setActiveName(null);
     backendLoadedCaseIdRef.current = null;
-  }, []);
+  }, [beginNewCalculation]);
 
   const persist = useCallback(
     async (

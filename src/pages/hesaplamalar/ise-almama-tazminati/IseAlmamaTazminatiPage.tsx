@@ -14,9 +14,12 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTextInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import {
   buildIseAlmamaSaveResult,
   iseAlmamaCaseCrud,
@@ -30,7 +33,6 @@ import {
   formatDateTR,
   formatMoney,
   isDateOrderInvalid,
-  normalizeKatsayi,
 } from "./engine";
 import {
   NOTE_BLOCKS,
@@ -155,6 +157,7 @@ export default function IseAlmamaTazminatiPage() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -162,6 +165,10 @@ export default function IseAlmamaTazminatiPage() {
   const [confirmNew, setConfirmNew] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [caseSaving, setCaseSaving] = useState(false);
+
+  useEffect(() => {
+    document.title = `${PAGE_TITLE} | Bilirkişi Hesap`;
+  }, []);
 
   const setCaseIdParam = useCallback(
     (id: string) => {
@@ -172,7 +179,7 @@ export default function IseAlmamaTazminatiPage() {
     [searchParams, setSearchParams],
   );
 
-  const result = useMemo(() => computeIseAlmama(form), [form]);
+  const result = useDeferredFormMemo(form, computeIseAlmama);
   const dirty = snapshotKey(form) !== baseline;
 
   const reloadCases = useCallback(async () => {
@@ -335,7 +342,7 @@ export default function IseAlmamaTazminatiPage() {
 
   const openCase = useCallback(
     (c: SavedCase) => {
-      const next = { ...createEmptyForm(), ...c.form, selectedKatsayi: normalizeKatsayi(c.form.selectedKatsayi) };
+      const next = { ...createEmptyForm(), ...c.form };
       setForm(next);
       setActiveId(c.id);
       setActiveName(c.name);
@@ -384,7 +391,6 @@ export default function IseAlmamaTazminatiPage() {
           ["İşe Giriş Tarihi", form.startDate ? formatDateTR(form.startDate) : "—"],
           ["İşten Çıkış Tarihi", form.endDate ? formatDateTR(form.endDate) : "—"],
           ["Çalışma Süresi", result.workPeriod?.label || "—"],
-          ["Seçili Katsayı", `${result.selectedKatsayi} aylık`],
         ],
       },
     ];
@@ -408,35 +414,55 @@ export default function IseAlmamaTazminatiPage() {
       headers: ["Kalem", "Tutar"],
       rows: [
         ["Brüt İşe Başlatmama Tazminatı", `${formatMoney(result.brutForNet)} ₺`],
-        ["Damga Vergisi (Binde 7,59)", `-${formatMoney(result.damgaVergisi)} ₺`],
+        ["Damga Vergisi (Binde 7,59)", `−${formatMoney(result.damgaVergisi)} ₺`],
         ["Net İşe Başlatmama Tazminatı", `${formatMoney(result.netTazminat)} ₺`],
       ],
+      lastRowTone: "green",
     });
 
     return sections;
   }, [form.endDate, form.startDate, result]);
 
-  const defaultBrutPlaceholder =
-    result.coefRows.find((r) => r.k === result.selectedKatsayi)?.value ??
-    result.coefRows[result.coefRows.length - 1]?.value ??
-    0;
+  const defaultBrutPlaceholder = result.coefRows[result.coefRows.length - 1]?.value ?? 0;
 
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div className={styles.heroIcon} aria-hidden>
-          <UserX size={20} />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <h1 className={styles.title}>{PAGE_TITLE}</h1>
-          <p className={styles.desc}>
-            İş Kanunu kapsamında işe başlatmama tazminatı — 4–8 aylık katsayı tablosu ve damga
-            vergisi (binde 7,59). Hesaplama tamamen lokal çalışır.
-          </p>
-          <div className={styles.privacyBadge}>
-            <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <UserX size={20} />
           </div>
-          {activeName ? <div className={styles.recordBadge}>Kayıt: {activeName}</div> : null}
+          <div style={{ minWidth: 0 }}>
+            <h1 className={styles.title}>{PAGE_TITLE}</h1>
+            <p className={styles.desc}>
+              İş Kanunu kapsamında işe başlatmama tazminatı — 4–8 aylık katsayı tablosu ve damga
+              vergisi (binde 7,59). Hesaplama tamamen lokal çalışır.
+            </p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <span>{activeName}</span>
+            </div>
+          ) : null}
+          <div className={styles.quickTotal}>
+            <span>Brüt ücret</span>
+            <span className={styles.quickTotalValue}>
+              <AnimatedMoney value={result.brutForNet} /> ₺
+            </span>
+          </div>
+          <div className={styles.heroActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
+              <FolderOpen size={14} /> Kayıtlar
+            </Button>
+            <Button type="button" variant="soft" size="sm" onClick={handleNew}>
+              <FilePlus2 size={14} /> Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -470,13 +496,16 @@ export default function IseAlmamaTazminatiPage() {
                 <label className={styles.label} htmlFor="ia-ise-giris">
                   İşe giriş
                 </label>
-                <input
+                <DraftDateInput
                   id="ia-ise-giris"
-                  type="date"
                   max="9999-12-31"
                   className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                   value={form.startDate}
-                  onChange={(e) => patch("startDate", clampYearInDateInput(e.target.value))}
+                  onCommit={(value) => {
+                    const next = clampYearInDateInput(value);
+                    patch("startDate", next);
+                    if (next && form.endDate) validateDates(next, form.endDate);
+                  }}
                   onBlur={() => {
                     if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
                   }}
@@ -486,13 +515,16 @@ export default function IseAlmamaTazminatiPage() {
                 <label className={styles.label} htmlFor="ia-isten-cikis">
                   İşten çıkış
                 </label>
-                <input
+                <DraftDateInput
                   id="ia-isten-cikis"
-                  type="date"
                   max="9999-12-31"
                   className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                   value={form.endDate}
-                  onChange={(e) => patch("endDate", clampYearInDateInput(e.target.value))}
+                  onCommit={(value) => {
+                    const next = clampYearInDateInput(value);
+                    patch("endDate", next);
+                    if (form.startDate && next) validateDates(form.startDate, next);
+                  }}
                   onBlur={() => {
                     if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
                   }}
@@ -517,13 +549,13 @@ export default function IseAlmamaTazminatiPage() {
                 <label className={styles.label} htmlFor="ia-brut">
                   Çıplak brüt ücret
                 </label>
-                <input
+                <DraftTextInput
                   id="ia-brut"
                   className={`${styles.input} ${result.asgariUcretHatasi ? styles.inputError : ""}`}
                   inputMode="decimal"
                   placeholder="Örn: 25.000"
                   value={form.brut}
-                  onChange={(e) => patch("brut", e.target.value)}
+                  onCommit={(value) => patch("brut", value)}
                 />
                 <p className={styles.helper}>Dava tarihindeki emsal brüt ücret yazılabilir.</p>
                 {result.asgariUcretHatasi ? (
@@ -532,55 +564,45 @@ export default function IseAlmamaTazminatiPage() {
               </div>
             </div>
 
-            <p className={styles.cardHint} style={{ marginTop: "0.75rem" }}>
-              Katsayı tablosu (4–8 ay). Net dönüşümde varsayılan seçili dilimdir; opsiyonel brüt alanı
-              doldurulursa o tutar kullanılır. Kıdem süresi katsayıyı otomatik seçmez.
-            </p>
-            {result.coefRows.length === 0 ? (
-              <p className={styles.emptyCoef}>Geçerli brüt girildiğinde satırlar listelenir.</p>
-            ) : (
-              <div className={styles.coefGrid} role="radiogroup" aria-label="Katsayı seçimi">
-                {result.coefRows.map((row) => {
-                  const active = row.k === result.selectedKatsayi;
-                  return (
-                    <button
-                      key={row.k}
-                      type="button"
-                      role="radio"
-                      aria-checked={active}
-                      className={`${styles.coefCard} ${active ? styles.coefCardHighlight : ""}`}
-                      onClick={() => patch("selectedKatsayi", row.k)}
-                    >
-                      <div className={styles.coefK}>{row.k} aylık</div>
-                      <div className={styles.coefVal}>
+            <div className={styles.coefTable}>
+              <div className={styles.coefTableHead}>Katsayı tablosu (4–8 ay)</div>
+              {result.coefRows.length === 0 ? (
+                <p className={styles.emptyCoef}>
+                  Geçerli brüt girildiğinde katsayı satırları listelenir.
+                </p>
+              ) : (
+                <div className={styles.coefTableBody}>
+                  {result.coefRows.map((row) => (
+                    <div key={row.k} className={styles.coefTableRow}>
+                      <span className={styles.coefTableLabel}>{row.label}</span>
+                      <span className={styles.coefTableVal}>
                         <FlashValue value={`${formatMoney(row.value)} ₺`} />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className={styles.fields} style={{ marginTop: "0.75rem" }}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="ia-brut-net-ops">
                   Brüt tutar (opsiyonel)
                 </label>
-                <input
+                <DraftTextInput
                   id="ia-brut-net-ops"
                   className={styles.input}
                   inputMode="decimal"
                   placeholder={
                     result.coefRows.length
                       ? `Varsayılan: ${formatMoney(defaultBrutPlaceholder)}`
-                      : "Varsayılan: seçili katsayı"
+                      : "Varsayılan: 8 aylık"
                   }
                   value={form.brutInputForNet}
-                  onChange={(e) => patch("brutInputForNet", e.target.value)}
+                  onCommit={(value) => patch("brutInputForNet", value)}
                 />
                 <p className={styles.helper}>
-                  Boş bırakılırsa seçili katsayı satırı ({result.selectedKatsayi} aylık) kullanılır.
-                  V3 varsayılanı 8 aylıktır.
+                  Boş bırakılırsa tablonun son satırı (8 aylık) kullanılır.
                 </p>
               </div>
             </div>
@@ -627,10 +649,6 @@ export default function IseAlmamaTazminatiPage() {
                     <FlashValue value={formatMoney(result.damgaVergisi)} /> ₺
                   </strong>
                 </div>
-                <div className={styles.line}>
-                  <span>Seçili katsayı</span>
-                  <strong>{result.selectedKatsayi} aylık</strong>
-                </div>
               </div>
               <div className={`${styles.resultCard} ${styles.resultCardStrong}`}>
                 <div className={styles.resultLabel}>Net işe başlatmama</div>
@@ -653,9 +671,6 @@ export default function IseAlmamaTazminatiPage() {
                 : "Yeni hesaplama"}
           </div>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => setPreviewOpen(true)}>
               <Eye size={14} /> Önizleme
             </Button>

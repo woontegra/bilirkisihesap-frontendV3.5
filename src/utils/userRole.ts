@@ -1,0 +1,20 @@
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Yönetici",
+  user: "Kullanıcı",
+  editor: "Editör",
+  viewer: "İzleyici",
+};
+
+/** JWT/backend rol kodunu kullanıcı arayüzü etiketine çevirir. */
+export function formatUserRoleLabel(role: string | null | undefined): string {
+  if (!role?.trim()) return "";
+  const normalized = role.trim().toLowerCase();
+  if (ROLE_LABELS[normalized]) return ROLE_LABELS[normalized];
+
+  return role
+    .trim()
+    .replace(/_/g, " ")
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toLocaleUpperCase("tr-TR") + word.slice(1).toLocaleLowerCase("tr-TR"))
+    .join(" ");
+}

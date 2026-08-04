@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput } from "@/components/form";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
@@ -59,6 +61,7 @@ import {
 import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
+import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
 import styles from "./Vardiya24FmPage.module.css";
 
@@ -201,7 +204,7 @@ export default function Vardiya24FmPage() {
 
   const isDirty = useMemo(() => snapshotKey(form) !== baseline, [form, baseline]);
   const dateError = useMemo(() => validateDateRange(form.iseGiris, form.istenCikis), [form.iseGiris, form.istenCikis]);
-  const result = useMemo(() => computeVardiya24Result(form), [form]);
+  const result = useDeferredFormMemo(form, computeVardiya24Result);
 
   const katSayiNum = parseKatsayi(form.katSayi);
   const hasCustomKatsayi = katSayiNum > 0 && katSayiNum !== 1;
@@ -539,7 +542,8 @@ export default function Vardiya24FmPage() {
 
   const previewSections = useMemo((): PreviewSection[] => {
     const money = (v: number) => `${formatMoney(v)} ₺`;
-    return [
+    return insertExclusionsPreviewSection(
+      [
       {
         id: "ust",
         title: "Genel Bilgiler",
@@ -592,7 +596,9 @@ export default function Vardiya24FmPage() {
         ],
         lastRowTone: "green",
       },
-    ];
+      ],
+      form.exclusions,
+    );
   }, [form.iseGiris, form.istenCikis, displayRows, result]);
 
   return (
@@ -662,21 +668,11 @@ export default function Vardiya24FmPage() {
         <div className={styles.grid3}>
           <label className={styles.field}>
             <span>İşe giriş</span>
-            <input
-              type="date"
-              className={styles.input}
-              value={form.iseGiris}
-              onChange={(e) => setField("iseGiris", e.target.value)}
-            />
+            <DraftDateInput className={styles.input} value={form.iseGiris} onCommit={(v) => setField("iseGiris", v)} />
           </label>
           <label className={styles.field}>
             <span>İşten çıkış</span>
-            <input
-              type="date"
-              className={styles.input}
-              value={form.istenCikis}
-              onChange={(e) => setField("istenCikis", e.target.value)}
-            />
+            <DraftDateInput className={styles.input} value={form.istenCikis} onCommit={(v) => setField("istenCikis", v)} />
           </label>
           <label className={styles.field}>
             <span>Başlangıç vardiya günü</span>
@@ -723,21 +719,11 @@ export default function Vardiya24FmPage() {
               </label>
               <label className={styles.field}>
                 <span>Başlangıç</span>
-                <input
-                  type="date"
-                  className={styles.input}
-                  value={t.dateIn}
-                  onChange={(e) => updateWitness(t.id, { dateIn: e.target.value })}
-                />
+                <DraftDateInput className={styles.input} value={t.dateIn} onCommit={(v) => updateWitness(t.id, { dateIn: v })} />
               </label>
               <label className={styles.field}>
                 <span>Bitiş</span>
-                <input
-                  type="date"
-                  className={styles.input}
-                  value={t.dateOut}
-                  onChange={(e) => updateWitness(t.id, { dateOut: e.target.value })}
-                />
+                <DraftDateInput className={styles.input} value={t.dateOut} onCommit={(v) => updateWitness(t.id, { dateOut: v })} />
               </label>
               <button
                 type="button"

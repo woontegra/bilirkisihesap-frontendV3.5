@@ -36,11 +36,19 @@ import { fetchNotifications, markNotificationsRead } from "@/api/notifications";
 
 import type { NotificationItem } from "@/api/types";
 
-import { logout } from "@/auth/session";
+import { logout, getSessionTenantId } from "@/auth/session";
 
 import { Button } from "@/components/ui/Button";
 
 import { getDataSourceMode } from "@/data/source";
+
+import { useUserAvatar } from "@/hooks/useUserAvatar";
+
+import { formatUserRoleLabel } from "@/utils/userRole";
+
+import { resolveUserDisplayName } from "@/utils/userDisplay";
+
+import AdminHeaderChatActions from "@/components/admin/AdminHeaderChatActions";
 
 import styles from "./Topbar.module.css";
 
@@ -62,7 +70,9 @@ type Props = {
 
   userEmail?: string;
 
-  userRoleLabel?: string;
+  userRole?: string;
+
+  isAdmin?: boolean;
 
 };
 
@@ -88,50 +98,6 @@ function isTicketNotification(item: NotificationItem): boolean {
 
 
 
-function readStoredUser(): { name?: string; email?: string; role?: string; tenantId?: number } {
-
-  try {
-
-    const raw = JSON.parse(localStorage.getItem("current_user") || "null") as {
-
-      name?: string;
-
-      email?: string;
-
-      role?: string;
-
-      tenantId?: number;
-
-    } | null;
-
-    return {
-
-      name: raw?.name || undefined,
-
-      email: raw?.email || localStorage.getItem("email") || undefined,
-
-      role: raw?.role || localStorage.getItem("user_role") || undefined,
-
-      tenantId: raw?.tenantId ?? Number(localStorage.getItem("tenant_id") || "1"),
-
-    };
-
-  } catch {
-
-    return {
-
-      email: localStorage.getItem("email") || undefined,
-
-      tenantId: Number(localStorage.getItem("tenant_id") || "1"),
-
-    };
-
-  }
-
-}
-
-
-
 export function Topbar({
 
   title,
@@ -148,25 +114,21 @@ export function Topbar({
 
   userEmail,
 
-  userRoleLabel,
+  userRole,
+
+  isAdmin = false,
 
 }: Props) {
 
   const navigate = useNavigate();
 
-  const stored = readStoredUser();
+  const displayName = resolveUserDisplayName(userName);
 
-  const displayName = userName || stored.name || "Kullanıcı";
+  const displayEmail = userEmail?.trim() || "";
 
-  const displayEmail = userEmail || stored.email || "";
+  const roleLabel = formatUserRoleLabel(userRole);
 
-  const roleLabel =
-
-    userRoleLabel ||
-
-    (stored.role === "admin" ? "YÖNETİCİ" : stored.role ? stored.role.toUpperCase() : "");
-
-  const tenantId = stored.tenantId ?? Number(localStorage.getItem("tenant_id") || "1");
+  const tenantId = getSessionTenantId() ?? undefined;
 
   const showSubUsers = tenantId === 1;
 
@@ -185,6 +147,15 @@ export function Topbar({
   const notifRef = useRef<HTMLDivElement>(null);
 
   const source = getDataSourceMode();
+
+  const { avatarUrl, handleAvatarError, handleAvatarLoad } = useUserAvatar();
+
+  const avatarInitials = displayName
+    .split(" ")
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   const unreadCount = notifications.filter((item) => !item.read).length;
 
@@ -406,6 +377,10 @@ export function Topbar({
 
 
 
+        {isAdmin ? <AdminHeaderChatActions /> : null}
+
+
+
         <div className={styles.notifWrap} ref={notifRef}>
 
           <button
@@ -542,9 +517,17 @@ export function Topbar({
 
             <span className={styles.avatar}>
 
-              <img src="/logo.png" alt="" className={styles.avatarImg} />
-
-              <UserRound size={14} className={styles.avatarFallback} />
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className={styles.avatarImg}
+                  onError={handleAvatarError}
+                  onLoad={handleAvatarLoad}
+                />
+              ) : (
+                <span className={styles.avatarInitials}>{avatarInitials}</span>
+              )}
 
             </span>
 
@@ -553,12 +536,6 @@ export function Topbar({
               <span className={styles.userName}>{displayName}</span>
 
               {roleLabel ? <span className={styles.userRole}>{roleLabel}</span> : null}
-
-              {!roleLabel && displayEmail ? (
-
-                <span className={styles.userEmail}>{displayEmail}</span>
-
-              ) : null}
 
             </span>
 

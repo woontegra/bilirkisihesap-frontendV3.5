@@ -32,6 +32,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": apiProxy("http://localhost:4000"),
+      "/uploads": apiProxy("http://localhost:4000"),
     },
   },
   preview: {
@@ -39,6 +40,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       "/api": apiProxy("http://localhost:4000"),
+      "/uploads": apiProxy("http://localhost:4000"),
     },
   },
 });

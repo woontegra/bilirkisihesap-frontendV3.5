@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { daysBetweenIsoInclusive, isValidIsoDate } from "./engine";
 import { EXCLUSION_TYPES, newLocalId, type ExclusionItem } from "./model";
 import { deleteExclusionSet, getAllExclusionSets, saveExclusionSet, type SavedExclusionSet } from "./exclusionSets";
+import accordionStyles from "../shared/ExclusionsAccordion.module.css";
 import styles from "./Vardiya48FmPage.module.css";
 
 function suggestedDays(start: string, end: string): number {
@@ -24,6 +25,7 @@ export function ExclusionsPanel({
   onChange: (next: ExclusionItem[]) => void;
   onOpenUbgtPicker: () => void;
 }) {
+  const [isOpen, setIsOpen] = useState(true);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [setName, setSetName] = useState("");
@@ -82,9 +84,20 @@ export function ExclusionsPanel({
 
   return (
     <section className={styles.card} style={{ animationDelay: "130ms" }}>
-      <div className={styles.cardTitleRow}>
-        <h2 className={styles.cardTitle}>Yıllık izin / Çalışılmayan raporlu günler dışlanabilir.</h2>
-      </div>
+      <button
+        type="button"
+        className={accordionStyles.exclusionAccordionHead}
+        onClick={() => setIsOpen((o) => !o)}
+        aria-expanded={isOpen}
+      >
+        <span>Yıllık izin / Çalışılmayan raporlu günler dışlanabilir.</span>
+        <span className={accordionStyles.exclusionAccordionChevron} aria-hidden>
+          {isOpen ? "▼" : "▶"}
+        </span>
+      </button>
+
+      {isOpen ? (
+        <div className={accordionStyles.exclusionAccordionBody}>
       <p className={styles.panelHint}>Dışlama ekleyin; düşüm, girdiğiniz gün sayısına göre yapılır.</p>
 
       <div className={styles.exclusionList}>
@@ -174,6 +187,8 @@ export function ExclusionsPanel({
       </div>
 
       <p className={styles.panelHint}>Düşüm, girdiğiniz gün sayısına göre yapılır.</p>
+        </div>
+      ) : null}
 
       {showSaveModal ? (
         <div className={styles.modalOverlay} role="presentation" onClick={() => setShowSaveModal(false)}>

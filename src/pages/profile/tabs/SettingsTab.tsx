@@ -24,11 +24,9 @@ export default function SettingsTab() {
   const [notifLoading, setNotifLoading] = useState(false);
 
   useEffect(() => {
-    const email = localStorage.getItem("email");
-    if (!email) return;
     void (async () => {
       try {
-        const me = await fetchAuthMe(email);
+        const me = await fetchAuthMe();
         setNotifications({
           email: me.emailNotifications ?? true,
           login: me.loginAlerts ?? true,

@@ -12,13 +12,24 @@ import {
   X,
 } from "lucide-react";
 
+import { ApiError } from "@/api/client";
+import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTextInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 
 import {
-  KATSAYILAR,
+  buildAyrimcilikSaveResult,
+  ayrimcilikCaseCrud,
+  listAyrimcilikCasesFromBackend,
+  mapAyrimcilikFormFromBackend,
+  resolveSavedCaseDisplayName,
+} from "./backendCase";
+import {
   clampYearInDateInput,
   computeAyrimcilik,
   formatDateTR,
@@ -26,13 +37,13 @@ import {
   isDateOrderInvalid,
 } from "./engine";
 import { NOTE_BLOCKS, createEmptyForm, snapshotKey, type AyrimcilikForm, type SavedCase } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe, saveCase } from "./storage";
+import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
 import styles from "./AyrimcilikTazminatiPage.module.css";
 
 const PAGE_TITLE = "Ayrımcılık Tazminatı";
 const PREVIEW_TITLE = "Ayrımcılık Tazminatı Rapor";
 
-function FlashValue({ value }: { value: string }) {
+function FlashValue({ value, className }: { value: string; className?: string }) {
   const [flash, setFlash] = useState(false);
   const prev = useRef(value);
   useEffect(() => {
@@ -44,7 +55,7 @@ function FlashValue({ value }: { value: string }) {
     }
   }, [value]);
 
-  return <span className={flash ? styles.valueFlash : ""}>{value}</span>;
+  return <span className={`${className ?? ""} ${flash ? styles.valueFlash : ""}`.trim()}>{value}</span>;
 }
 
 function AnimatedMoney({ value }: { value: number }) {
@@ -136,6 +147,7 @@ export default function AyrimcilikTazminatiPage() {
   const { success, error: showError } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
+  const backendLoadedCaseIdRef = useRef<string | null>(null);
 
   const [form, setForm] = useState<AyrimcilikForm>(createEmptyForm);
   const [dateError, setDateError] = useState<string | null>(null);
@@ -144,6 +156,7 @@ export default function AyrimcilikTazminatiPage() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
 
   const [nameOpen, setNameOpen] = useState(false);
@@ -151,50 +164,87 @@ export default function AyrimcilikTazminatiPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [confirmNew, setConfirmNew] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [caseSaving, setCaseSaving] = useState(false);
 
-  const result = useMemo(() => computeAyrimcilik(form), [form]);
+  useEffect(() => {
+    document.title = `${PAGE_TITLE} | Bilirkişi Hesap`;
+  }, []);
+
+  const setCaseIdParam = useCallback(
+    (id: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("caseId", id);
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const result = useDeferredFormMemo(form, computeAyrimcilik);
   const dirty = snapshotKey(form) !== baseline;
 
-  const reloadCases = useCallback(() => {
-    const loaded = loadCasesSafe();
-    if (!loaded.ok) {
-      setStorageError(loaded.reason);
-      setCases([]);
-      return;
+  const reloadCases = useCallback(async () => {
+    try {
+      const items = await listAyrimcilikCasesFromBackend();
+      setStorageError(null);
+      setCases(items);
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Kayıtlar yüklenemedi";
+      setStorageError(message);
+      const local = loadCasesSafe();
+      setCases(local.ok ? local.items : []);
     }
-    setStorageError(null);
-    setCases(loaded.items);
   }, []);
 
   useEffect(() => {
     reloadCases();
   }, [reloadCases]);
 
-  // Lokal kayıt açma (?caseId= ile)
-  const didOpenRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!caseIdParam) return;
-    if (didOpenRef.current === caseIdParam) return;
-    didOpenRef.current = caseIdParam;
-
-    const found = cases.find((c) => c.id === caseIdParam);
-    if (!found) {
-      showError("Kayıt bulunamadı");
+    if (!caseIdParam) {
+      backendLoadedCaseIdRef.current = null;
       return;
     }
-
-    const nextForm = { ...createEmptyForm(), ...found.form };
-    setForm(nextForm);
-    setActiveId(found.id);
-    setActiveName(found.name);
-    setBaseline(snapshotKey(nextForm));
-    setDateError(null);
-
-    const next = new URLSearchParams(searchParams);
-    next.delete("caseId");
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- cases is source; do not refetch
-  }, [caseIdParam, cases, searchParams, setSearchParams, showError]);
+    if (backendLoadedCaseIdRef.current === caseIdParam) return;
+    const numericId = Number(caseIdParam);
+    if (!Number.isFinite(numericId) || numericId <= 0) {
+      showError("Geçersiz kayıt kimliği");
+      return;
+    }
+    let cancelled = false;
+    void getSavedCase(numericId)
+      .then((record) => {
+        if (cancelled) return;
+        const mapped = mapAyrimcilikFormFromBackend(record.data);
+        if (!mapped) {
+          showError("Kayıt formu okunamadı");
+          return;
+        }
+        setForm(mapped);
+        setActiveId(String(numericId));
+        setActiveName(resolveSavedCaseDisplayName(record));
+        setBaseline(snapshotKey(mapped));
+        setDateError(null);
+        backendLoadedCaseIdRef.current = caseIdParam;
+        success(`Kayıt yüklendi: ${resolveSavedCaseDisplayName(record)}`);
+        const next = new URLSearchParams(searchParams);
+        next.delete("caseId");
+        setSearchParams(next, { replace: true });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          backendLoadedCaseIdRef.current = null;
+          showError("Kayıt yüklenemedi");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseIdParam, searchParams, setSearchParams, showError, success]);
 
   const patch = useCallback(<K extends keyof AyrimcilikForm>(key: K, value: AyrimcilikForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -235,31 +285,48 @@ export default function AyrimcilikTazminatiPage() {
   }, []);
 
   const persist = useCallback(
-    (name: string, existingId?: string | null) => {
+    async (name: string, existingId?: string | null) => {
       if (!(result.brutVal > 0)) {
         showError("Geçerli bir brüt ücret giriniz");
         return;
       }
 
-      const saved = saveCase(
-        name,
-        form,
-        { brutForNetConversion: result.brutForNetConversion, netTazminat: result.netTazminat },
-        existingId,
-      );
-      if (!saved) {
-        showError("Kayıt yapılamadı");
-        return;
+      setCaseSaving(true);
+      const wasUpdate = !!(existingId && /^\d+$/.test(existingId));
+      const maxAmount = result.coefRows[result.coefRows.length - 1]?.value ?? 0;
+      try {
+        const record = await ayrimcilikCaseCrud.saveCase(
+          name,
+          form,
+          buildAyrimcilikSaveResult({
+            brutForNetConversion: result.brutForNetConversion,
+            netTazminat: result.netTazminat,
+            maxAmount,
+          }),
+          existingId,
+        );
+        const recordId = String(record.id);
+        setActiveId(recordId);
+        setActiveName(resolveSavedCaseDisplayName(record));
+        setBaseline(snapshotKey(form));
+        setCaseIdParam(recordId);
+        backendLoadedCaseIdRef.current = recordId;
+        await reloadCases();
+        success(wasUpdate ? "Kayıt güncellendi" : "Kayıt kaydedildi");
+        setNameOpen(false);
+      } catch (error) {
+        showError(
+          error instanceof ApiError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : "Kayıt yapılamadı",
+        );
+      } finally {
+        setCaseSaving(false);
       }
-
-      setActiveId(saved.id);
-      setActiveName(saved.name);
-      setBaseline(snapshotKey(form));
-      reloadCases();
-      success(existingId ? "Kayıt güncellendi" : "Kayıt kaydedildi");
-      setNameOpen(false);
     },
-    [form, reloadCases, result.brutForNetConversion, result.netTazminat, result.brutVal, showError, success],
+    [form, reloadCases, result, setCaseIdParam, showError, success],
   );
 
   const handleSaveClick = useCallback(() => {
@@ -267,8 +334,8 @@ export default function AyrimcilikTazminatiPage() {
       showError("Geçerli bir brüt ücret giriniz");
       return;
     }
-    if (activeId && activeName) {
-      persist(activeName, activeId);
+    if (activeId && activeName && /^\d+$/.test(activeId)) {
+      void persist(activeName, activeId);
       return;
     }
     setNameOpen(true);
@@ -284,32 +351,38 @@ export default function AyrimcilikTazminatiPage() {
       setDateError(null);
       setListOpen(false);
       success(`Kayıt açıldı: ${c.name}`);
-      // Açılan kayıt için URL'u temizle (lokal-only)
-      const nextUrl = new URLSearchParams(searchParams);
-      nextUrl.delete("caseId");
-      setSearchParams(nextUrl, { replace: true });
     },
-    [searchParams, setSearchParams, success],
+    [success],
   );
 
-  const doDelete = useCallback(() => {
+  const doDelete = useCallback(async () => {
     if (!confirmDeleteId) return;
-    deleteCase(confirmDeleteId);
-    if (activeId === confirmDeleteId) {
-      setActiveId(null);
-      setActiveName(null);
+    try {
+      if (/^\d+$/.test(confirmDeleteId)) {
+        await ayrimcilikCaseCrud.removeCase(confirmDeleteId);
+      } else {
+        deleteCase(confirmDeleteId);
+      }
+      if (activeId === confirmDeleteId) {
+        setActiveId(null);
+        setActiveName(null);
+      }
+      setConfirmDeleteId(null);
+      await reloadCases();
+      success("Kayıt silindi");
+    } catch (error) {
+      showError(
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Kayıt silinemedi",
+      );
     }
-    setConfirmDeleteId(null);
-    reloadCases();
-    success("Kayıt silindi");
-  }, [activeId, confirmDeleteId, reloadCases, success]);
+  }, [activeId, confirmDeleteId, reloadCases, showError, success]);
 
-  const activeK = useMemo(() => {
-    if (!(result.brutVal > 0)) return 4;
-    const ratio = result.brutForNetConversion / result.brutVal;
-    const rounded = Math.round(ratio);
-    return (KATSAYILAR as readonly number[]).includes(rounded) ? rounded : 4;
-  }, [result.brutForNetConversion, result.brutVal]);
+  const defaultBrutPlaceholder =
+    result.coefRows[result.coefRows.length - 1]?.value ?? result.brutVal ?? 0;
 
   const previewSections = useMemo((): PreviewSection[] => {
     const sections: PreviewSection[] = [
@@ -345,7 +418,7 @@ export default function AyrimcilikTazminatiPage() {
       headers: ["Kalem", "Tutar"],
       rows: [
         ["Brüt Ayrımcılık Tazminatı", `${formatMoney(result.brutForNetConversion)} ₺`],
-        ["Damga Vergisi (Binde 7,59)", `-${formatMoney(result.damgaVergisi)} ₺`],
+        ["Damga Vergisi (Binde 7,59)", `−${formatMoney(result.damgaVergisi)} ₺`],
         ["Net Ayrımcılık Tazminatı", `${formatMoney(result.netTazminat)} ₺`],
       ],
       lastRowTone: "green",
@@ -357,19 +430,41 @@ export default function AyrimcilikTazminatiPage() {
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div className={styles.heroIcon} aria-hidden>
-          <Scale size={20} />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <h1 className={styles.title}>{PAGE_TITLE}</h1>
-          <p className={styles.desc}>
-            1–4 aylık katsayı tablosu, damga vergisi (binde 7,59) ve net ayrımcılık tazminatı —
-            hesaplama tamamen lokal çalışır.
-          </p>
-          <div className={styles.privacyBadge}>
-            <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <Scale size={20} />
           </div>
-          {activeName ? <div className={styles.recordBadge}>Kayıt: {activeName}</div> : null}
+          <div style={{ minWidth: 0 }}>
+            <h1 className={styles.title}>{PAGE_TITLE}</h1>
+            <p className={styles.desc}>
+              1–4 aylık katsayı tablosu, damga vergisi (binde 7,59) ve net ayrımcılık tazminatı —
+              hesaplama tamamen lokal çalışır.
+            </p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <span>{activeName}</span>
+            </div>
+          ) : null}
+          <div className={styles.quickTotal}>
+            <span>Brüt ücret</span>
+            <span className={styles.quickTotalValue}>
+              <AnimatedMoney value={result.brutForNetConversion} /> ₺
+            </span>
+          </div>
+          <div className={styles.heroActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
+              <FolderOpen size={14} /> Kayıtlar
+            </Button>
+            <Button type="button" variant="soft" size="sm" onClick={handleNew}>
+              <FilePlus2 size={14} /> Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -403,13 +498,22 @@ export default function AyrimcilikTazminatiPage() {
                 <label className={styles.label} htmlFor="ay-ise-giris">
                   İşe giriş
                 </label>
-                <input
+                <DraftDateInput
                   id="ay-ise-giris"
-                  type="date"
                   max="9999-12-31"
                   className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                   value={form.startDate}
-                  onChange={(e) => patch("startDate", clampYearInDateInput(e.target.value))}
+                  onCommit={(value) => {
+                    const next = clampYearInDateInput(value);
+                    patch("startDate", next);
+                    if (next && form.endDate) {
+                      validateDates(
+                        next,
+                        form.endDate,
+                        "İşe giriş tarihi, işten çıkış tarihinden sonra olamaz.",
+                      );
+                    }
+                  }}
                   onBlur={() => {
                     if (form.startDate && form.endDate) {
                       validateDates(
@@ -426,13 +530,22 @@ export default function AyrimcilikTazminatiPage() {
                 <label className={styles.label} htmlFor="ay-isten-cikis">
                   İşten çıkış
                 </label>
-                <input
+                <DraftDateInput
                   id="ay-isten-cikis"
-                  type="date"
                   max="9999-12-31"
                   className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                   value={form.endDate}
-                  onChange={(e) => patch("endDate", clampYearInDateInput(e.target.value))}
+                  onCommit={(value) => {
+                    const next = clampYearInDateInput(value);
+                    patch("endDate", next);
+                    if (form.startDate && next) {
+                      validateDates(
+                        form.startDate,
+                        next,
+                        "İşten çıkış tarihi, işe giriş tarihinden önce olamaz.",
+                      );
+                    }
+                  }}
                   onBlur={() => {
                     if (form.startDate && form.endDate) {
                       validateDates(
@@ -456,74 +569,44 @@ export default function AyrimcilikTazminatiPage() {
 
           <section className={styles.card}>
             <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Ücret & opsiyonel brüt</h2>
+              <Calculator size={16} />
+              <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
             </div>
             <div className={styles.fields}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="ay-brut">
                   Çıplak brüt ücret
                 </label>
-                <input
+                <DraftTextInput
                   id="ay-brut"
                   className={`${styles.input} ${result.asgariUcretHatasi ? styles.inputError : ""}`}
                   inputMode="decimal"
                   placeholder="Örn: 25.000"
                   value={form.brut}
-                  onChange={(e) => patch("brut", e.target.value)}
+                  onCommit={(value) => patch("brut", value)}
                 />
                 <p className={styles.helper}>Dava tarihindeki emsal brüt ücret yazılabilir.</p>
                 {result.asgariUcretHatasi ? <p className={styles.warn}>{result.asgariUcretHatasi}</p> : null}
               </div>
-
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="ay-brut-net-ops">
-                  Brüt tutar (opsiyonel)
-                </label>
-                <input
-                  id="ay-brut-net-ops"
-                  className={styles.input}
-                  inputMode="decimal"
-                  placeholder={
-                    result.coefRows.length
-                      ? `Varsayılan: ${formatMoney(result.coefRows[result.coefRows.length - 1].value)}`
-                      : "Varsayılan: 4 aylık"
-                  }
-                  value={form.brutInputForNet}
-                  onChange={(e) => patch("brutInputForNet", e.target.value)}
-                />
-                <p className={styles.helper}>
-                  Boş bırakılırsa tablonun son satırı (4 aylık) kullanılır; tablo yoksa çıplak brüt.
-                </p>
-              </div>
             </div>
-          </section>
 
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Katsayı tablosu (1–4 ay)</h2>
-            </div>
-            <p className={styles.cardHint}>
-              Brüt ücret × 1..4 dilimleri. Opsiyonel brüt alanı boşsa varsayılan olarak 4 aylık tutar
-              net dönüşümde esas alınır.
-            </p>
-
-            {result.coefRows.length === 0 ? (
-              <p className={styles.emptyCoef}>Brüt ücret girildiğinde satırlar listelenir.</p>
-            ) : (
-              <div className={styles.coefGrid}>
-                {result.coefRows.map((row) => (
-                  <div
-                    key={row.k}
-                    className={`${styles.coefCard} ${row.k === activeK ? styles.coefCardHighlight : ""}`}
-                  >
-                    <div className={styles.coefK}>{row.k} aylık</div>
-                    <div className={styles.coefVal}>
-                      <FlashValue value={`${formatMoney(row.value)} ₺`} />
+            <div className={styles.coefTable}>
+              <div className={styles.coefTableHead}>Katsayı tablosu (1–4 ay)</div>
+              {result.coefRows.length === 0 ? (
+                <p className={styles.emptyCoef}>Brüt ücret girildiğinde satırlar listelenir.</p>
+              ) : (
+                <div className={styles.coefTableBody}>
+                  {result.coefRows.map((row) => (
+                    <div key={row.k} className={styles.coefTableRow}>
+                      <span className={styles.coefTableLabel}>{row.label}</span>
+                      <span className={styles.coefTableVal}>
+                        <FlashValue value={`${formatMoney(row.value)} ₺`} />
+                      </span>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
 
           <section className={styles.card}>
@@ -548,7 +631,27 @@ export default function AyrimcilikTazminatiPage() {
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>Brütten nete</h2>
             </div>
-            <p className={styles.cardHint}>Brüt tutardan yalnızca binde 7,59 oranında damga vergisi kesintisi uygulanır.</p>
+            <p className={styles.cardHint}>
+              Brüt tutardan yalnızca binde 7,59 oranında damga vergisi kesintisi uygulanır.
+            </p>
+            <div className={styles.fields} style={{ marginBottom: "0.65rem" }}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="ay-brut-net-ops">
+                  Brüt tutar (opsiyonel)
+                </label>
+                <DraftTextInput
+                  id="ay-brut-net-ops"
+                  className={styles.input}
+                  inputMode="decimal"
+                  placeholder={`Varsayılan: ${formatMoney(defaultBrutPlaceholder)}`}
+                  value={form.brutInputForNet}
+                  onCommit={(value) => patch("brutInputForNet", value)}
+                />
+                <p className={styles.helper}>
+                  Boş bırakılırsa tablonun son satırı (4 aylık) kullanılır; tablo yoksa çıplak brüt.
+                </p>
+              </div>
+            </div>
             <div className={styles.resultStack}>
               <div className={`${styles.resultCard} ${styles.resultCardAccent}`}>
                 <div className={styles.resultLabel}>Brüt ayrımcılık</div>
@@ -583,17 +686,21 @@ export default function AyrimcilikTazminatiPage() {
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
           </div>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => setPreviewOpen(true)}>
               <Eye size={14} /> Önizleme
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={handleNew}>
               <FilePlus2 size={14} /> Yeni
             </Button>
-            <Button type="button" variant="primary" size="sm" onClick={handleSaveClick}>
-              <Save size={14} /> {activeId ? "Güncelle" : "Kaydet"}
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleSaveClick}
+              disabled={caseSaving}
+            >
+              <Save size={14} />{" "}
+              {caseSaving ? "Kaydediliyor…" : activeId && /^\d+$/.test(activeId) ? "Güncelle" : "Kaydet"}
             </Button>
           </div>
         </div>
@@ -603,7 +710,7 @@ export default function AyrimcilikTazminatiPage() {
         open={nameOpen}
         initial={activeName || PAGE_TITLE}
         onClose={() => setNameOpen(false)}
-        onConfirm={(name) => persist(name, null)}
+        onConfirm={(name) => void persist(name, null)}
       />
 
       {listOpen ? (

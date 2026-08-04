@@ -178,6 +178,8 @@ function mapManualRows(raw: unknown): PeriodRow[] {
   for (const row of raw) {
     const r = asRecord(row);
     if (!r) continue;
+    // V3 cetvel satırları `rows` içinde isManual olmadan gelir; yalnızca gerçek manuel satırlar.
+    if (r.isManual === false) continue;
     out.push({
       id: str(r.id) || newLocalId("manual"),
       startISO: normalizeDateInput(r.startISO),
@@ -225,7 +227,7 @@ export function mapGemiGunlukFormFromBackend(
       davaciIn: str(davaci.in ?? form.davaciIn),
       davaciOut: str(davaci.out ?? form.davaciOut),
       witnesses: mapWitnesses(form.taniklar ?? form.witnesses),
-      exclusions: normalizeExclusions(form.exclusions),
+      exclusions: normalizeExclusions(form.exclusions ?? payload.exclusions),
       haftaTatiliGunu: normalizeHaftaTatiliGunu(form.haftaTatiliGunu),
       katSayi: str(form.katSayi ?? form.katsayi ?? "1") || "1",
       mode270: normalizeMode270(form.mode270),

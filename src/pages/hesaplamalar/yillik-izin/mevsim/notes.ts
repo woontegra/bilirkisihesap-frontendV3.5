@@ -1,10 +1,16 @@
 import type { NoteBlock } from "../lib/types";
 
 export const NOTE_BLOCKS: NoteBlock[] = [
-  { text: "Mevsimlik İşçi — Yıllık İzin", kind: "heading" },
   {
-    text: "Niteliklerinden ötürü bir yıldan az süren mevsimlik veya kampanya işlerinde çalışanlara İş Kanunu yıllık ücretli izin hükümleri uygulanmaz; ancak fiilen bir yıl ve üzeri çalışmalarda standart kıdem dilimleri esas alınır.",
+    text: "Mevsimlik işçilerin yıllık izin hakları çalışma süresine göre belirlenir.",
     kind: "li",
   },
-  { text: "Hesap, fiili çalışma süresine göre İş Kanunu madde 53 dilimleriyle yapılır.", emphasis: "warning" },
+  {
+    text: "Sezon sonunda işten ayrılanlarda izin ücreti ödenmesi gerekir.",
+    kind: "li",
+  },
+  {
+    text: "Çoklu sezon / dönem varsa hizmet süresi genelde ilk işe giriş ile son işten çıkış arasında hesaplanır.",
+    kind: "li",
+  },
 ];

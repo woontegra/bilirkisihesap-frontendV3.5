@@ -20,9 +20,10 @@ export function createEmptyForm(): YillikBasinGunlukOlmayanForm {
 export function normalizeForm(raw: Partial<YillikBasinGunlukOlmayanForm> | null | undefined): YillikBasinGunlukOlmayanForm {
   const e = createEmptyForm();
   if (!raw || typeof raw !== "object") return e;
+  const meslegeBaslangic = String(raw.meslegeBaslangic ?? e.meslegeBaslangic);
   return {
-    meslegeBaslangic: String(raw.meslegeBaslangic ?? e.meslegeBaslangic),
-    startDate: String(raw.startDate ?? e.startDate),
+    meslegeBaslangic,
+    startDate: String(raw.startDate ?? meslegeBaslangic ?? e.startDate),
     endDate: String(raw.endDate ?? e.endDate),
     brut: String(raw.brut ?? e.brut),
     usedRows: normalizeUsedRows(raw.usedRows, 7),

@@ -3,7 +3,7 @@ import { readIsAdmin } from "@/data/source";
 import { isAuthenticated } from "@/auth/session";
 
 /**
- * V3 AdminRoute ile aynı kural: role === admin veya tenant_id === 1
+ * Yalnızca role === admin kullanıcılar admin rotalarına erişebilir.
  */
 export function AdminOnly() {
   if (!isAuthenticated()) {

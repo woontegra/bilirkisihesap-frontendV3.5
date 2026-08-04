@@ -9,6 +9,65 @@ export type SubscriptionProgress = {
   remainingPct: number;
 };
 
+export type SubscriptionDateSource = {
+  subscriptionStartsAt?: string | null;
+  subscriptionEndsAt?: string | null;
+  createdAt?: string | null;
+  demoLicense?: {
+    activatedAt?: string | null;
+    expiresAt?: string | null;
+    createdAt?: string | null;
+  } | null;
+};
+
+function normalizeDateInput(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : value;
+}
+
+/** Bitiş: demo lisansı veya abonelik bitişi (/api/auth/me). */
+export function resolveSubscriptionEndsAt(source: SubscriptionDateSource): string | null {
+  return (
+    normalizeDateInput(source.demoLicense?.expiresAt) ??
+    normalizeDateInput(source.subscriptionEndsAt)
+  );
+}
+
+/**
+ * Başlangıç: subscriptionStartsAt → demo activatedAt → (bitiş varsa) createdAt.
+ * Sahte tarih üretilmez.
+ */
+export function resolveSubscriptionStartsAt(
+  source: SubscriptionDateSource,
+  endOverride?: string | null,
+): string | null {
+  const direct =
+    normalizeDateInput(source.subscriptionStartsAt) ??
+    normalizeDateInput(source.demoLicense?.activatedAt);
+  if (direct) {
+    return direct;
+  }
+
+  const end = endOverride ?? resolveSubscriptionEndsAt(source);
+  if (!end) {
+    return null;
+  }
+
+  return (
+    normalizeDateInput(source.createdAt) ??
+    normalizeDateInput(source.demoLicense?.createdAt)
+  );
+}
+
+export function buildSubscriptionProgress(source: SubscriptionDateSource): SubscriptionProgress {
+  const endDate = resolveSubscriptionEndsAt(source);
+  const startDate = resolveSubscriptionStartsAt(source, endDate);
+  return calculateSubscription(startDate, endDate);
+}
+
 export function calculateSubscription(
   startRaw?: string | null,
   endRaw?: string | null,
@@ -67,7 +126,7 @@ export function getSubscriptionTypeLabel(raw?: string | null, hasDemo?: boolean)
     return "Deneme";
   }
   if (!raw) {
-    return "Kullanıcı";
+    return "Plan bilgisi yok";
   }
   const lower = raw.toLowerCase();
   if (lower.includes("annual") || lower.includes("yillik") || lower.includes("yıllık")) {

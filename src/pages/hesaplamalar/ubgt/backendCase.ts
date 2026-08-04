@@ -4,7 +4,6 @@
 
 import type { SavedCaseRecord } from "@/api/savedCases";
 import {
-  buildCalcSavePayload,
   createCalcBackendCrud,
   listCalcSavedCases,
   unwrapCalcData,
@@ -17,6 +16,8 @@ import {
   resolveSavedCaseDisplayName,
 } from "./legacyUbgtCaseAdapter";
 import type { SavedCase, UbgtForm, UbgtResults } from "./model";
+import { buildStandartUbgtSaveData } from "./standart/buildStandartUbgtSaveData";
+import { buildBilirkisiUbgtSaveData } from "./bilirkisi/buildBilirkisiUbgtSaveData";
 
 export const UBGT_STANDART_TYPE = "ubgt_alacagi" as const;
 export const UBGT_BILIRKISI_TYPE = "ubgt_bilirkisi" as const;
@@ -54,11 +55,9 @@ function createUbgtCrud(mode: UbgtForm["mode"]) {
     isRecordType: (t) => isUbgtRecordType(t, mode),
     mapFormFromBackend: (data, record) => mapUbgtFormFromBackend(mode, data, record),
     buildSaveData: (form, result) =>
-      buildCalcSavePayload({
-        form: { ...form, mode },
-        result,
-        extra: { mode },
-      }),
+      mode === "standart"
+        ? buildStandartUbgtSaveData(form, result)
+        : buildBilirkisiUbgtSaveData(form, result),
   });
 }
 

@@ -185,13 +185,9 @@ export type GemiCoreResult = {
 export function calculateYillikIzinGemi(input: GemiCoreInput): GemiCoreResult {
   const { workPeriods, brutUcret, usedDays, year } = input;
 
-  if (!workPeriods?.length) {
+  const hasValidPeriod = workPeriods?.some((p) => p.iseGiris && p.istenCikis);
+  if (!workPeriods?.length || !hasValidPeriod) {
     return emptyGemiResult("Çalışma dönemleri gerekli");
-  }
-
-  const brut = toDays(brutUcret);
-  if (!brutUcret || brut <= 0) {
-    return emptyGemiResult("Geçerli bir brüt ücret giriniz");
   }
 
   const totalWorkDays = calculateTotalDays(workPeriods);
@@ -199,6 +195,25 @@ export function calculateYillikIzinGemi(input: GemiCoreInput): GemiCoreResult {
   const breakdown = calculateGemiBreakdown(workPeriods);
   const totalUsedDays = usedDays || 0;
   const remainingDays = Math.max(0, totalVacationDays - totalUsedDays);
+
+  const brut = toDays(brutUcret);
+  if (!brutUcret || brut <= 0) {
+    return {
+      totalWorkDays,
+      totalVacationDays,
+      breakdown,
+      usedDays: totalUsedDays,
+      remainingDays,
+      brutIzin: 0,
+      sgk: 0,
+      issizlik: 0,
+      gelirVergisi: 0,
+      gelirVergisiDilimleri: "",
+      damgaVergisi: 0,
+      netIzin: 0,
+    };
+  }
+
   const brutIzin = round2(coreBrutIzin(brut, remainingDays));
   const selectedYear = year || new Date().getFullYear();
   const net = calculateNetIzin(brutIzin, selectedYear, "brackets");

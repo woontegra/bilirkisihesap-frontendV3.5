@@ -19,7 +19,9 @@ import {
 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -65,6 +67,7 @@ import { MetinHesaplamasi } from "./MetinHesaplamasi";
 import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
+import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import styles from "./DonemselHaftalikFmPage.module.css";
 
 const PAGE_TITLE = "Dönemsel Haftalık Fazla Mesai Hesaplama";
@@ -593,7 +596,7 @@ export default function DonemselHaftalikFmPage() {
 
   const isDirty = useMemo(() => snapshotKey(form) !== baseline, [form, baseline]);
   const dateError = useMemo(() => validateDateRange(form.dateIn, form.dateOut), [form.dateIn, form.dateOut]);
-  const result = useMemo(() => computeDonemselHaftalikResultV3(form), [form]);
+  const result = useDeferredFormMemo(form, computeDonemselHaftalikResultV3);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -889,7 +892,8 @@ export default function DonemselHaftalikFmPage() {
 
   const previewSections = useMemo((): PreviewSection[] => {
     const money = (v: number) => `${formatMoney(v)} ₺`;
-    return [
+    return insertExclusionsPreviewSection(
+      [
       {
         id: "ust",
         title: "Genel Bilgiler",
@@ -940,7 +944,9 @@ export default function DonemselHaftalikFmPage() {
         ],
         lastRowTone: "green",
       },
-    ];
+      ],
+      form.exclusions,
+    );
   }, [form, result]);
 
   return (
@@ -1016,20 +1022,18 @@ export default function DonemselHaftalikFmPage() {
           <div className={styles.grid2}>
             <label className={styles.field}>
               <span>İşe Giriş Tarihi</span>
-              <input
-                type="date"
+              <DraftDateInput
                 className={styles.input}
                 value={form.dateIn}
-                onChange={(e) => setField("dateIn", e.target.value)}
+                onCommit={(v) => setField("dateIn", v)}
               />
             </label>
             <label className={styles.field}>
               <span>İşten Çıkış Tarihi</span>
-              <input
-                type="date"
+              <DraftDateInput
                 className={styles.input}
                 value={form.dateOut}
-                onChange={(e) => setField("dateOut", e.target.value)}
+                onCommit={(v) => setField("dateOut", v)}
               />
             </label>
           </div>

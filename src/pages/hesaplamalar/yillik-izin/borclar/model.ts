@@ -7,7 +7,14 @@ export type YillikBorclarForm = StandardYillikFormBase & { is18Or50: boolean };
 export type SavedCase = SavedYillikCase<YillikBorclarForm, YillikResultSnapshot>;
 
 export function createEmptyForm(): YillikBorclarForm {
-  return { startDate: "", endDate: "", brut: "", usedRows: createInitialUsedRows(7), is18Or50: false };
+  return {
+    startDate: "",
+    endDate: "",
+    brut: "",
+    usedRows: createInitialUsedRows(7),
+    is18Or50: false,
+    employerPayment: "",
+  };
 }
 
 export function normalizeForm(raw: Partial<YillikBorclarForm> | null | undefined): YillikBorclarForm {
@@ -19,6 +26,7 @@ export function normalizeForm(raw: Partial<YillikBorclarForm> | null | undefined
     brut: String(raw.brut ?? e.brut),
     usedRows: normalizeUsedRows(raw.usedRows, 7),
     is18Or50: !!raw.is18Or50,
+    employerPayment: String(raw.employerPayment ?? e.employerPayment ?? ""),
   };
 }
 
@@ -36,5 +44,12 @@ export function normalizeResults(raw: Partial<YillikResultSnapshot> | null | und
 }
 
 export function snapshotKey(form: YillikBorclarForm): string {
-  return JSON.stringify({ a: form.startDate, b: form.endDate, c: form.brut, r: form.usedRows, i: form.is18Or50 });
+  return JSON.stringify({
+    a: form.startDate,
+    b: form.endDate,
+    c: form.brut,
+    r: form.usedRows.map((x) => [x.start, x.end, x.days]),
+    i: form.is18Or50,
+    p: form.employerPayment ?? "",
+  });
 }

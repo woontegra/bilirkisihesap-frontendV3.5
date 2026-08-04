@@ -10,8 +10,8 @@ import {
   unwrapCalcData,
   type CalcSaveResult,
 } from "../shared/calcBackendCrud";
-import type { BostaForm, SavedCase } from "./model";
-import { createEmptyForm } from "./model";
+import type { BostaForm, ExtraItem, SavedCase } from "./model";
+import { createEmptyForm, newLocalId } from "./model";
 
 export const BOSTA_GECEN_SURE_TYPE = "bosta_gecen_sure_ucreti" as const;
 
@@ -52,11 +52,40 @@ export function resolveSavedCaseDisplayName(record: SavedCaseRecord): string {
   return name && String(name).trim() ? String(name).trim() : `Kayıt #${record.id}`;
 }
 
+function mapExtras(raw: unknown): ExtraItem[] {
+  const empty = createEmptyForm().extras;
+  if (!Array.isArray(raw)) return empty;
+  const mapped = raw
+    .map((item, index) => {
+      const row = asRecord(item);
+      if (!row) return null;
+      const label = str(row.label ?? row.name);
+      const value = str(row.value);
+      if (!label && !value) return null;
+      return {
+        id: str(row.id) || newLocalId(`extra-${index}`),
+        label: label || "Kalem",
+        value,
+      };
+    })
+    .filter((row): row is ExtraItem => row !== null);
+  return mapped.length ? mapped : empty;
+}
+
+function buildFormPayload(form: BostaForm): Record<string, unknown> {
+  return {
+    ...form,
+    istenCikis: form.endDate,
+    extraItems: form.extras.map((e) => ({ id: e.id, name: e.label, value: e.value })),
+  };
+}
+
 export function mapBostaFormFromBackend(data: unknown): BostaForm | null {
   try {
     const payload = unwrapData(data);
     const form = pickForm(payload);
     const empty = createEmptyForm();
+    const extras = mapExtras(form.extras ?? form.extraItems);
     return {
       endDate: str(form.endDate ?? form.istenCikis) || empty.endDate,
       brut: str(form.brut ?? form.brutUcret) || empty.brut,
@@ -64,7 +93,7 @@ export function mapBostaFormFromBackend(data: unknown): BostaForm | null {
       ikramiye: str(form.ikramiye) || empty.ikramiye,
       yol: str(form.yol) || empty.yol,
       yemek: str(form.yemek) || empty.yemek,
-      extras: empty.extras,
+      extras,
     };
   } catch {
     return null;
@@ -77,7 +106,7 @@ export const bostaGecenSureCaseCrud = createCalcBackendCrud({
   mapFormFromBackend: mapBostaFormFromBackend,
   buildSaveData: (form, result) =>
     buildCalcSavePayload({
-      form,
+      form: buildFormPayload(form),
       result,
       istenCikis: form.endDate || null,
     }),

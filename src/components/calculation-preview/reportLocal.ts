@@ -92,7 +92,7 @@ export async function copySectionTableForWord(sectionId: string): Promise<boolea
 const PRINT_CSS = `
   body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; color: #111; margin: 1.25rem; font-size: 11px; }
   h1 { font-size: 14px; margin: 0 0 1rem; }
-  .section { margin-bottom: 1rem; }
+  .section { margin-bottom: 1rem; page-break-inside: avoid; break-inside: avoid; }
   .section-title { color: #4338ca; font-size: 12px; font-weight: 600; margin: 0 0 0.35rem; }
   table { width: 100%; border-collapse: collapse; border: 1px solid #999; font-size: 10px; }
   th, td { border: 1px solid #999; padding: 5px 8px; }
@@ -116,49 +116,56 @@ function escapeHtml(value: string): string {
 /**
  * Yazdır / PDF için temiz HTML — kopya ikonları ve modal sınıfları yok.
  */
-export function buildPrintHtmlFromSections(
-  sections: Array<{
-    id: string;
-    title: string;
-    headers: string[];
-    rows: string[][];
-    lastRowTone?: "blue" | "green";
-  }>,
+export type PrintSection = {
+  id: string;
+  title: string;
+  headers: string[];
+  rows: string[][];
+  lastRowTone?: "blue" | "green";
+};
+
+export function buildSingleSectionHtml(
+  section: PrintSection,
+  options?: { showTitle?: boolean },
 ): string {
-  return sections
-    .map((section) => {
-      const head =
-        section.headers.length > 0
-          ? `<thead><tr>${section.headers.map((h) => `<th scope="col">${escapeHtml(h)}</th>`).join("")}</tr></thead>`
-          : "";
-      const body = section.rows
-        .map((row, i) => {
-          const isLast = i === section.rows.length - 1;
-          const rowClass =
-            isLast && section.lastRowTone === "blue"
-              ? ' class="row-blue"'
-              : isLast && section.lastRowTone === "green"
-                ? ' class="row-green"'
+  const showTitle = options?.showTitle !== false;
+  const head =
+    section.headers.length > 0
+      ? `<thead><tr>${section.headers.map((h) => `<th scope="col">${escapeHtml(h)}</th>`).join("")}</tr></thead>`
+      : "";
+  const body = section.rows
+    .map((row, i) => {
+      const isLast = i === section.rows.length - 1;
+      const rowClass =
+        isLast && section.lastRowTone === "blue"
+          ? ' class="row-blue"'
+          : isLast && section.lastRowTone === "green"
+            ? ' class="row-green"'
+            : "";
+      const cells = row
+        .map((cell, ci) => {
+          const trimmed = cell.trimStart();
+          const cellClass =
+            trimmed.startsWith("-")
+              ? ' class="neg"'
+              : trimmed.startsWith("+") ||
+                  (isLast && section.lastRowTone === "green" && ci === row.length - 1)
+                ? ' class="pos"'
                 : "";
-          const cells = row
-            .map((cell, ci) => {
-              const trimmed = cell.trimStart();
-              const cellClass =
-                trimmed.startsWith("-")
-                  ? ' class="neg"'
-                  : trimmed.startsWith("+") ||
-                      (isLast && section.lastRowTone === "green" && ci === row.length - 1)
-                    ? ' class="pos"'
-                    : "";
-              return `<td${cellClass}>${escapeHtml(cell)}</td>`;
-            })
-            .join("");
-          return `<tr${rowClass}>${cells}</tr>`;
+          return `<td${cellClass}>${escapeHtml(cell)}</td>`;
         })
         .join("");
-      return `<div class="section"><div class="section-title">${escapeHtml(section.title)}</div><table>${head}<tbody>${body}</tbody></table></div>`;
+      return `<tr${rowClass}>${cells}</tr>`;
     })
     .join("");
+  const titleHtml = showTitle
+    ? `<div class="section-title">${escapeHtml(section.title)}</div>`
+    : "";
+  return `<div class="section">${titleHtml}<table>${head}<tbody>${body}</tbody></table></div>`;
+}
+
+export function buildPrintHtmlFromSections(sections: PrintSection[]): string {
+  return sections.map((section) => buildSingleSectionHtml(section)).join("");
 }
 
 export function openPrintWindow(title: string, contentHtml: string): boolean {

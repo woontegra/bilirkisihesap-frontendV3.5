@@ -1,5 +1,12 @@
 import type { NoteBlock } from "../lib/types";
+
 export const NOTE_BLOCKS: NoteBlock[] = [
-  { text: "Belirli Süreli İş Sözleşmesi", kind: "heading" },
-  { text: "Belirli süreli sözleşmelerde de bir yılını dolduran işçi yıllık izin hakkına sahiptir; süre hesabı fiili hizmet yılı üzerinden yapılır.", kind: "li" },
+  {
+    text: "Belirli süreli iş sözleşmelerinde yıllık ücretli izin hakkı, fiilen çalışılan süreye ve İş Kanunu'ndaki genel hükümlere göre değerlendirilir.",
+    kind: "li",
+  },
+  {
+    text: "Sözleşme süresi ile fiili çalışma dönemleri farklıysa tarihleri ayrı dönemler olarak girebilirsiniz.",
+    kind: "li",
+  },
 ];

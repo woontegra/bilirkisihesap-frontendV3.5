@@ -153,6 +153,8 @@ function mapManualRows(raw: unknown): PeriodRow[] {
   for (const row of raw) {
     const r = asRecord(row);
     if (!r) continue;
+    // V3 cetvel satırları `rows` içinde isManual olmadan gelir; yalnızca gerçek manuel satırlar.
+    if (r.isManual === false) continue;
     const insertAfter = str(r.insertAfter);
     out.push({
       id: str(r.id) || newLocalId(),
@@ -204,7 +206,7 @@ export function mapVardiya48FormFromBackend(
       mahsuplasmaMiktari: str(form.mahsuplasmaMiktari ?? form.mahsup),
       notes: str(form.notes),
       rowOverrides: mapRowOverrides(form.rowOverrides ?? payload.rowOverrides),
-      manualRows: mapManualRows(form.manualRows ?? form.rows),
+      manualRows: mapManualRows(form.manualRows ?? payload.manualRows),
     };
   } catch {
     return null;

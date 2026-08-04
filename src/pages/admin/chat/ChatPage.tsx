@@ -10,16 +10,19 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { apiClient } from "@/api/client";
+import { apiClient, API_BASE_URL } from "@/api/client";
 import { AdminSkeleton } from "@/components/admin/AdminSkeleton";
 import { Button } from "@/components/ui/Button";
 import { StatePanel } from "@/components/ui/StatePanel";
 import { useToast } from "@/context/ToastContext";
 import { formatDateTr } from "@/utils/adminLabels";
+import { emitAdminChatReplySent } from "@/utils/adminChatNotificationBridge";
 import shared from "../adminShared.module.css";
 import styles from "./ChatPage.module.css";
 
-const POLL_MS = 15_000;
+const POLL_MS = 5000;
+const MESSAGE_POLL_MS = 3000;
+const PRESENCE_HEARTBEAT_MS = 60_000;
 
 type ChatMessage = {
   id: string;
@@ -27,6 +30,7 @@ type ChatMessage = {
   senderType: string;
   senderId: number;
   message: string;
+  imageUrl?: string | null;
   isRead: boolean;
   createdAt: string;
 };
@@ -181,7 +185,12 @@ export default function ChatPage() {
         body: { conversationId: selectedId, message: text },
       });
       if (data?.message) {
-        setMessages((prev) => [...prev, data.message as ChatMessage]);
+        const sent = data.message as ChatMessage;
+        setMessages((prev) => [...prev, sent]);
+        emitAdminChatReplySent({
+          conversationId: selectedId,
+          lastMessageAt: sent.createdAt ?? new Date().toISOString(),
+        });
       }
       setInput("");
       await Promise.all([loadConversations(), loadMessages(selectedId)]);
@@ -195,6 +204,19 @@ export default function ChatPage() {
   useEffect(() => {
     void loadPresence();
   }, [loadPresence]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    const heartbeat = () => {
+      void apiClient("/api/admin/presence/toggle", {
+        method: "POST",
+        adminRole: true,
+        body: { isOnline: true },
+      }).catch(() => undefined);
+    };
+    const timer = window.setInterval(heartbeat, PRESENCE_HEARTBEAT_MS);
+    return () => window.clearInterval(timer);
+  }, [isOnline]);
 
   useEffect(() => {
     let cancelled = false;
@@ -217,6 +239,8 @@ export default function ChatPage() {
       return;
     }
     void loadMessages(selectedId);
+    const timer = window.setInterval(() => void loadMessages(selectedId), MESSAGE_POLL_MS);
+    return () => window.clearInterval(timer);
   }, [selectedId, loadMessages]);
 
   useEffect(() => {
@@ -388,7 +412,28 @@ export default function ChatPage() {
                             : styles.bubbleIn
                         }
                       >
-                        <p>{message.message}</p>
+                        {message.imageUrl ? (
+                          <a
+                            href={
+                              message.imageUrl.startsWith("http")
+                                ? message.imageUrl
+                                : `${API_BASE_URL}${message.imageUrl}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <img
+                              src={
+                                message.imageUrl.startsWith("http")
+                                  ? message.imageUrl
+                                  : `${API_BASE_URL}${message.imageUrl}`
+                              }
+                              alt="Gönderilen görsel"
+                              className={styles.messageImage}
+                            />
+                          </a>
+                        ) : null}
+                        {message.message && message.message !== "[Görsel]" ? <p>{message.message}</p> : null}
                         <time dateTime={message.createdAt}>
                           {formatDateTr(message.createdAt, true)}
                         </time>

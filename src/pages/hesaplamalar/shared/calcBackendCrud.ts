@@ -10,6 +10,7 @@ import {
   updateSavedCase,
   type SavedCaseRecord,
 } from "@/api/savedCases";
+import { writeBoundCaseId } from "@/utils/calculationCaseBinding";
 
 export type CalcSaveResult = {
   brut: number;
@@ -123,6 +124,7 @@ export function createCalcBackendCrud<TForm>(opts: {
     if (!isRecordType(record.type ?? record.hesaplama_tipi)) {
       throw new Error(`Bu kayıt beklenen türde değil (${record.type ?? record.hesaplama_tipi})`);
     }
+    writeBoundCaseId(window.location.pathname, String(record.id));
     return { record, form };
   }
 
@@ -135,10 +137,14 @@ export function createCalcBackendCrud<TForm>(opts: {
     const data = buildSaveData(form, result);
     const payload = { name: name.trim(), type: recordType, data };
     const numericId = existingId ? Number(existingId) : NaN;
+    let record: SavedCaseRecord;
     if (Number.isFinite(numericId) && numericId > 0) {
-      return updateSavedCase(numericId, payload);
+      record = await updateSavedCase(numericId, payload);
+    } else {
+      record = await createSavedCase(payload);
     }
-    return createSavedCase(payload);
+    writeBoundCaseId(window.location.pathname, String(record.id));
+    return record;
   }
 
   async function removeCase(id: string | number): Promise<void> {

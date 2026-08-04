@@ -28,10 +28,15 @@ export type UserInfo = {
   id: number;
   email: string;
   name?: string;
+  role?: string;
+  tenantId?: number;
   createdAt?: string;
   subscriptionType?: string;
   subscriptionStartsAt?: string;
   subscriptionEndsAt?: string;
+  licenseActive?: boolean;
+  licenseStatus?: string | null;
+  licenseType?: string | null;
   status?: string;
   demoLicense?: DemoLicense;
 };

@@ -90,13 +90,15 @@ export function buildHaksizFesihSaveResult(result: {
   brutForNet: number;
   netTazminat: number;
   mahsupSonrasiNet: number;
+  maxAmount: number;
 }): CalcSaveResult {
   return {
-    brut: result.brutForNet,
+    brut: result.maxAmount,
     net: result.netTazminat,
     brutForNet: result.brutForNet,
     netTazminat: result.netTazminat,
     mahsupSonrasiNet: result.mahsupSonrasiNet,
+    maxAmount: result.maxAmount,
   };
 }
 

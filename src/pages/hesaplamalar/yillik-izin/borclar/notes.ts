@@ -1,7 +1,13 @@
 import type { NoteBlock } from "../lib/types";
 
+/** V3 `YillikIzinBorclarPage` NOTE_ITEMS — birebir. */
 export const NOTE_BLOCKS: NoteBlock[] = [
-  { text: "Borçlar Kanunu — Yıllık İzin", kind: "heading" },
-  { text: "Her tam hizmet yılı için iki hafta (14 gün) yıllık izin hakkı.", kind: "li" },
-  { text: "18 yaş altı ve 50 yaş üstü işçiler için üç hafta (21 gün) uygulanır.", kind: "li" },
+  {
+    text: "Borçlar Kanununa tabi iş ilişkilerinde yıllık ücretli izin hakkı yılda en az 4 haftadır.",
+    kind: "li",
+  },
+  {
+    text: "Bu hesaplama Borçlar Kanunu kapsamında çalışanlar için yapılmıştır.",
+    kind: "li",
+  },
 ];

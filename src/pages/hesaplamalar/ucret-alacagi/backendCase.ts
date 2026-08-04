@@ -5,19 +5,22 @@
 
 import type { SavedCaseRecord } from "@/api/savedCases";
 import {
-  buildCalcSavePayload,
   createCalcBackendCrud,
   listCalcSavedCases,
   unwrapCalcData,
   type CalcSaveResult,
 } from "../shared/calcBackendCrud";
+import { applyNetCetvelFromCetvelRows } from "./engine";
+import { buildUcretAlacagiSaveData } from "./buildUcretAlacagiSaveData";
 import type { CetvelRow, HesaplamaTab, SavedCase, UcretAlacagiForm } from "./model";
 import { createEmptyForm, newLocalId } from "./model";
 
 export const UCRET_ALACAGI_TYPE = "ucret_alacagi" as const;
 
 export function isUcretAlacagiRecordType(type: string | undefined | null): boolean {
-  return type === UCRET_ALACAGI_TYPE;
+  if (!type) return false;
+  const t = type.toLowerCase();
+  return t === UCRET_ALACAGI_TYPE || t === "ucret alacagi" || t.includes("ucret_alacagi");
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -25,30 +28,17 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function unwrapData(data: unknown): Record<string, unknown> {
-  let payload: unknown = data;
-  if (typeof payload === "string") {
-    try {
-      payload = JSON.parse(payload);
-    } catch {
-      return {};
-    }
-  }
-  const root = asRecord(payload) ?? {};
-  const nested = asRecord(root.data);
-  return nested ?? root;
-}
-
-function pickForm(payload: Record<string, unknown>): Record<string, unknown> {
-  const form = asRecord(payload.form);
-  if (!form) return payload;
-  const inner = asRecord(form.form);
-  return inner ?? form;
-}
-
 function str(value: unknown): string {
   if (value === null || value === undefined) return "";
   return String(value);
+}
+
+function resolveFormSource(payload: Record<string, unknown>): Record<string, unknown> {
+  const dataNested = asRecord(payload.data);
+  const formFromData = asRecord(dataNested?.form);
+  const formTop = asRecord(payload.form);
+  const formInner = asRecord(formTop?.form);
+  return formInner ?? formFromData ?? formTop ?? dataNested ?? payload;
 }
 
 function mapRows(raw: unknown): CetvelRow[] {
@@ -81,24 +71,40 @@ export function resolveSavedCaseDisplayName(record: SavedCaseRecord): string {
 }
 
 /** Backend data → lokal form. Bozuksa null. */
-export function mapUcretAlacagiFormFromBackend(data: unknown): UcretAlacagiForm | null {
+export function mapUcretAlacagiFormFromBackend(
+  data: unknown,
+  _record?: SavedCaseRecord,
+): UcretAlacagiForm | null {
   try {
-    const payload = unwrapData(data);
-    const form = pickForm(payload);
+    const payload = unwrapCalcData(data);
+    const formSource = resolveFormSource(payload);
+    const results = asRecord(payload.results) ?? asRecord(asRecord(payload.data)?.results);
     const empty = createEmptyForm();
-    const activeTab: HesaplamaTab = form.activeTab === "net" ? "net" : "brut";
-    const cetvelRows = mapRows(form.cetvelRows ?? form.rows);
-    const netCetvelRows = mapRows(form.netCetvelRows);
+
+    const activeTab: HesaplamaTab = formSource.activeTab === "net" ? "net" : "brut";
+    const globalKatsayi = Number(formSource.globalKatsayi ?? 1) || 1;
+    const netGlobalKatsayi = Number(formSource.netGlobalKatsayi ?? 1) || 1;
+
+    let cetvelRows = mapRows(formSource.cetvelRows ?? formSource.rows);
+    if (cetvelRows.length === 0) {
+      cetvelRows = mapRows(results?.rows);
+    }
+
+    let netCetvelRows = mapRows(formSource.netCetvelRows);
+    if (netCetvelRows.length === 0 && cetvelRows.length > 0) {
+      netCetvelRows = applyNetCetvelFromCetvelRows([], cetvelRows, netGlobalKatsayi);
+    }
+
     return {
-      startDate: str(form.startDate) || empty.startDate,
-      endDate: str(form.endDate) || empty.endDate,
+      startDate: str(formSource.startDate) || empty.startDate,
+      endDate: str(formSource.endDate) || empty.endDate,
       activeTab,
       cetvelRows,
       netCetvelRows,
-      globalKatsayi: Number(form.globalKatsayi ?? 1) || 1,
-      netGlobalKatsayi: Number(form.netGlobalKatsayi ?? 1) || 1,
-      hasCustomKatsayi: Number(form.globalKatsayi ?? 1) !== 1,
-      netHasCustomKatsayi: Number(form.netGlobalKatsayi ?? 1) !== 1,
+      globalKatsayi,
+      netGlobalKatsayi,
+      hasCustomKatsayi: globalKatsayi !== 1,
+      netHasCustomKatsayi: netGlobalKatsayi !== 1,
       netForGross: empty.netForGross,
       netTabGrossForNet: empty.netTabGrossForNet,
     };
@@ -111,13 +117,7 @@ export const ucretAlacagiCaseCrud = createCalcBackendCrud({
   recordType: UCRET_ALACAGI_TYPE,
   isRecordType: isUcretAlacagiRecordType,
   mapFormFromBackend: mapUcretAlacagiFormFromBackend,
-  buildSaveData: (form, result) =>
-    buildCalcSavePayload({
-      form,
-      result,
-      iseGiris: form.startDate || null,
-      istenCikis: form.endDate || null,
-    }),
+  buildSaveData: (form, result) => buildUcretAlacagiSaveData(form, result),
 });
 
 export function buildUcretAlacagiSaveResult(totalBrut: number, totalNet: number): CalcSaveResult {
@@ -125,7 +125,7 @@ export function buildUcretAlacagiSaveResult(totalBrut: number, totalNet: number)
 }
 
 export function mapUcretAlacagiRecordToSavedCase(record: SavedCaseRecord): SavedCase | null {
-  const form = mapUcretAlacagiFormFromBackend(record.data);
+  const form = mapUcretAlacagiFormFromBackend(record.data, record);
   if (!form) return null;
   const payload = unwrapCalcData(record.data);
   const results = asRecord(payload.results);

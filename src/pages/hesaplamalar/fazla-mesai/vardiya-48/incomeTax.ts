@@ -158,34 +158,40 @@ export type IncomeTaxResult = {
   summary: string;
 };
 
-/** Belirli bir yıl ve matrah için kademeli gelir vergisini, uygulanan dilimlerin dökümüyle döner.
- * Yıl tabloda yoksa (2010 öncesi/2030 sonrası kapsanmayan) vergi 0 döner. */
+/** Yıl için tarife; tabloda yoksa en yakın önceki yıl (V3 `incomeTaxCore`). */
+function getRatesForYear(year: number): IncomeTaxBracket[] | undefined {
+  if (INCOME_TAX_BRACKETS[year]) return INCOME_TAX_BRACKETS[year];
+  const years = Object.keys(INCOME_TAX_BRACKETS)
+    .map(Number)
+    .sort((a, b) => b - a);
+  for (const y of years) {
+    if (year >= y) return INCOME_TAX_BRACKETS[y];
+  }
+  return INCOME_TAX_BRACKETS[2010];
+}
+
+/** Belirli bir yıl ve matrah için kademeli gelir vergisi (V3 `incomeTaxCore` ile birebir). */
 export function calculateIncomeTaxWithBrackets(year: number, income: number): IncomeTaxResult {
-  const brackets = INCOME_TAX_BRACKETS[year];
+  const brackets = getRatesForYear(year);
   if (!brackets || !Number.isFinite(income) || income <= 0) {
     return { tax: 0, brackets: [], summary: "" };
   }
 
-  const applied: IncomeTaxResult["brackets"] = [];
-  let totalTax = 0;
+  const appliedRates: number[] = [];
+  let tax = 0;
 
-  for (const bracket of brackets) {
-    if (income <= bracket.baseLimit) break;
-    const taxableInThisBracket =
-      bracket.limit === null ? income - bracket.baseLimit : Math.min(income, bracket.limit) - bracket.baseLimit;
-    if (taxableInThisBracket > 0) {
-      const taxForThisBracket = taxableInThisBracket * bracket.rate;
-      totalTax += taxForThisBracket;
-      applied.push({
-        rate: bracket.rate,
-        ratePercent: `%${(bracket.rate * 100).toFixed(0)}`,
-        taxableAmount: taxableInThisBracket,
-        taxAmount: taxForThisBracket,
-      });
+  for (const b of brackets) {
+    if (!appliedRates.includes(b.rate * 100)) {
+      appliedRates.push(b.rate * 100);
     }
-    if (bracket.limit === null || income <= bracket.limit) break;
+    if (b.limit === null || income <= b.limit) {
+      tax = b.baseTax + (income - b.baseLimit) * b.rate;
+      break;
+    }
   }
 
-  const summary = applied.length > 0 ? `(${applied.map((b) => b.ratePercent).join(", ")})` : "";
-  return { tax: totalTax, brackets: applied, summary };
+  const summary =
+    appliedRates.length > 0 ? `(${appliedRates.map((rate) => `%${rate}`).join(", ")})` : "";
+
+  return { tax, brackets: [], summary };
 }

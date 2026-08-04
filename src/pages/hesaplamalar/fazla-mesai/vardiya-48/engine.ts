@@ -23,6 +23,7 @@ import type {
   Witness,
 } from "./model";
 import { newLocalId } from "./model";
+import { buildMergedWitnessSegments } from "./witnessSegments";
 
 /* ── yardımcılar ── */
 
@@ -208,43 +209,18 @@ function buildWitnessSegments(
     .map((t, idx) => ({
       startMs: parseLocalDayToMs(normalizeDateInput(t.dateIn)),
       endMs: parseLocalDayToMs(normalizeDateInput(t.dateOut)),
+      // Ortak segmentleyici bitişik parçaları fmHours'a göre birleştirir;
+      // tanık önceliği değişimlerini korumak için ayırt edici değer veriyoruz.
       fmHours: idx + 1,
     }))
     .filter((w) => !Number.isNaN(w.startMs) && !Number.isNaN(w.endMs) && w.startMs <= w.endMs);
 
   if (witnesses.length === 0) return [];
 
-  // Basit birleşik segmentler: tanık aralıklarını davacı dönemine kırp
-  const segs = witnesses
-    .map((w) => {
-      const start = new Date(Math.max(w.startMs, dStartMs));
-      const end = new Date(Math.min(w.endMs, dEndMs));
-      if (start > end) return null;
-      const toIso = (ms: number) => {
-        const d = new Date(ms);
-        const yy = d.getUTCFullYear();
-        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-        const dd = String(d.getUTCDate()).padStart(2, "0");
-        return `${yy}-${mm}-${dd}`;
-      };
-      return { start: toIso(start.getTime()), end: toIso(end.getTime()), fmHours: w.fmHours };
-    })
-    .filter((x): x is { start: string; end: string; fmHours: number } => !!x);
-
-  if (!segs.length) return [];
-
-  // Bitşik aynı fmHours segmentlerini birleştir
-  segs.sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
-  const merged: Array<{ start: string; end: string }> = [];
-  for (const s of segs) {
-    const last = merged[merged.length - 1];
-    if (last && last.end >= s.start) {
-      if (s.end > last.end) last.end = s.end;
-    } else {
-      merged.push({ start: s.start, end: s.end });
-    }
-  }
-  return merged;
+  return buildMergedWitnessSegments(dStart, dEnd, witnesses).map((seg) => ({
+    start: seg.start,
+    end: seg.end,
+  }));
 }
 
 /**
@@ -395,20 +371,31 @@ export function applyRowOverrides(
     return applied || recalcRow(base);
   });
 
-  if (manuals.length === 0) return auto;
+  const autoRowKeys = new Set(
+    auto.map(
+      (r) =>
+        `${(r.startISO || "").slice(0, 10)}|${(r.endISO || "").slice(0, 10)}|${r.weekTypeLabel || ""}|${Number(r.fmHours) || 0}`,
+    ),
+  );
+  const uniqueManuals = manuals.filter((m) => {
+    const key = `${(m.startISO || "").slice(0, 10)}|${(m.endISO || "").slice(0, 10)}|${m.weekTypeLabel || ""}|${Number(m.fmHours) || 0}`;
+    return !autoRowKeys.has(key);
+  });
+
+  if (uniqueManuals.length === 0) return auto;
 
   const out: PeriodRow[] = [];
   const inserted = new Set<string>();
   for (const r of auto) {
     out.push(r);
-    manuals
+    uniqueManuals
       .filter((m) => m.insertAfter === r.id)
       .forEach((m) => {
         out.push(m);
         inserted.add(m.id);
       });
   }
-  manuals.filter((m) => !inserted.has(m.id)).forEach((m) => out.push(m));
+  uniqueManuals.filter((m) => !inserted.has(m.id)).forEach((m) => out.push(m));
   return out;
 }
 
@@ -445,6 +432,36 @@ function emptyResult(warnings: string[] = []): Vardiya48Result {
     mahsupTutari: 0,
     sonNet: 0,
     warnings,
+  };
+}
+
+export function computeTotalsFromRows(
+  rows: { fm: number }[],
+  exitYear: number,
+  mahsupInput: string,
+): Omit<Vardiya48Result, "rows" | "warnings"> {
+  const toplamFm = rows.reduce((sum, r) => sum + (Number(r.fm) || 0), 0);
+  const sgk = Math.round(toplamFm * SGK_ORANI * 100) / 100;
+  const issizlik = Math.round(toplamFm * ISSIZLIK_ORANI * 100) / 100;
+  const matrah = Math.max(0, toplamFm - sgk - issizlik);
+  const gv = calculateIncomeTaxWithBrackets(exitYear, matrah);
+  const gelirVergisi = Math.round(gv.tax * 100) / 100;
+  const damgaVergisi = Math.round(toplamFm * DAMGA_ORAN * 100) / 100;
+  const netYillik = Math.round((toplamFm - sgk - issizlik - gelirVergisi - damgaVergisi) * 100) / 100;
+  const hakkaniyetIndirimi = toplamFm / 3;
+  const mahsupTutari = parseMoneyInput(mahsupInput);
+  const sonNet = Math.max(0, toplamFm - hakkaniyetIndirimi - mahsupTutari);
+  return {
+    toplamFm,
+    sgk,
+    issizlik,
+    gelirVergisi,
+    gelirVergisiDilimleri: gv.summary,
+    damgaVergisi,
+    netYillik,
+    hakkaniyetIndirimi,
+    mahsupTutari,
+    sonNet,
   };
 }
 
@@ -559,41 +576,14 @@ export function computeVardiya48Result(form: Vardiya48FormSnapshot): Vardiya48Re
 
   // mode270: V3 Vardiya48Page her zaman "none" kaydeder ve uygulamıyor — motor parity.
 
-  const displayRows = applyRowOverrides(apiRows, form.rowOverrides, form.manualRows, katSayi).filter((r) => {
-    if (r.isManual) return true;
-    const fmH = Number(r.fmHours) || 0;
-    const w = Number(r.weeks) || 0;
-    const fmAmt = Number(r.fm) || 0;
-    return fmH !== 0 && w !== 0 && fmAmt !== 0;
-  });
+  const withOverrides = applyRowOverrides(apiRows, form.rowOverrides, form.manualRows, katSayi);
 
-  const toplamFm = round2(displayRows.reduce((a, r) => a + (r.fm || 0), 0));
   const exitYear = dEnd ? Number(dEnd.slice(0, 4)) : new Date().getFullYear();
-  const sgk = round2(toplamFm * SGK_ORANI);
-  const issizlik = round2(toplamFm * ISSIZLIK_ORANI);
-  const matrah = Math.max(0, toplamFm - sgk - issizlik);
-  const gv = calculateIncomeTaxWithBrackets(exitYear, matrah);
-  const gelirVergisi = round2(gv.tax);
-  const damgaVergisi = round2(toplamFm * DAMGA_ORAN);
-  const netYillik = round2(toplamFm - sgk - issizlik - gelirVergisi - damgaVergisi);
-  const hakkaniyetIndirimi = round2(toplamFm / 3);
-  const mahsupTutari = parseMoneyInput(form.mahsuplasmaMiktari);
-  const sonNet = Math.max(0, round2(toplamFm - hakkaniyetIndirimi - mahsupTutari));
-
-  const gelirVergisiDilimleri = typeof gv.summary === "string" ? gv.summary : "";
+  const totals = computeTotalsFromRows(withOverrides, exitYear, form.mahsuplasmaMiktari);
 
   return {
-    rows: displayRows,
-    toplamFm,
-    sgk,
-    issizlik,
-    gelirVergisi,
-    gelirVergisiDilimleri,
-    damgaVergisi,
-    netYillik,
-    hakkaniyetIndirimi,
-    mahsupTutari,
-    sonNet,
+    rows: withOverrides,
+    ...totals,
     warnings,
   };
 }

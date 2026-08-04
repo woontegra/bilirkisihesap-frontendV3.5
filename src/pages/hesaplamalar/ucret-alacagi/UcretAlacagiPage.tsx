@@ -4,9 +4,12 @@ import { Banknote, Calculator, Eye, FilePlus2, FolderOpen, Save, ShieldCheck, Tr
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTextInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
 import {
   buildUcretAlacagiSaveResult,
   listUcretAlacagiCasesFromBackend,
@@ -51,33 +54,29 @@ function FlashValue({ value, className }: { value: string; className?: string })
   return <span className={`${className ?? ""} ${flash ? styles.valueFlash : ""}`.trim()}>{value}</span>;
 }
 
-function AnimatedMoney({ value }: { value: number }) {
-  const [display, setDisplay] = useState(value);
-  const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+function rowsStructureKey(rows: CetvelRow[]): string {
+  return rows.map((r) => `${r.startISO}\0${r.endISO}\0${r.gunSayisi}`).join("|");
+}
 
-  useEffect(() => {
-    if (reduce) {
-      setDisplay(value);
-      return;
-    }
-    const from = display;
-    const to = value;
-    if (from === to) return;
-    const start = performance.now();
-    const dur = 380;
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / dur);
-      const eased = 1 - (1 - t) ** 3;
-      setDisplay(from + (to - from) * eased);
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- animate from last displayed
-  }, [value, reduce]);
+function monthRowsStructureKey(monthRows: ReturnType<typeof generateMonthRows>): string {
+  return monthRows.map((m) => `${m.start}\0${m.end}\0${m.days}`).join("|");
+}
 
-  return <>{formatMoney(display)}</>;
+function mergeFormRowsForDateRange(prev: UcretAlacagiForm): UcretAlacagiForm {
+  if (!prev.startDate || !prev.endDate || isDateOrderInvalid(prev.startDate, prev.endDate)) {
+    return prev;
+  }
+  const monthRows = generateMonthRows(prev.startDate, prev.endDate);
+  const nextKey = monthRowsStructureKey(monthRows);
+  const prevKey = rowsStructureKey(prev.cetvelRows);
+  if (nextKey === prevKey && prev.cetvelRows.length === monthRows.length) {
+    return prev;
+  }
+  return {
+    ...prev,
+    cetvelRows: mergeCetvelWithApi(prev.cetvelRows, monthRows, prev.globalKatsayi),
+    netCetvelRows: mergeNetCetvelWithApi(prev.netCetvelRows, monthRows, prev.netGlobalKatsayi),
+  };
 }
 
 function NameModal({
@@ -186,29 +185,6 @@ function KatsayiModal({
   );
 }
 
-function RowInput({
-  defaultValue,
-  onCommit,
-  className,
-  placeholder,
-}: {
-  defaultValue: string;
-  onCommit: (value: string) => void;
-  className?: string;
-  placeholder?: string;
-}) {
-  return (
-    <input
-      type="text"
-      key={defaultValue}
-      defaultValue={defaultValue}
-      placeholder={placeholder}
-      onBlur={(e) => onCommit(e.currentTarget.value)}
-      className={className}
-    />
-  );
-}
-
 export default function UcretAlacagiPage() {
   const { success, error: showError } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -220,6 +196,7 @@ export default function UcretAlacagiPage() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -240,8 +217,9 @@ export default function UcretAlacagiPage() {
     [searchParams, setSearchParams],
   );
 
-  const result = useMemo(() => computeUcretAlacagi(form), [form]);
-  const dirty = snapshotKey(form) !== baseline;
+  const result = useDeferredFormMemo(form, computeUcretAlacagi);
+  const formSnapshot = useMemo(() => snapshotKey(form), [form]);
+  const dirty = formSnapshot !== baseline;
 
   const reloadCases = useCallback(async () => {
     try {
@@ -259,6 +237,10 @@ export default function UcretAlacagiPage() {
       const local = loadCasesSafe();
       setCases(local.ok ? local.items : []);
     }
+  }, []);
+
+  useEffect(() => {
+    document.title = PAGE_TITLE;
   }, []);
 
   useEffect(() => {
@@ -307,21 +289,16 @@ export default function UcretAlacagiPage() {
     };
   }, [caseIdParam, searchParams, setSearchParams, showError, success]);
 
-  /* Tarih değişince cetvel satırlarını (brüt+net) yeniden üret; mevcut düzenlemeleri korur. */
-  useEffect(() => {
-    if (!form.startDate || !form.endDate) return;
-    if (isDateOrderInvalid(form.startDate, form.endDate)) return;
-    const monthRows = generateMonthRows(form.startDate, form.endDate);
-    setForm((prev) => {
-      const mergedBrut = mergeCetvelWithApi(prev.cetvelRows, monthRows, prev.globalKatsayi);
-      const mergedNet = mergeNetCetvelWithApi(prev.netCetvelRows, monthRows, prev.netGlobalKatsayi);
-      return { ...prev, cetvelRows: mergedBrut, netCetvelRows: mergedNet };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- yalnızca tarih değişince yeniden üret
-  }, [form.startDate, form.endDate]);
-
   const patch = useCallback(<K extends keyof UcretAlacagiForm>(key: K, value: UcretAlacagiForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const handleStartDateChange = useCallback((value: string) => {
+    setForm((prev) => mergeFormRowsForDateRange({ ...prev, startDate: clampYear(value) }));
+  }, []);
+
+  const handleEndDateChange = useCallback((value: string) => {
+    setForm((prev) => mergeFormRowsForDateRange({ ...prev, endDate: clampYear(value) }));
   }, []);
 
   const validateDates = useCallback(
@@ -638,19 +615,39 @@ export default function UcretAlacagiPage() {
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div className={styles.heroIcon} aria-hidden>
-          <Banknote size={20} />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <h1 className={styles.title}>{PAGE_TITLE}</h1>
-          <p className={styles.desc}>
-            Çalışma dönemi için asgari ücret tabanlı ücret cetveli; brüt/net dönüştürücüler ve dönemsel
-            gelir vergisi kademelendirmesi. Hesaplama tamamen lokal çalışır.
-          </p>
-          <div className={styles.privacyBadge}>
-            <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <Banknote size={20} />
           </div>
-          {activeName ? <div className={styles.recordBadge}>Kayıt: {activeName}</div> : null}
+          <div style={{ minWidth: 0 }}>
+            <h1 className={styles.title}>{PAGE_TITLE}</h1>
+            <p className={styles.desc}>
+              Çalışma dönemi için asgari ücret tabanlı ücret cetveli; brüt/net dönüştürücüler ve dönemsel gelir
+              vergisi kademelendirmesi.
+            </p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={12} /> Hesaplama lokal çalışır
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <span>{activeName}</span>
+            </div>
+          ) : null}
+          <div className={styles.quickTotal}>
+            <span>{isNetTab ? "Ödenecek Net" : "Ödenecek Brüt"}</span>
+            <span className={styles.quickTotalValue}>{formatMoney(totalAmount)} ₺</span>
+          </div>
+          <div className={styles.heroActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
+              <FolderOpen size={14} /> Kayıtlar
+            </Button>
+            <Button type="button" variant="soft" size="sm" onClick={handleNew}>
+              <FilePlus2 size={14} /> Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -682,13 +679,12 @@ export default function UcretAlacagiPage() {
             <label className={styles.label} htmlFor="ua-start">
               Çalışma dönemi başlangıcı
             </label>
-            <input
+            <DraftDateInput
               id="ua-start"
-              type="date"
               max="9999-12-31"
               className={`${styles.input} ${dateError ? styles.inputError : ""}`}
               value={form.startDate}
-              onChange={(e) => patch("startDate", clampYear(e.target.value))}
+              onCommit={(v) => handleStartDateChange(v)}
               onBlur={() => {
                 if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
               }}
@@ -698,13 +694,12 @@ export default function UcretAlacagiPage() {
             <label className={styles.label} htmlFor="ua-end">
               Çalışma dönemi sonu
             </label>
-            <input
+            <DraftDateInput
               id="ua-end"
-              type="date"
               max="9999-12-31"
               className={`${styles.input} ${dateError ? styles.inputError : ""}`}
               value={form.endDate}
-              onChange={(e) => patch("endDate", clampYear(e.target.value))}
+              onCommit={(v) => handleEndDateChange(v)}
               onBlur={() => {
                 if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
               }}
@@ -792,15 +787,15 @@ export default function UcretAlacagiPage() {
                     <td className={styles.tdLeft}>{row.rangeLabel}</td>
                     <td className={styles.tdCenter}>{row.gunSayisi}</td>
                     <td className={styles.tdRight}>
-                      <RowInput
-                        defaultValue={row.katsayi.toFixed(4).replace(".", ",")}
+                      <DraftTextInput
+                        value={row.katsayi.toFixed(4).replace(".", ",")}
                         onCommit={(v) => handleKatsayiCommit(form.activeTab, row.id, v)}
                         className={styles.cellInput}
                       />
                     </td>
                     <td className={styles.tdRight}>
-                      <RowInput
-                        defaultValue={
+                      <DraftTextInput
+                        value={
                           row.netVerisiYok && !row.ucretManual ? "" : row.ucret ? formatMoney(calcRowHakEdisDisplay(row)) : ""
                         }
                         placeholder={row.netVerisiYok && !row.ucretManual ? "Net verisi yok" : "0,00"}
@@ -811,8 +806,8 @@ export default function UcretAlacagiPage() {
                       />
                     </td>
                     <td className={styles.tdRight}>
-                      <RowInput
-                        defaultValue={row.odenenUcret ? formatMoney(row.odenenUcret) : ""}
+                      <DraftTextInput
+                        value={row.odenenUcret ? formatMoney(row.odenenUcret) : ""}
                         placeholder="0"
                         onCommit={(v) => handleOdenenCommit(form.activeTab, row.id, v)}
                         className={styles.cellInput}
@@ -829,7 +824,7 @@ export default function UcretAlacagiPage() {
                   <td className={styles.tfootTotal}>
                     <div className={styles.tfootTotalLabel}>{isNetTab ? "Ödenecek Net Ücret:" : "Ödenecek Brüt Ücret:"}</div>
                     <div>
-                      <AnimatedMoney value={totalAmount} /> ₺
+                      {formatMoney(totalAmount)} ₺
                     </div>
                   </td>
                 </tr>
@@ -885,7 +880,7 @@ export default function UcretAlacagiPage() {
             <div className={`${styles.resultCard} ${styles.resultCardStrong}`} style={{ marginTop: "0.5rem" }}>
               <div className={styles.resultLabel}>Net Ücret</div>
               <div className={styles.resultValue}>
-                <AnimatedMoney value={(isNetTab ? result.netTabGrossFromCetvel : result.netFromGross).net} /> ₺
+                {formatMoney((isNetTab ? result.netTabGrossFromCetvel : result.netFromGross).net)} ₺
               </div>
             </div>
           </div>
@@ -894,18 +889,19 @@ export default function UcretAlacagiPage() {
             <div className={styles.convTitle}>{isNetTab ? "Brütten Nete" : "Netten Brüte"}</div>
             <div className={styles.field}>
               <label className={styles.label}>{isNetTab ? "Brüt Ücret" : "Net Ücret"}</label>
-              <div style={{ display: "flex", gap: "0.4rem" }}>
-                <input
-                  className={styles.input}
+              <div className={styles.inputRow}>
+                <DraftTextInput
+                  className={`${styles.input} ${styles.inputRowInput}`}
                   placeholder="Örn: 18.000,00"
                   value={isNetTab ? form.netTabGrossForNet : form.netForGross}
-                  onChange={(e) => patch(isNetTab ? "netTabGrossForNet" : "netForGross", e.target.value)}
+                  onCommit={(v) => patch(isNetTab ? "netTabGrossForNet" : "netForGross", v)}
                 />
                 {(isNetTab ? result.netTabGrossFromCetvel.gross : result.netFromGross.net) > 0 ? (
                   <Button
                     type="button"
                     variant="soft"
                     size="sm"
+                    className={styles.useLeftPanelBtn}
                     onClick={() =>
                       patch(
                         isNetTab ? "netTabGrossForNet" : "netForGross",
@@ -953,7 +949,7 @@ export default function UcretAlacagiPage() {
             <div className={`${styles.resultCard} ${styles.resultCardAccent}`} style={{ marginTop: "0.5rem" }}>
               <div className={styles.resultLabel}>Brüt Ücret</div>
               <div className={styles.resultValue}>
-                <AnimatedMoney value={(isNetTab ? result.netTabNetFromGrossManual : result.brutTabGrossFromNetManual).gross} /> ₺
+                {formatMoney((isNetTab ? result.netTabNetFromGrossManual : result.brutTabGrossFromNetManual).gross)} ₺
               </div>
             </div>
           </div>
@@ -973,9 +969,6 @@ export default function UcretAlacagiPage() {
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
           </div>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => setPreviewOpen(true)}>
               <Eye size={14} /> Önizleme
             </Button>

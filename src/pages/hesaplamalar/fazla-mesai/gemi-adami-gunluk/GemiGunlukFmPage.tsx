@@ -19,7 +19,9 @@ import {
 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTimeInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -44,6 +46,7 @@ import { MetinHesaplamasi } from "./MetinHesaplamasi";
 import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
+import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
 import {
   computeGemiGunlukResult,
@@ -67,7 +70,6 @@ import styles from "./GemiGunlukFmPage.module.css";
 const PAGE_TITLE = "Gemi Adamı — Günlük Çalışan Fazla Mesai";
 const MODE_BLURB =
   "Günlük çalışan gemi adamı: haftalık yasal çalışma 48 saat; ara dinlenme ve haftalık gün sayısına göre FM saati hesaplanır (bölücü 240, çarpan 1,25). Tanık satırı doldurulmamışsa hesaplama davacı dönemi ve davacı saatleriyle yapılır.";
-const WEEKDAY_LABELS = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 
 type PendingAction = { kind: "new" } | { kind: "open"; caseId: string } | null;
 
@@ -202,7 +204,7 @@ export default function GemiGunlukFmPage() {
 
   const isDirty = useMemo(() => snapshotKey(form) !== baseline, [form, baseline]);
   const dateError = useMemo(() => validateDateRange(form.iseGiris, form.istenCikis), [form.iseGiris, form.istenCikis]);
-  const result = useMemo(() => computeGemiGunlukResult(form), [form]);
+  const result = useDeferredFormMemo(form, computeGemiGunlukResult);
   const katSayiNum = parseKatsayi(form.katSayi);
   const hasCustomKatsayi = katSayiNum > 0 && katSayiNum !== 1;
 
@@ -496,7 +498,8 @@ export default function GemiGunlukFmPage() {
 
   const previewSections = useMemo((): PreviewSection[] => {
     const money = (v: number) => `${formatMoney(v)} ₺`;
-    return [
+    return insertExclusionsPreviewSection(
+      [
       {
         id: "ust",
         title: "Genel Bilgiler",
@@ -554,7 +557,9 @@ export default function GemiGunlukFmPage() {
         ],
         lastRowTone: "green",
       },
-    ];
+      ],
+      form.exclusions,
+    );
   }, [form, result]);
 
   return (
@@ -621,27 +626,43 @@ export default function GemiGunlukFmPage() {
           <div className={styles.basicGrid}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>İşe giriş</span>
-              <input
-                type="date"
+              <DraftDateInput
                 className={styles.dateInput}
                 value={form.iseGiris}
-                onChange={(e) => setField("iseGiris", e.target.value)}
+                onCommit={(v) => setField("iseGiris", v)}
               />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>İşten çıkış</span>
               <div className={`${styles.dateWrap} ${dateError ? styles.inputWrapError : ""}`}>
-                <input
-                  type="date"
+                <DraftDateInput
                   className={styles.dateInput}
                   value={form.istenCikis}
-                  onChange={(e) => setField("istenCikis", e.target.value)}
+                  onCommit={(v) => setField("istenCikis", v)}
                   aria-invalid={dateError ? true : undefined}
                 />
               </div>
             </label>
-            {dateError ? <p className={styles.errorText}>{dateError}</p> : null}
-            <label className={styles.field}>
+            {dateError ? <p className={`${styles.errorText} ${styles.gridSpanAll}`}>{dateError}</p> : null}
+            <div className={styles.timePairRow}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Giriş saati</span>
+                <DraftTimeInput
+                  className={styles.dateInput}
+                  value={form.davaciIn}
+                  onCommit={(v) => setField("davaciIn", v)}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Çıkış saati</span>
+                <DraftTimeInput
+                  className={styles.dateInput}
+                  value={form.davaciOut}
+                  onCommit={(v) => setField("davaciOut", v)}
+                />
+              </label>
+            </div>
+            <label className={`${styles.field} ${styles.gridSpanAll}`}>
               <span className={styles.fieldLabel}>Haftada çalışılan gün</span>
               <select
                 className={styles.selectInput}
@@ -651,39 +672,6 @@ export default function GemiGunlukFmPage() {
                 {[1, 2, 3, 4, 5, 6, 7].map((n) => (
                   <option key={n} value={n}>
                     {n} gün
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Giriş saati</span>
-              <input
-                type="time"
-                className={styles.dateInput}
-                value={form.davaciIn}
-                onChange={(e) => setField("davaciIn", e.target.value)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Çıkış saati</span>
-              <input
-                type="time"
-                className={styles.dateInput}
-                value={form.davaciOut}
-                onChange={(e) => setField("davaciOut", e.target.value)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Hafta Tatili Günü (opsiyonel)</span>
-              <select
-                className={styles.selectInput}
-                value={form.haftaTatiliGunu}
-                onChange={(e) => setField("haftaTatiliGunu", e.target.value === "" ? "" : Number(e.target.value))}
-              >
-                <option value="">Seçilmedi (tüm günlerde düşüm)</option>
-                {WEEKDAY_LABELS.map((label, idx) => (
-                  <option key={label} value={idx}>
-                    {label}
                   </option>
                 ))}
               </select>

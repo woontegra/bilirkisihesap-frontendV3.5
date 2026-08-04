@@ -14,9 +14,12 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTextInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import {
   buildHaksizFesihSaveResult,
   haksizFesihCaseCrud,
@@ -154,6 +157,7 @@ export default function HaksizFesihTazminatiPage() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -161,6 +165,10 @@ export default function HaksizFesihTazminatiPage() {
   const [confirmNew, setConfirmNew] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [caseSaving, setCaseSaving] = useState(false);
+
+  useEffect(() => {
+    document.title = `${PAGE_TITLE} | Bilirkişi Hesap`;
+  }, []);
 
   const setCaseIdParam = useCallback(
     (id: string) => {
@@ -171,7 +179,7 @@ export default function HaksizFesihTazminatiPage() {
     [searchParams, setSearchParams],
   );
 
-  const result = useMemo(() => computeHaksizFesih(form), [form]);
+  const result = useDeferredFormMemo(form, computeHaksizFesih);
   const dirty = snapshotKey(form) !== baseline;
 
   const reloadCases = useCallback(async () => {
@@ -285,6 +293,7 @@ export default function HaksizFesihTazminatiPage() {
       }
       setCaseSaving(true);
       const wasUpdate = !!(existingId && /^\d+$/.test(existingId));
+      const maxAmount = result.coefRows[result.coefRows.length - 1]?.value ?? 0;
       try {
         const record = await haksizFesihCaseCrud.saveCase(
           name,
@@ -293,6 +302,7 @@ export default function HaksizFesihTazminatiPage() {
             brutForNet: result.brutForNet,
             netTazminat: result.netTazminat,
             mahsupSonrasiNet: result.mahsupSonrasiNet,
+            maxAmount,
           }),
           existingId,
         );
@@ -372,6 +382,8 @@ export default function HaksizFesihTazminatiPage() {
     }
   }, [activeId, confirmDeleteId, reloadCases, showError, success]);
 
+  const defaultBrutPlaceholder = result.coefRows[result.coefRows.length - 1]?.value ?? 0;
+
   const previewSections = useMemo((): PreviewSection[] => {
     const sections: PreviewSection[] = [
       {
@@ -406,12 +418,12 @@ export default function HaksizFesihTazminatiPage() {
 
     const netRows: string[][] = [
       ["Brüt Haksız Fesih Tazminatı", `${formatMoney(result.brutForNet)} ₺`],
-      ["Damga Vergisi (Binde 7,59)", `-${formatMoney(result.damgaVergisi)} ₺`],
+      ["Damga Vergisi (Binde 7,59)", `−${formatMoney(result.damgaVergisi)} ₺`],
       ["Net Haksız Fesih Tazminatı", `${formatMoney(result.netTazminat)} ₺`],
     ];
     if (result.odenenVal > 0) {
       netRows.push(
-        ["İşçiye Ödenen Tutar (Mahsup)", `-${formatMoney(result.odenenVal)} ₺`],
+        ["İşçiye Ödenen Tutar (Mahsup)", `−${formatMoney(result.odenenVal)} ₺`],
         ["Mahsup Sonrası Net Tutar", `${formatMoney(result.mahsupSonrasiNet)} ₺`],
       );
     }
@@ -420,6 +432,7 @@ export default function HaksizFesihTazminatiPage() {
       title: "Brütten Nete",
       headers: ["Kalem", "Tutar"],
       rows: netRows,
+      lastRowTone: "green",
     });
 
     return sections;
@@ -428,19 +441,41 @@ export default function HaksizFesihTazminatiPage() {
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div className={styles.heroIcon} aria-hidden>
-          <Scale size={20} />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <h1 className={styles.title}>{PAGE_TITLE}</h1>
-          <p className={styles.desc}>
-            TBK m.438 kapsamında haksız fesih tazminatı — 1–6 aylık katsayı tablosu, damga vergisi
-            (binde 7,59) ve mahsup hesabı. Hesaplama tamamen lokal çalışır.
-          </p>
-          <div className={styles.privacyBadge}>
-            <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <Scale size={20} />
           </div>
-          {activeName ? <div className={styles.recordBadge}>Kayıt: {activeName}</div> : null}
+          <div style={{ minWidth: 0 }}>
+            <h1 className={styles.title}>{PAGE_TITLE}</h1>
+            <p className={styles.desc}>
+              TBK m.438 kapsamında haksız fesih tazminatı — 1–6 aylık katsayı tablosu, damga vergisi
+              (binde 7,59) ve mahsup hesabı. Hesaplama tamamen lokal çalışır.
+            </p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <span>{activeName}</span>
+            </div>
+          ) : null}
+          <div className={styles.quickTotal}>
+            <span>Brüt ücret</span>
+            <span className={styles.quickTotalValue}>
+              <AnimatedMoney value={result.brutForNet} /> ₺
+            </span>
+          </div>
+          <div className={styles.heroActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
+              <FolderOpen size={14} /> Kayıtlar
+            </Button>
+            <Button type="button" variant="soft" size="sm" onClick={handleNew}>
+              <FilePlus2 size={14} /> Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -474,13 +509,16 @@ export default function HaksizFesihTazminatiPage() {
                 <label className={styles.label} htmlFor="hf-ise-giris">
                   İşe giriş
                 </label>
-                <input
+                <DraftDateInput
                   id="hf-ise-giris"
-                  type="date"
                   max="9999-12-31"
                   className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                   value={form.startDate}
-                  onChange={(e) => patch("startDate", clampYearInDateInput(e.target.value))}
+                  onCommit={(value) => {
+                    const next = clampYearInDateInput(value);
+                    patch("startDate", next);
+                    if (next && form.endDate) validateDates(next, form.endDate);
+                  }}
                   onBlur={() => {
                     if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
                   }}
@@ -490,13 +528,16 @@ export default function HaksizFesihTazminatiPage() {
                 <label className={styles.label} htmlFor="hf-isten-cikis">
                   İşten çıkış
                 </label>
-                <input
+                <DraftDateInput
                   id="hf-isten-cikis"
-                  type="date"
                   max="9999-12-31"
                   className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                   value={form.endDate}
-                  onChange={(e) => patch("endDate", clampYearInDateInput(e.target.value))}
+                  onCommit={(value) => {
+                    const next = clampYearInDateInput(value);
+                    patch("endDate", next);
+                    if (form.startDate && next) validateDates(form.startDate, next);
+                  }}
                   onBlur={() => {
                     if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
                   }}
@@ -513,87 +554,66 @@ export default function HaksizFesihTazminatiPage() {
 
           <section className={styles.card}>
             <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Katsayı tablosu (1–6 ay)</h2>
-            </div>
-            <p className={styles.cardHint}>
-              Brüt ücret × 1…6. Net dönüşümde varsayılan 6 aylık tutardır; başka bir dilim için
-              opsiyonel brüt alanı doldurulur.
-            </p>
-            {result.coefRows.length === 0 ? (
-              <p className={styles.emptyCoef}>Brüt ücret girildiğinde satırlar listelenir.</p>
-            ) : (
-              <div className={styles.coefGrid}>
-                {result.coefRows.map((row) => (
-                  <div
-                    key={row.k}
-                    className={`${styles.coefCard} ${row.k === 6 ? styles.coefCardHighlight : ""}`}
-                  >
-                    <div className={styles.coefK}>{row.k} aylık</div>
-                    <div className={styles.coefVal}>
-                      <FlashValue value={`${formatMoney(row.value)} ₺`} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
               <Calculator size={16} />
-              <h2 className={styles.cardTitle}>Ücret ve mahsup</h2>
+              <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
             </div>
             <div className={styles.fields}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="hf-brut">
                   Çıplak brüt ücret
                 </label>
-                <input
+                <DraftTextInput
                   id="hf-brut"
-                  className={styles.input}
+                  className={`${styles.input} ${result.asgariUcretHatasi ? styles.inputError : ""}`}
                   inputMode="decimal"
                   placeholder="Örn: 25.000"
                   value={form.brut}
-                  onChange={(e) => patch("brut", e.target.value)}
+                  onCommit={(value) => patch("brut", value)}
                 />
                 <p className={styles.helper}>Dava tarihindeki emsal brüt ücret yazılabilir.</p>
                 {result.asgariUcretHatasi ? (
                   <p className={styles.warn}>{result.asgariUcretHatasi}</p>
                 ) : null}
               </div>
+            </div>
+
+            <div className={styles.coefTable}>
+              <div className={styles.coefTableHead}>Katsayı tablosu (1–6 ay)</div>
+              {result.coefRows.length === 0 ? (
+                <p className={styles.emptyCoef}>Brüt ücret girildiğinde satırlar listelenir.</p>
+              ) : (
+                <div className={styles.coefTableBody}>
+                  {result.coefRows.map((row) => (
+                    <div key={row.k} className={styles.coefTableRow}>
+                      <span className={styles.coefTableLabel}>{row.label}</span>
+                      <span className={styles.coefTableVal}>
+                        <FlashValue value={`${formatMoney(row.value)} ₺`} />
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>Mahsup</h2>
+            </div>
+            <div className={styles.fields}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="hf-mahsup">
                   İşçiye ödenen tutar (mahsup)
                 </label>
-                <input
+                <DraftTextInput
                   id="hf-mahsup"
                   className={styles.input}
                   inputMode="decimal"
                   placeholder="Örn: 50.000"
                   value={form.odenenTutar}
-                  onChange={(e) => patch("odenenTutar", e.target.value)}
+                  onCommit={(value) => patch("odenenTutar", value)}
                 />
                 <p className={styles.helper}>Varsa net tazminattan mahsup edilir.</p>
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="hf-brut-net-ops">
-                  Brüt tutar (opsiyonel)
-                </label>
-                <input
-                  id="hf-brut-net-ops"
-                  className={styles.input}
-                  inputMode="decimal"
-                  placeholder={
-                    result.coefRows.length
-                      ? `Varsayılan: ${formatMoney(result.coefRows[5].value)}`
-                      : "Varsayılan: 6 aylık"
-                  }
-                  value={form.brutInputForNet}
-                  onChange={(e) => patch("brutInputForNet", e.target.value)}
-                />
-                <p className={styles.helper}>
-                  Boş bırakılırsa tablonun son satırı (6 aylık) kullanılır.
-                </p>
               </div>
             </div>
           </section>
@@ -620,6 +640,24 @@ export default function HaksizFesihTazminatiPage() {
             <p className={styles.cardHint}>
               Brüt tutardan yalnızca binde 7,59 oranında damga vergisi kesintisi uygulanır.
             </p>
+            <div className={styles.fields} style={{ marginBottom: "0.65rem" }}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="hf-brut-net-ops">
+                  Brüt tutar (opsiyonel)
+                </label>
+                <DraftTextInput
+                  id="hf-brut-net-ops"
+                  className={styles.input}
+                  inputMode="decimal"
+                  placeholder={`Varsayılan: ${formatMoney(defaultBrutPlaceholder)}`}
+                  value={form.brutInputForNet}
+                  onCommit={(value) => patch("brutInputForNet", value)}
+                />
+                <p className={styles.helper}>
+                  Boş bırakılırsa tablonun son satırı (6 aylık) kullanılır.
+                </p>
+              </div>
+            </div>
             <div className={styles.resultStack}>
               <div className={`${styles.resultCard} ${styles.resultCardAccent}`}>
                 <div className={styles.resultLabel}>Brüt haksız fesih</div>
@@ -672,9 +710,6 @@ export default function HaksizFesihTazminatiPage() {
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
           </div>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => setPreviewOpen(true)}>
               <Eye size={14} /> Önizleme
             </Button>
@@ -682,7 +717,8 @@ export default function HaksizFesihTazminatiPage() {
               <FilePlus2 size={14} /> Yeni
             </Button>
             <Button type="button" variant="primary" size="sm" onClick={handleSaveClick} disabled={caseSaving}>
-              <Save size={14} /> {caseSaving ? "Kaydediliyor…" : activeId && /^\d+$/.test(activeId) ? "Güncelle" : "Kaydet"}
+              <Save size={14} />{" "}
+              {caseSaving ? "Kaydediliyor…" : activeId && /^\d+$/.test(activeId) ? "Güncelle" : "Kaydet"}
             </Button>
           </div>
         </div>

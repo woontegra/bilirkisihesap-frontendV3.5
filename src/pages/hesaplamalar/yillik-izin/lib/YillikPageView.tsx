@@ -162,12 +162,15 @@ export type YillikPageViewProps = {
   headerControls?: ReactNode;
   /** Varsa birincil işe giriş/çıkış alanlarının yerine render edilir (çoklu dönem). */
   workPeriodsSlot?: ReactNode;
+  /** Varsa varsayılan tarih grid'i yerine render edilir (ör. basın günlük gazete). */
+  dateFieldsSlot?: ReactNode;
 
   brut: string;
   onBrutChange: (v: string) => void;
   asgariUcretHatasi: string | null;
 
   show18Or50?: boolean;
+  label18Or50?: string;
   is18Or50?: boolean;
   on18Or50Change?: (v: boolean) => void;
   showUnderground?: boolean;
@@ -206,6 +209,8 @@ export type YillikPageViewProps = {
   dirty: boolean;
   activeName: string | null;
   isUpdate: boolean;
+  caseSaving?: boolean;
+  caseLoading?: boolean;
   storageError: string | null;
   onClearStorageError: () => void;
   cases: CaseListEntry[];
@@ -311,26 +316,52 @@ export function YillikPageView(props: YillikPageViewProps) {
   };
 
   return (
-    <div className={styles.page}>
-      <header className={styles.hero}>
-        <div className={styles.heroIcon} aria-hidden>
-          <Icon size={20} />
+    <div className={styles.page} aria-busy={props.caseLoading || undefined}>
+      {props.caseLoading ? (
+        <div className={styles.privacyBadge} role="status">
+          Sunucu kaydı yükleniyor…
         </div>
-        <div style={{ minWidth: 0 }}>
-          <h1 className={styles.title}>{props.pageTitle}</h1>
-          <p className={styles.desc}>{props.pageDescription}</p>
-          <div className={styles.privacyBadge}>
-            <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+      ) : null}
+      <header className={styles.hero}>
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <Icon size={22} />
           </div>
-          {props.activeName ? <div className={styles.recordBadge}>Kayıt: {props.activeName}</div> : null}
+          <div>
+            <h1 className={styles.title}>{props.pageTitle}</h1>
+            <p className={styles.desc}>{props.pageDescription}</p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={14} />
+              <span>Hesaplama ve kayıtlar yalnızca bu cihazda</span>
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {props.activeName ? (
+            <div className={styles.recordBadge}>
+              <FolderOpen size={13} />
+              <span>{props.activeName}</span>
+              {props.dirty ? <em>· değişti</em> : null}
+            </div>
+          ) : null}
+          <div className={styles.heroActions}>
+            <Button type="button" variant="soft" size="sm" onClick={() => props.setListOpen(true)}>
+              <FolderOpen size={14} />
+              Kayıtlar ({props.cases.length})
+            </Button>
+            <Button type="button" variant="soft" size="sm" onClick={props.onNewClick}>
+              <FilePlus2 size={14} />
+              Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
 
       {props.storageError ? (
-        <div className={styles.storageBanner}>
-          {props.storageError}{" "}
-          <Button type="button" variant="ghost" size="sm" onClick={props.onClearStorageError}>
-            Temizle
+        <div className={styles.storageBanner} role="alert">
+          <p>{props.storageError}</p>
+          <Button type="button" variant="soft" size="sm" onClick={props.onClearStorageError}>
+            Temizle ve devam et
           </Button>
         </div>
       ) : null}
@@ -353,6 +384,8 @@ export function YillikPageView(props: YillikPageViewProps) {
                   </div>
                 </div>
               </>
+            ) : props.dateFieldsSlot ? (
+              props.dateFieldsSlot
             ) : (
               <div className={styles.fields3}>
                 <div className={styles.field}>
@@ -393,9 +426,9 @@ export function YillikPageView(props: YillikPageViewProps) {
             )}
             {props.dateError ? <p className={styles.warn}>{props.dateError}</p> : null}
 
-            {props.extraDateField ? (
-              <div className={styles.fields3} style={{ marginTop: "0.65rem" }}>
-                <div className={styles.field}>
+            {!props.dateFieldsSlot && props.extraDateField ? (
+              <div className={styles.fields3ExtraRow}>
+                <div className={`${styles.field} ${styles.extraStartField}`}>
                   <label className={styles.label} htmlFor="yillik-extra-date">
                     {props.extraDateField.label}
                   </label>
@@ -409,7 +442,7 @@ export function YillikPageView(props: YillikPageViewProps) {
                   />
                   {props.extraDateField.helper ? <p className={styles.helper}>{props.extraDateField.helper}</p> : null}
                 </div>
-                <div className={styles.field}>
+                <div className={`${styles.field} ${styles.extraResultField}`}>
                   <span className={styles.label}>{props.extraDateField.resultLabel}</span>
                   <div className={styles.readonlyBox}>
                     <FlashValue value={props.extraDateField.resultValue || "—"} />
@@ -427,7 +460,7 @@ export function YillikPageView(props: YillikPageViewProps) {
                       checked={!!props.is18Or50}
                       onChange={(e) => props.on18Or50Change?.(e.target.checked)}
                     />
-                    18 yaş altı / 50 yaş üstü
+                    {props.label18Or50 ?? "18 yaş altı / 50 yaş üstü"}
                   </label>
                 ) : null}
                 {props.showUnderground ? (
@@ -474,7 +507,7 @@ export function YillikPageView(props: YillikPageViewProps) {
             <section className={styles.card}>
               <div className={styles.cardTitleRow}>
                 <div className={styles.cardHead}>
-                  <h2 className={styles.cardTitle}>Kullanılan izin günleri</h2>
+                  <h2 className={styles.cardTitle}>Kullanılan İzinleri Dışla</h2>
                 </div>
                 {props.onReplaceUsedRows ? (
                   <div className={styles.inlineActions}>
@@ -565,15 +598,21 @@ export function YillikPageView(props: YillikPageViewProps) {
 
           <section className={styles.card}>
             <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
+              <h2 className={styles.cardTitle}>Notlar</h2>
             </div>
             <div className={styles.notes}>
               {props.notes.map((n, i) => {
-                if (n.kind === "heading") return <p key={i} className={styles.noteHeading}>{n.text}</p>;
+                if (n.kind === "heading") {
+                  return (
+                    <p key={i} className={styles.noteHeading}>
+                      {n.text}
+                    </p>
+                  );
+                }
                 return (
                   <p
                     key={i}
-                    className={`${styles.note} ${n.kind === "li" ? styles.noteLi : ""} ${n.emphasis === "warning" ? styles.noteWarn : ""}`}
+                    className={`${styles.note} ${n.emphasis === "warning" ? styles.noteWarn : ""}`}
                   >
                     {n.text}
                   </p>
@@ -708,25 +747,31 @@ export function YillikPageView(props: YillikPageViewProps) {
 
       <div className={`${styles.stickyBar} ${props.dirty ? styles.stickyBarDirty : ""}`}>
         <div className={styles.stickyInner}>
-          <div className={styles.stickyStatus}>
+          <p className={styles.stickyStatus}>
             {props.dirty
               ? "Kaydedilmemiş değişiklikler var"
               : props.activeName
-                ? `Kayıt: ${props.activeName}`
-                : "Yeni hesaplama"}
-          </div>
+                ? "Tüm değişiklikler kaydedildi"
+                : "Hazır"}
+          </p>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => props.setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => props.setPreviewOpen(true)}>
-              <Eye size={14} /> Önizleme
+              <Eye size={14} />
+              Önizleme
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={props.onNewClick}>
-              <FilePlus2 size={14} /> Yeni
+            <Button type="button" variant="soft" size="sm" onClick={props.onNewClick}>
+              <FilePlus2 size={14} />
+              Yeni
             </Button>
-            <Button type="button" variant="primary" size="sm" onClick={props.onSaveClick}>
-              <Save size={14} /> {props.isUpdate ? "Güncelle" : "Kaydet"}
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={props.onSaveClick}
+              disabled={props.caseSaving}
+            >
+              <Save size={14} />
+              {props.caseSaving ? "Kaydediliyor…" : props.isUpdate ? "Güncelle" : "Kaydet"}
             </Button>
           </div>
         </div>

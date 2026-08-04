@@ -10,8 +10,8 @@ import {
   unwrapCalcData,
   type CalcSaveResult,
 } from "../shared/calcBackendCrud";
-import type { KotuNiyetForm, SavedCase } from "./model";
-import { createEmptyForm } from "./model";
+import type { ExtraItem, KotuNiyetForm, SavedCase } from "./model";
+import { createEmptyForm, newLocalId } from "./model";
 
 export const KOTU_NIYET_TYPE = "kotu_niyet_tazminati" as const;
 
@@ -52,11 +52,41 @@ export function resolveSavedCaseDisplayName(record: SavedCaseRecord): string {
   return name && String(name).trim() ? String(name).trim() : `Kayıt #${record.id}`;
 }
 
+function mapExtras(raw: unknown): ExtraItem[] {
+  const empty = createEmptyForm().extras;
+  if (!Array.isArray(raw)) return empty;
+  const mapped = raw
+    .map((item, index) => {
+      const row = asRecord(item);
+      if (!row) return null;
+      const label = str(row.label ?? row.name);
+      const value = str(row.value);
+      if (!label && !value) return null;
+      return {
+        id: str(row.id) || newLocalId(`extra-${index}`),
+        label: label || "Kalem",
+        value,
+      };
+    })
+    .filter((row): row is ExtraItem => row !== null);
+  return mapped.length ? mapped : empty;
+}
+
+function buildFormPayload(form: KotuNiyetForm): Record<string, unknown> {
+  return {
+    ...form,
+    iseGiris: form.startDate,
+    istenCikis: form.endDate,
+    extraItems: form.extras.map((e) => ({ id: e.id, name: e.label, value: e.value })),
+  };
+}
+
 export function mapKotuNiyetFormFromBackend(data: unknown): KotuNiyetForm | null {
   try {
     const payload = unwrapData(data);
     const form = pickForm(payload);
     const empty = createEmptyForm();
+    const extras = mapExtras(form.extras ?? form.extraItems);
     return {
       startDate: str(form.startDate ?? form.iseGiris) || empty.startDate,
       endDate: str(form.endDate ?? form.istenCikis) || empty.endDate,
@@ -65,7 +95,7 @@ export function mapKotuNiyetFormFromBackend(data: unknown): KotuNiyetForm | null
       ikramiye: str(form.ikramiye) || empty.ikramiye,
       yol: str(form.yol) || empty.yol,
       yemek: str(form.yemek) || empty.yemek,
-      extras: empty.extras,
+      extras,
     };
   } catch {
     return null;
@@ -78,7 +108,7 @@ export const kotuNiyetCaseCrud = createCalcBackendCrud({
   mapFormFromBackend: mapKotuNiyetFormFromBackend,
   buildSaveData: (form, result) =>
     buildCalcSavePayload({
-      form,
+      form: buildFormPayload(form),
       result,
       iseGiris: form.startDate || null,
       istenCikis: form.endDate || null,

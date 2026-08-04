@@ -1087,6 +1087,10 @@
   animation: value-flash 0.6s var(--ease-out);
 }
 
+.footerLabelCell {
+  text-align: right;
+}
+
 .tableFootnote {
   margin: 0.3rem 0.9rem 0.7rem;
   font-size: 0.68rem;
@@ -1725,6 +1729,20 @@
   font-weight: 550;
   color: var(--muted);
   white-space: nowrap;
+}
+.accordionTotalRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.55rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  font-weight: 700;
 }
 .accordionBody {
   padding: 0.35rem 0.4rem 0.55rem;

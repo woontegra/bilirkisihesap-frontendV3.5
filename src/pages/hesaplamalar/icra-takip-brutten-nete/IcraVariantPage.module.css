@@ -34,7 +34,13 @@
   color: var(--danger);
 }
 
-.breakdownNet {
+.breakdownPositive {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.breakdownNet,
+.breakdownEmphasis .breakdownValue {
   color: var(--success);
   font-weight: 700;
 }

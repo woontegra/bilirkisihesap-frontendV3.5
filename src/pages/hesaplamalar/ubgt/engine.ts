@@ -69,6 +69,15 @@ export function formatDateTR(iso: string): string {
   return d.toLocaleDateString("tr-TR");
 }
 
+/** Türkçe uzun tarih: 30 Ağustos 2019 */
+export function formatDateTRLong(iso: string): string {
+  if (!iso) return "—";
+  const normalized = iso.length === 10 ? `${iso}T00:00:00` : iso;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+}
+
 /** V3 UbgtNetConversion: hakkaniyet = brut / 3 (NO round2 on hakkaniyet itself). */
 export function calcHakkaniyet(brut: number): number {
   return (brut || 0) / 3;

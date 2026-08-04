@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -63,6 +65,7 @@ import { MetinHesaplamasi } from "./MetinHesaplamasi";
 import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
+import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
 import styles from "./Gemi724FmPage.module.css";
 
@@ -197,7 +200,7 @@ export default function Gemi724FmPage() {
 
   const isDirty = useMemo(() => snapshotKey(form) !== baseline, [form, baseline]);
   const dateError = useMemo(() => validateDateRange(form.iseGiris, form.istenCikis), [form.iseGiris, form.istenCikis]);
-  const result = useMemo(() => computeGemi724Result(form), [form]);
+  const result = useDeferredFormMemo(form, computeGemi724Result);
   const katSayiNum = parseKatsayi(form.katSayi);
   const hasCustomKatsayi = katSayiNum !== 1;
 
@@ -513,15 +516,6 @@ export default function Gemi724FmPage() {
       }),
     });
 
-    if (form.exclusions.length > 0) {
-      sections.push({
-        id: "izin",
-        title: "Yıllık İzin Düşümü",
-        headers: ["Tür", "Başlangıç", "Bitiş", "Gün"],
-        rows: form.exclusions.map((ex) => [ex.type, ex.start, ex.end, String(ex.days)]),
-      });
-    }
-
     sections.push({
       id: "brutnet",
       title: "Brüt'ten Net'e",
@@ -552,7 +546,7 @@ export default function Gemi724FmPage() {
       lastRowTone: "green",
     });
 
-    return sections;
+    return insertExclusionsPreviewSection(sections, form.exclusions);
   }, [form, result]);
 
   return (
@@ -619,21 +613,19 @@ export default function Gemi724FmPage() {
           <div className={styles.basicGrid}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>İşe giriş</span>
-              <input
-                type="date"
+              <DraftDateInput
                 className={styles.dateInput}
                 value={form.iseGiris}
-                onChange={(e) => setField("iseGiris", e.target.value)}
+                onCommit={(v) => setField("iseGiris", v)}
               />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>İşten çıkış</span>
               <div className={`${styles.dateWrap} ${dateError ? styles.inputWrapError : ""}`}>
-                <input
-                  type="date"
+                <DraftDateInput
                   className={styles.dateInput}
                   value={form.istenCikis}
-                  onChange={(e) => setField("istenCikis", e.target.value)}
+                  onCommit={(v) => setField("istenCikis", v)}
                 />
               </div>
             </label>

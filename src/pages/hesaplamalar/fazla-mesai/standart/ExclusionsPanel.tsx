@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { daysBetweenIsoInclusive, isValidIsoDate } from "./engine";
 import { EXCLUSION_TYPES, newLocalId, type ExclusionItem } from "./model";
 import { deleteExclusionSet, getAllExclusionSets, saveExclusionSet, type SavedExclusionSet } from "./exclusionSets";
+import accordionStyles from "../shared/ExclusionsAccordion.module.css";
 import styles from "./StandartFmPage.module.css";
 
 function suggestedDays(start: string, end: string): number {
@@ -122,18 +123,18 @@ export function ExclusionsPanel({
     <section className={styles.card} style={{ animationDelay: "130ms" }}>
       <button
         type="button"
-        className={styles.exclusionAccordionHead}
+        className={accordionStyles.exclusionAccordionHead}
         onClick={() => setIsOpen((o) => !o)}
         aria-expanded={isOpen}
       >
         <span>Yıllık izin / Çalışılmayan raporlu günler dışlanabilir.</span>
-        <span className={styles.exclusionAccordionChevron} aria-hidden>
+        <span className={accordionStyles.exclusionAccordionChevron} aria-hidden>
           {isOpen ? "▼" : "▶"}
         </span>
       </button>
 
       {isOpen ? (
-        <div className={styles.exclusionAccordionBody}>
+        <div className={accordionStyles.exclusionAccordionBody}>
           <p className={styles.panelHint}>Dışlama ekleyin; düşüm, girdiğiniz gün sayısına göre yapılır.</p>
 
           <div className={styles.exclusionToolbar}>

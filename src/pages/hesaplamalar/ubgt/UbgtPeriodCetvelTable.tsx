@@ -3,13 +3,13 @@
  * Kullanıcıya görünen metinler V3 ile birebir.
  */
 import type { CetvelDisplayRow } from "./ubgtCetvelRows";
+import { DraftDateInput, DraftTextInput } from "@/components/form";
 import { formatMoney } from "./engine";
 import styles from "./UbgtCalcPage.module.css";
 
 type Props = {
   rows: CetvelDisplayRow[];
   mode: "standart" | "bilirkisi";
-  totalDays: number;
   totalBrut: number;
   onAddBelow: (rowId: string) => void;
   onRemove: (rowId: string) => void;
@@ -33,7 +33,6 @@ type Props = {
 export default function UbgtPeriodCetvelTable({
   rows,
   mode,
-  totalDays,
   totalBrut,
   onAddBelow,
   onRemove,
@@ -92,19 +91,17 @@ export default function UbgtPeriodCetvelTable({
                     <td>
                       {r.source === "manual" ? (
                         <div className={styles.dateCell}>
-                          <input
-                            type="date"
+                          <DraftDateInput
                             className={styles.cellInput}
                             value={r.startISO}
-                            onChange={(e) => onManualPatch(r.id, { startISO: e.target.value })}
+                            onCommit={(v) => onManualPatch(r.id, { startISO: v })}
                             aria-label="Başlangıç"
                           />
                           <span className={styles.dateSep}>–</span>
-                          <input
-                            type="date"
+                          <DraftDateInput
                             className={styles.cellInput}
                             value={r.endISO}
-                            onChange={(e) => onManualPatch(r.id, { endISO: e.target.value })}
+                            onCommit={(v) => onManualPatch(r.id, { endISO: v })}
                             aria-label="Bitiş"
                           />
                         </div>
@@ -116,27 +113,24 @@ export default function UbgtPeriodCetvelTable({
                       <td>{r.persons?.length ? r.persons.join(", ") : "—"}</td>
                     ) : null}
                     <td>
-                      <input
+                      <DraftTextInput
                         className={`${styles.cellInput} ${styles.moneyRight}`}
                         value={r.wageDisplay}
-                        onChange={(e) => {
-                          if (r.source === "manual") onManualPatch(r.id, { wage: e.target.value });
-                          else if (r.engineIndex != null)
-                            onAutoOverride(r.engineIndex, { wage: e.target.value });
+                        onCommit={(v) => {
+                          if (r.source === "manual") onManualPatch(r.id, { wage: v });
+                          else if (r.engineIndex != null) onAutoOverride(r.engineIndex, { wage: v });
                         }}
                         aria-label="Ücret (BRÜT)"
                       />
                     </td>
                     <td>
-                      <input
+                      <DraftTextInput
                         className={`${styles.cellInput} ${styles.moneyRight}`}
                         style={{ width: "4.25rem" }}
                         value={r.coefficientDisplay}
-                        onChange={(e) => {
-                          if (r.source === "manual")
-                            onManualPatch(r.id, { coefficient: e.target.value });
-                          else if (r.engineIndex != null)
-                            onAutoOverride(r.engineIndex, { coefficient: e.target.value });
+                        onCommit={(v) => {
+                          if (r.source === "manual") onManualPatch(r.id, { coefficient: v });
+                          else if (r.engineIndex != null) onAutoOverride(r.engineIndex, { coefficient: v });
                         }}
                         aria-label="Katsayı"
                       />
@@ -194,8 +188,12 @@ export default function UbgtPeriodCetvelTable({
             </tbody>
             <tfoot>
               <tr className={styles.totalsRow}>
-                <td colSpan={mode === "bilirkisi" ? 5 : 4}>{footerLabel}</td>
-                <td className={`${styles.moneyCell} ${styles.moneyRight}`}>{totalDays}</td>
+                <td
+                  colSpan={mode === "bilirkisi" ? 6 : 5}
+                  className={styles.footerLabelCell}
+                >
+                  {footerLabel}
+                </td>
                 <td className={`${styles.moneyCell} ${styles.moneyRight}`}>
                   {formatMoney(totalBrut)}₺
                 </td>

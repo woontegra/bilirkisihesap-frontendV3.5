@@ -31,6 +31,7 @@ const ASGARI_UCRET_BRUT: Record<string, number> = {
   "2023-1": 10008, "2023-2": 13414.5,
   "2024-1": 20002.5, "2024-2": 20002.5,
   "2025-1": 26005.5, "2025-2": 26005.5,
+  "2026-1": 33030, "2026-2": 33030,
 };
 
 /** Verilen tarihe karşılık gelen dönem asgari brüt ücreti (tablo dışı yıl → son yıl fallback, V3 ile aynı). */

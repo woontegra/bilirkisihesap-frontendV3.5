@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { Calculator, Download, Eye, FilePlus2, FolderOpen, Plus, Save, Trash2, X } from "lucide-react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Calculator, Download, Eye, FilePlus2, FolderOpen, Plus, Save, ShieldCheck, Trash2, X } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
 import {
   ManualBrutWageApplyControls,
   clearManualWageFromPeriodOverrides,
@@ -24,6 +26,7 @@ import {
   deriveTaxYear,
   formatCoef,
   formatDateTR,
+  formatDateTRLong,
   formatMoney,
   parseCoef,
   parseNum,
@@ -46,6 +49,8 @@ import {
   getUbgtCaseCrud,
   listUbgtCasesFromBackend,
 } from "./backendCase";
+import { buildStandartUbgtPreviewSections } from "./standart/buildStandartUbgtPreviewSections";
+import { buildBilirkisiUbgtPreviewSections } from "./bilirkisi/buildBilirkisiUbgtPreviewSections";
 import { deleteExclusionSet, getAllExclusionSets, saveExclusionSet, type SavedUbgtExclusionSet } from "./exclusionSets";
 import {
   detectUbgtModeFromType,
@@ -107,6 +112,13 @@ function FlashValue({ value, className }: { value: string; className?: string })
 
 type Props = { mode: "standart" | "bilirkisi"; title: string; backTo: string };
 
+const PAGE_DESCRIPTION: Record<Props["mode"], string> = {
+  standart:
+    "Ulusal bayram ve genel tatil ücreti hesabı; katsayı, cetvel ve mahsuplaşma V3 ile uyumludur.",
+  bilirkisi:
+    "Bilirkişi UBGT hesabı; tanık beyanları ve ücret düzenlemesi standart UBGT ile aynıdır.",
+};
+
 function NameModal({
   open,
   initial,
@@ -141,6 +153,16 @@ function NameModal({
   );
 }
 
+function getHolidayTooltip(holidayId: string): string | undefined {
+  if (holidayId === "1-mayis") {
+    return "1 Mayıs tatili 2009 yılından itibaren uygulanır.";
+  }
+  if (holidayId === "15-temmuz") {
+    return "15 Temmuz tatili 2017 yılından itibaren uygulanır.";
+  }
+  return undefined;
+}
+
 function HolidayChips({
   selected,
   options,
@@ -156,8 +178,9 @@ function HolidayChips({
     <div className={styles.chipGrid} role="group" aria-label={ariaLabel || "Seçili tatiller"}>
       {options.map((h) => {
         const on = selected.includes(h.id);
+        const tooltip = getHolidayTooltip(h.id);
         return (
-          <label key={h.id} className={`${styles.chip} ${on ? styles.chipOn : ""}`}>
+          <label key={h.id} className={`${styles.chip} ${on ? styles.chipOn : ""}`} title={tooltip}>
             <input
               type="checkbox"
               checked={on}
@@ -173,7 +196,7 @@ function HolidayChips({
   );
 }
 
-export default function UbgtCalcPage({ mode, title, backTo }: Props) {
+export default function UbgtCalcPage({ mode, title }: Props) {
   const { success, error: showError } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
@@ -184,6 +207,7 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm(mode)));
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -320,9 +344,8 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
     }
   }, [mode, form.dateRanges, computeRanges.length]);
 
-  const result = useMemo(() => {
-    if (!computeRanges.length) return null;
-    return computeUbgt({
+  const ubgtComputeInput = useMemo(
+    () => ({
       dateRanges: computeRanges,
       selectedHolidayIds: mode === "bilirkisi" ? [] : form.selectedHolidayIds,
       ubgtExcludedDays: form.ubgtExcludedDays,
@@ -331,18 +354,25 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
       year: taxYear,
       periodOverrides: form.periodOverrides,
       ubgtExclusionRules: form.ubgtExclusionRules,
-    });
-  }, [
-    computeRanges,
-    mode,
-    form.selectedHolidayIds,
-    form.ubgtExcludedDays,
-    form.ubgtExpiryStart,
-    form.excludedWeekdays,
-    taxYear,
-    form.periodOverrides,
-    form.ubgtExclusionRules,
-  ]);
+    }),
+    [
+      computeRanges,
+      mode,
+      form.selectedHolidayIds,
+      form.ubgtExcludedDays,
+      form.ubgtExpiryStart,
+      form.excludedWeekdays,
+      taxYear,
+      form.periodOverrides,
+      form.ubgtExclusionRules,
+    ],
+  );
+  const deferredUbgtComputeInput = useDeferredValue(ubgtComputeInput);
+
+  const result = useMemo(() => {
+    if (!deferredUbgtComputeInput.dateRanges.length) return null;
+    return computeUbgt(deferredUbgtComputeInput);
+  }, [deferredUbgtComputeInput]);
 
   // Engine path already applies periodOverrides (incl. coefficient).
   // Cetvel: V3 benzeri manuel satır / gizlenen otomatik satır birleşimi (motor dışı).
@@ -565,6 +595,18 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
     }
   };
 
+  const validateRangeDates = useCallback(
+    (start: string, end: string) => {
+      if (!start || !end) return true;
+      if (new Date(start) > new Date(end)) {
+        showError("Bitiş tarihi, başlangıç tarihinden önce olamaz.");
+        return false;
+      }
+      return true;
+    },
+    [showError],
+  );
+
   const handleSave = async (name: string) => {
     if (!result || result.error || !effectiveNet) return;
     setCaseSaving(true);
@@ -576,11 +618,31 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
       toplamNet: effectiveNet,
       totalDays: displayTotalDays,
     };
+    const baseSave = buildUbgtSaveResult(results);
+    const enrichedSave = {
+      ...baseSave,
+      v3Periods: displayCetvelRows,
+      katsayi: globalKatsayi,
+      excludedWeekdayHolidays: result.excludedWeekdayHolidays ?? [],
+      ubgtDayEntries: result.ubgtDayEntries,
+      netConversion: {
+        ...effectiveNet,
+        brut: displayBrutForNet,
+        hakkaniyet,
+        settleAmount: mode === "bilirkisi" ? form.settleAmount : settleNum,
+        gelir: effectiveNet.gelirVergisi,
+        gelirDilimleri: effectiveNet.gelirVergisiDilimleri,
+        damga: effectiveNet.damgaVergisi,
+        net: effectiveNet.netAmount,
+        ssk: effectiveNet.ssk + effectiveNet.issizlik,
+      },
+    };
+    const savePayload = mode === "standart" || mode === "bilirkisi" ? enrichedSave : baseSave;
     try {
       const record = await ubgtCaseCrud.saveCase(
         name,
         { ...form, mode },
-        buildUbgtSaveResult(results),
+        savePayload,
         activeId,
       );
       const recordId = String(record.id);
@@ -770,148 +832,35 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
 
   const previewSections = useMemo((): PreviewSection[] => {
     if (!result || result.error || !effectiveNet) return [];
-    const dayRows =
-      result.ubgtDayEntries.length > 0
-        ? result.ubgtDayEntries.map((e) => [
-            e.date,
-            HOLIDAY_NAME_BY_ID[e.holidayId] || e.holidayId || "—",
-            e.days === 0.5 ? "Yarım" : "Tam",
-            String(e.days),
-          ])
-        : [["—", "UBGT günü yok", "—", "0"]];
-
-    const rangeSummary =
-      mode === "bilirkisi"
-        ? [
-            [
-              "Davacı dönemleri",
-              form.dateRanges
-                .filter((r) => r.start && r.end)
-                .map((r) => `${r.start} → ${r.end}`)
-                .join("; ") || "—",
-            ],
-            [
-              "Tanık sayısı",
-              String(form.witnesses.filter((w) => w.start && w.end).length),
-            ],
-          ]
-        : [
-            [
-              "Tarih aralığı",
-              form.dateRanges
-                .filter((r) => r.start && r.end)
-                .map((r) => `${r.start} → ${r.end}`)
-                .join("; ") || "—",
-            ],
-          ];
-
-    const periodHeaders =
-      mode === "bilirkisi"
-        ? ["Dönem", "Kişi(ler)", "Ücret", "Katsayı", "Günlük", "UBGT gün", "Brüt"]
-        : ["Dönem", "Ücret", "Katsayı", "Günlük", "UBGT gün", "Brüt"];
-    const periodRows = displayPeriods.map((p) =>
-      mode === "bilirkisi"
-        ? [
-            p.period,
-            p.persons?.length ? p.persons.join(", ") : "—",
-            `${formatMoney(p.wage)} ₺`,
-            String(p.coefficient),
-            `${formatMoney(p.dailyWage)} ₺`,
-            String(p.ubgtDays),
-            `${formatMoney(p.ubgtTotal)} ₺`,
-          ]
-        : [
-            p.period,
-            `${formatMoney(p.wage)} ₺`,
-            String(p.coefficient),
-            `${formatMoney(p.dailyWage)} ₺`,
-            String(p.ubgtDays),
-            `${formatMoney(p.ubgtTotal)} ₺`,
-          ],
-    );
-
-    /** V3 report: Standart = max(0, net−hakkaniyet) without settle; Bilirkişi = brut−hakkaniyet−settle. */
-    const mahsupRows =
-      mode === "bilirkisi"
-        ? [
-            ["Brüt UBGT alacağı", `${formatMoney(displayBrutForNet)} ₺`],
-            ["1/3 hakkaniyet indirimi", `−${formatMoney(hakkaniyet)} ₺`],
-            [
-              "Mahsuplaşma miktarı",
-              settleNum > 0 ? `−${formatMoney(settleNum)} ₺` : `${formatMoney(0)} ₺`,
-            ],
-            ["Mahsuplaşma sonucu", `${formatMoney(mahsupSonucu)} ₺`],
-          ]
-        : [
-            ["Net UBGT Alacağı", `${formatMoney(effectiveNet.netAmount)} ₺`],
-            ["1/3 Hakkaniyet İndirimi", `−${formatMoney(hakkaniyet)} ₺`],
-            ["Mahsuplaşma Sonucu", `${formatMoney(mahsupSonucu)} ₺`],
-          ];
-
-    return [
-      {
-        id: "info",
-        title: "Genel bilgiler",
-        headers: ["Alan", "Değer"],
-        rows: [
-          ...rangeSummary,
-          ["Toplam UBGT günü", `${displayTotalDays} gün`],
-          [
-            "Zamanaşımı başlangıcı",
-            form.ubgtExpiryStart ? formatDateTR(form.ubgtExpiryStart) : "—",
-          ],
-        ],
-      },
-      {
-        id: "donemler",
-        title: "UBGT hesaplama cetveli",
-        headers: periodHeaders,
-        rows: periodRows,
-      },
-      {
-        id: "gunler",
-        title: "UBGT günleri",
-        headers: ["Tarih", "Tatil", "Tam/Yarım", "Gün"],
-        rows: dayRows,
-      },
-      {
-        id: "net",
-        title: "Brüt'ten net'e çeviri",
-        headers: ["Kalem", "Tutar"],
-        rows: [
-          ["Brüt UBGT alacağı", `${formatMoney(displayBrutForNet)} ₺`],
-          ["SGK primi (%14)", `−${formatMoney(effectiveNet.ssk)} ₺`],
-          ["İşsizlik primi (%1)", `−${formatMoney(effectiveNet.issizlik)} ₺`],
-          [
-            `Gelir vergisi${effectiveNet.gelirVergisiDilimleri ? ` ${effectiveNet.gelirVergisiDilimleri}` : ""}`,
-            `−${formatMoney(effectiveNet.gelirVergisi)} ₺`,
-          ],
-          ["Damga vergisi (binde 7,59)", `−${formatMoney(effectiveNet.damgaVergisi)} ₺`],
-          ["Net UBGT alacağı", `${formatMoney(effectiveNet.netAmount)} ₺`],
-        ],
-        lastRowTone: "green",
-      },
-      {
-        id: "mahsup",
-        title: "Mahsuplaşma",
-        headers: ["Kalem", "Tutar"],
-        rows: mahsupRows,
-        lastRowTone: "green",
-      },
-    ];
+    if (mode === "standart") {
+      return buildStandartUbgtPreviewSections({
+        form,
+        displayPeriods: displayCetvelRows,
+        displayTotalDays,
+        displayBrutForNet,
+        effectiveNet,
+        hakkaniyet,
+      });
+    }
+    return buildBilirkisiUbgtPreviewSections({
+      form,
+      displayPeriods: displayCetvelRows,
+      displayTotalDays,
+      displayBrutForNet,
+      effectiveNet,
+      hakkaniyet,
+      settleNum,
+    });
   }, [
     result,
-    displayPeriods,
+    displayCetvelRows,
     displayBrutForNet,
     displayTotalDays,
     effectiveNet,
     hakkaniyet,
     settleNum,
-    mahsupSonucu,
     mode,
-    form.dateRanges,
-    form.witnesses,
-    form.ubgtExpiryStart,
+    form,
   ]);
 
   const periodLabelByIndex = useMemo(() => {
@@ -935,27 +884,28 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
 
   return (
     <div className={styles.page} aria-busy={caseLoading || undefined}>
+      {caseLoading ? (
+        <div className={styles.privacyBadge} role="status">
+          Kayıt yükleniyor…
+        </div>
+      ) : null}
       <header className={styles.hero}>
         <div className={styles.heroMain}>
           <div className={styles.heroIcon} aria-hidden>
             <Calculator size={22} />
           </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <p className={styles.helper} style={{ marginTop: 0 }}>
-              <Link to={backTo}>← UBGT</Link>
-            </p>
+          <div>
             <h1 className={styles.title}>{title}</h1>
-            {caseLoading ? <p className={styles.helper}>Kayıt yükleniyor…</p> : null}
+            <p className={styles.desc}>{PAGE_DESCRIPTION[mode]}</p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={14} />
+              <span>Hesaplama ve kayıtlar yalnızca bu cihazda</span>
+            </div>
             {importedFromV3 ? (
               <p className={styles.importBanner}>
                 Eski kayıt V3&apos;ten içe aktarıldı. Yapılan değişiklikler bu cihazda lokal olarak saklanır.
                 {v3SourceCaseId ? ` (kaynak #${v3SourceCaseId})` : ""}
               </p>
-            ) : null}
-            {activeName ? (
-              <div className={styles.recordBadge}>
-                <span>{activeName}</span>
-              </div>
             ) : null}
             {storageError ? (
               <p className={styles.helper}>
@@ -977,15 +927,20 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
           </div>
         </div>
         <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <FolderOpen size={13} />
+              <span>{activeName}</span>
+              {dirty ? <em>· değişti</em> : null}
+            </div>
+          ) : null}
           <div className={styles.quickTotal}>
-            <span className={styles.quickTotalLabel}>
-              {mode === "bilirkisi" ? "Mahsuplaşma sonucu" : "Mahsuplaşma Sonucu"}
-            </span>
-            <FlashValue className={styles.quickTotalValue} value={`${formatMoney(mahsupSonucu)} ₺`} />
+            <span>{mode === "bilirkisi" ? "Toplam UBGT ücreti" : "Toplam UBGT Ücreti"}</span>
+            <FlashValue className={styles.quickTotalValue} value={`${formatMoney(displayToplamBrut)} ₺`} />
           </div>
           <div className={styles.heroActions}>
             <Button type="button" variant="soft" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Kayıtlar
+              <FolderOpen size={14} /> Kayıtlar ({cases.length})
             </Button>
             <Button
               type="button"
@@ -999,7 +954,7 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
                 }
               }}
             >
-              <FilePlus2 size={14} /> {mode === "bilirkisi" ? "Yeni hesapla" : "Yeni Hesapla"}
+              <FilePlus2 size={14} /> Yeni Hesaplama
             </Button>
           </div>
         </div>
@@ -1059,30 +1014,30 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
                   ) : null}
                   <label className={styles.field}>
                     <span className={styles.fieldLabel}>Başlangıç</span>
-                    <input
-                      type="date"
+                    <DraftDateInput
                       className={styles.dateInput}
                       value={row.start}
-                      onChange={(e) =>
+                      onCommit={(v) =>
                         setForm((f) => ({
                           ...f,
-                          dateRanges: f.dateRanges.map((r, i) => (i === idx ? { ...r, start: e.target.value } : r)),
+                          dateRanges: f.dateRanges.map((r, i) => (i === idx ? { ...r, start: v } : r)),
                         }))
                       }
+                      onBlur={() => validateRangeDates(row.start, row.end)}
                     />
                   </label>
                   <label className={styles.field}>
                     <span className={styles.fieldLabel}>Bitiş</span>
-                    <input
-                      type="date"
+                    <DraftDateInput
                       className={styles.dateInput}
                       value={row.end}
-                      onChange={(e) =>
+                      onCommit={(v) =>
                         setForm((f) => ({
                           ...f,
-                          dateRanges: f.dateRanges.map((r, i) => (i === idx ? { ...r, end: e.target.value } : r)),
+                          dateRanges: f.dateRanges.map((r, i) => (i === idx ? { ...r, end: v } : r)),
                         }))
                       }
+                      onBlur={() => validateRangeDates(row.start, row.end)}
                     />
                   </label>
                 </div>
@@ -1224,15 +1179,14 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
                       </label>
                       <label className={styles.field}>
                         <span className={styles.fieldLabel}>Başlangıç</span>
-                        <input
-                          type="date"
+                        <DraftDateInput
                           className={styles.dateInput}
                           value={w.start}
-                          onChange={(e) =>
+                          onCommit={(v) =>
                             setForm((f) => ({
                               ...f,
                               witnesses: f.witnesses.map((x, i) =>
-                                i === idx ? { ...x, start: e.target.value } : x,
+                                i === idx ? { ...x, start: v } : x,
                               ),
                             }))
                           }
@@ -1240,15 +1194,14 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
                       </label>
                       <label className={styles.field}>
                         <span className={styles.fieldLabel}>Bitiş</span>
-                        <input
-                          type="date"
+                        <DraftDateInput
                           className={styles.dateInput}
                           value={w.end}
-                          onChange={(e) =>
+                          onCommit={(v) =>
                             setForm((f) => ({
                               ...f,
                               witnesses: f.witnesses.map((x, i) =>
-                                i === idx ? { ...x, end: e.target.value } : x,
+                                i === idx ? { ...x, end: v } : x,
                               ),
                             }))
                           }
@@ -1345,26 +1298,6 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
           ) : null}
 
           <div className={styles.periodFields2} style={{ marginTop: "0.85rem" }}>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>
-                {mode === "standart" ? "Zamanaşımı Başlangıç Tarihi" : "Zamanaşımı başlangıcı"}
-              </span>
-              <div className={styles.expiryControls}>
-                <UbgtExpiryBox
-                  ubgtExpiryStart={form.ubgtExpiryStart || null}
-                  onUbgtExpiryStartChange={(d) =>
-                    setForm((f) => ({ ...f, ubgtExpiryStart: d ?? "" }))
-                  }
-                  onUbgtExpiryCancel={handleExpiryCancel}
-                  iseGiris={iseGirisEarliest}
-                />
-                {form.ubgtExpiryStart ? (
-                  <p className={styles.helper} style={{ marginTop: "0.4rem" }}>
-                    Zamanaşımı: {formatDateTR(form.ubgtExpiryStart)}
-                  </p>
-                ) : null}
-              </div>
-            </div>
             <div className={styles.field}>
               <span className={styles.fieldLabel}>İşten çıkış yılı</span>
               <p className={styles.helper} style={{ marginTop: "0.45rem" }}>
@@ -1504,15 +1437,14 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
               <div key={ex.id || idx} className={styles.excludeRow}>
                 <label className={styles.field}>
                   <span className={styles.fieldLabel}>Başlangıç</span>
-                  <input
-                    type="date"
+                  <DraftDateInput
                     className={styles.dateInput}
                     value={ex.start}
-                    onChange={(e) =>
+                    onCommit={(v) =>
                       setForm((f) => ({
                         ...f,
                         ubgtExcludedDays: f.ubgtExcludedDays.map((x, i) =>
-                          i === idx ? { ...x, start: e.target.value } : x,
+                          i === idx ? { ...x, start: v } : x,
                         ),
                       }))
                     }
@@ -1520,15 +1452,14 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
                 </label>
                 <label className={styles.field}>
                   <span className={styles.fieldLabel}>Bitiş</span>
-                  <input
-                    type="date"
+                  <DraftDateInput
                     className={styles.dateInput}
                     value={ex.end}
-                    onChange={(e) =>
+                    onCommit={(v) =>
                       setForm((f) => ({
                         ...f,
                         ubgtExcludedDays: f.ubgtExcludedDays.map((x, i) =>
-                          i === idx ? { ...x, end: e.target.value } : x,
+                          i === idx ? { ...x, end: v } : x,
                         ),
                       }))
                     }
@@ -1569,9 +1500,6 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
               </div>
             ))
           )}
-          <p className={styles.chipGroupTitle} style={{ marginTop: "0.85rem" }}>
-            UBGT hesabından dışlanacak günler
-          </p>
           <UbgtExclusionCompactUI
             dateRanges={
               mode === "bilirkisi"
@@ -1589,6 +1517,14 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
           {result?.error ? <p className={styles.errorText}>{result.error}</p> : null}
           <div className={styles.cetvelToolbar}>
             <div className={styles.katsayiRow}>
+              <UbgtExpiryBox
+                ubgtExpiryStart={form.ubgtExpiryStart || null}
+                onUbgtExpiryStartChange={(d) =>
+                  setForm((f) => ({ ...f, ubgtExpiryStart: d ?? "" }))
+                }
+                onUbgtExpiryCancel={handleExpiryCancel}
+                iseGiris={iseGirisEarliest}
+              />
               <button
                 type="button"
                 className={`${styles.katsayiBtn} ${hasCustomKatsayi ? styles.katsayiBtnActive : ""}`}
@@ -1622,7 +1558,6 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
           <UbgtPeriodCetvelTable
             rows={displayCetvelRows}
             mode={mode}
-            totalDays={displayTotalDays}
             totalBrut={displayToplamBrut}
             onAddBelow={addPeriodBelow}
             onRemove={removePeriodRow}
@@ -1643,7 +1578,7 @@ export default function UbgtCalcPage({ mode, title, backTo }: Props) {
               <ul className={styles.helper} style={{ margin: 0, paddingLeft: "1.1rem" }}>
                 {result.excludedWeekdayHolidays.map((h, i) => (
                   <li key={i}>
-                    {h.date} — {h.name} ({h.duration} gün)
+                    {formatDateTRLong(h.date)} — {h.name} ({h.duration} gün)
                   </li>
                 ))}
               </ul>

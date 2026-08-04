@@ -17,9 +17,12 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftTextInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import {
   applyExtraSetItems,
   collectExtraSetItems,
@@ -38,7 +41,7 @@ import {
   mapBostaFormFromBackend,
   resolveSavedCaseDisplayName,
 } from "./backendCase";
-import { BOSTA_CARPAN, clampYear, computeBostaGecenSure, computeEklentiResult, formatDateTR, formatMoney } from "./engine";
+import { BOSTA_CARPAN, computeBostaGecenSure, computeEklentiResult, formatMoney } from "./engine";
 import { createEmptyForm, newLocalId, NOTE_TEXT, snapshotKey, type BostaForm, type SavedCase } from "./model";
 import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
 import styles from "./BostaGecenSureUcretiPage.module.css";
@@ -172,6 +175,7 @@ export default function BostaGecenSureUcretiPage() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -185,6 +189,10 @@ export default function BostaGecenSureUcretiPage() {
   const [savedExtraSets, setSavedExtraSets] = useState<LocalExtraSet[]>([]);
   const [caseSaving, setCaseSaving] = useState(false);
 
+  useEffect(() => {
+    document.title = `${PAGE_TITLE} | Bilirkişi Hesap`;
+  }, []);
+
   const setCaseIdParam = useCallback(
     (id: string) => {
       const next = new URLSearchParams(searchParams);
@@ -194,7 +202,7 @@ export default function BostaGecenSureUcretiPage() {
     [searchParams, setSearchParams],
   );
 
-  const result = useMemo(() => computeBostaGecenSure(form), [form]);
+  const result = useDeferredFormMemo(form, computeBostaGecenSure);
   const dirty = snapshotKey(form) !== baseline;
 
   const refreshExtraSets = useCallback(() => {
@@ -493,10 +501,12 @@ export default function BostaGecenSureUcretiPage() {
         title: "Genel Bilgiler",
         headers: ["Alan", "Değer"],
         rows: [
-          ["İşten Çıkış (Gelir Vergisi Yılı)", form.endDate ? formatDateTR(form.endDate) : "—"],
-          ["Gelir Vergisi Yılı", String(result.year)],
-          ["Aylık Toplam Ücret (giydirilmiş)", `${formatMoney(result.toplamBrut)} ₺`],
+          ["Aylık Toplam Ücret", `${formatMoney(result.toplamBrut)} ₺`],
           ["Hesaplama Süresi", `${BOSTA_CARPAN} Ay`],
+          [
+            "Brüt Boşta Geçen Süre Ücreti",
+            result.brutAmount > 0 ? `${formatMoney(result.brutAmount)} ₺` : "—",
+          ],
         ],
       },
       {
@@ -517,33 +527,55 @@ export default function BostaGecenSureUcretiPage() {
         headers: ["Kalem", "Tutar"],
         rows: [
           ["Brüt Boşta Geçen Süre Ücreti", `${formatMoney(result.brutAmount)} ₺`],
-          ["SGK Primi (%14)", `-${formatMoney(result.sgk)} ₺`],
-          ["İşsizlik Primi (%1)", `-${formatMoney(result.issizlik)} ₺`],
-          [`Gelir Vergisi ${result.gelirVergisiDilimleri}`.trim(), `-${formatMoney(result.gelirVergisi)} ₺`],
-          ["Damga Vergisi (Binde 7,59)", `-${formatMoney(result.damgaVergisi)} ₺`],
+          ["SGK Primi (%14)", `−${formatMoney(result.sgk)} ₺`],
+          ["İşsizlik Primi (%1)", `−${formatMoney(result.issizlik)} ₺`],
+          [`Gelir Vergisi ${result.gelirVergisiDilimleri}`.trim(), `−${formatMoney(result.gelirVergisi)} ₺`],
+          ["Damga Vergisi (Binde 7,59)", `−${formatMoney(result.damgaVergisi)} ₺`],
           ["Net Boşta Geçen Süre Ücreti", `${formatMoney(result.netAmount)} ₺`],
         ],
         lastRowTone: "green",
       },
     ];
-  }, [form.endDate, result]);
+  }, [result]);
 
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div className={styles.heroIcon} aria-hidden>
-          <Clock size={20} />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <h1 className={styles.title}>{PAGE_TITLE}</h1>
-          <p className={styles.desc}>
-            İş güvencesi kapsamındaki işçiler için genellikle 4 aylık giydirilmiş brüt üzerinden hesaplanır; SGK,
-            işsizlik, gelir ve damga vergisi kesintileri uygulanır.
-          </p>
-          <div className={styles.privacyBadge}>
-            <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <Clock size={20} />
           </div>
-          {activeName ? <div className={styles.recordBadge}>Kayıt: {activeName}</div> : null}
+          <div style={{ minWidth: 0 }}>
+            <h1 className={styles.title}>{PAGE_TITLE}</h1>
+            <p className={styles.desc}>
+              İş güvencesi kapsamındaki işçiler için genellikle 4 aylık giydirilmiş brüt üzerinden hesaplanır; SGK,
+              işsizlik, gelir ve damga vergisi kesintileri uygulanır.
+            </p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <span>{activeName}</span>
+            </div>
+          ) : null}
+          <div className={styles.quickTotal}>
+            <span>Brüt ücret</span>
+            <span className={styles.quickTotalValue}>
+              <AnimatedMoney value={result.brutAmount} /> ₺
+            </span>
+          </div>
+          <div className={styles.heroActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
+              <FolderOpen size={14} /> Kayıtlar
+            </Button>
+            <Button type="button" variant="soft" size="sm" onClick={handleNew}>
+              <FilePlus2 size={14} /> Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -568,74 +600,61 @@ export default function BostaGecenSureUcretiPage() {
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
           <section className={styles.card}>
-            <div className={styles.cardTitleRow}>
-              <div className={styles.cardHead} style={{ marginBottom: 0 }}>
-                <Calculator size={16} />
-                <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
-              </div>
-              <div className={styles.inlineActions}>
-                <Button type="button" variant="soft" size="sm" onClick={openExtraImport}>
-                  <Download size={14} /> İçe Aktar
-                </Button>
-                <Button
-                  type="button"
-                  variant="soft"
-                  size="sm"
-                  onClick={() => setExtraSaveOpen(true)}
-                  disabled={!hasExtraSetData}
-                >
-                  <Save size={14} /> Kaydet
-                </Button>
-              </div>
+            <div className={styles.cardHead}>
+              <Calculator size={16} />
+              <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
             </div>
             <p className={styles.cardHint}>
               Aylık giydirilmiş brüt ücret; boşta geçen süre ücreti {BOSTA_CARPAN} aylık brüt üzerinden hesaplanır.
             </p>
-            <div className={styles.fields}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="bg-end-date">
-                  İşten çıkış <span className={styles.optionalTag}>(gelir vergisi yılı)</span>
-                </label>
-                <input
-                  id="bg-end-date"
-                  type="date"
-                  max="9999-12-31"
-                  className={styles.input}
-                  value={form.endDate}
-                  onChange={(e) => patch("endDate", clampYear(e.target.value))}
-                />
-                <p className={styles.helper}>
-                  Gelir vergisi tarifesi için yıl: {result.year}
-                  {!form.endDate ? " (işten çıkış girilmezse mevcut yıl)" : ""}
-                </p>
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="bg-brut">
-                  Çıplak brüt ücret
-                </label>
-                <input
-                  id="bg-brut"
-                  className={styles.input}
-                  inputMode="decimal"
-                  placeholder="Örn: 25.000"
-                  value={form.brut}
-                  onChange={(e) => patch("brut", e.target.value)}
-                />
-              </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="bg-brut">
+                Çıplak brüt ücret
+              </label>
+              <DraftTextInput
+                id="bg-brut"
+                className={styles.input}
+                inputMode="decimal"
+                placeholder="Örn: 25.000"
+                value={form.brut}
+                onCommit={(value) => patch("brut", value)}
+              />
             </div>
-            <div className={styles.wageGrid} style={{ marginTop: "0.6rem" }}>
+
+            <div className={styles.extraSection}>
+              <div className={styles.cardTitleRow}>
+                <h3 className={styles.extraSectionTitle}>Ekstra Hesaplamalar</h3>
+                <div className={styles.inlineActions}>
+                  <Button type="button" variant="soft" size="sm" onClick={openExtraImport}>
+                    <Download size={14} /> İçe Aktar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="soft"
+                    size="sm"
+                    onClick={() => setExtraSaveOpen(true)}
+                    disabled={!hasExtraSetData}
+                  >
+                    <Save size={14} /> Kaydet
+                  </Button>
+                </div>
+              </div>
+              <p className={styles.cardHint}>
+                Ekstra Hesaplamalar (Prim, İkramiye, Yemek vb.)
+              </p>
+            <div className={styles.wageGrid}>
               {(["prim", "ikramiye", "yol", "yemek"] as const).map((key) => (
                 <div key={key} className={styles.wageRow}>
                   <label className={styles.label} htmlFor={`bg-${key}`}>
                     {WAGE_LABELS[key]}
                   </label>
-                  <input
+                  <DraftTextInput
                     id={`bg-${key}`}
                     className={styles.input}
                     inputMode="decimal"
                     placeholder="0"
                     value={form[key]}
-                    onChange={(e) => patch(key, e.target.value)}
+                    onCommit={(value) => patch(key, value)}
                   />
                   <Button type="button" variant="soft" size="sm" onClick={() => openEklenti({ kind: "field", field: key })}>
                     <Calculator size={13} /> Eklenti Hesapla
@@ -647,18 +666,18 @@ export default function BostaGecenSureUcretiPage() {
               <div className={styles.extrasGrid} style={{ marginTop: "0.6rem" }}>
                 {form.extras.map((it) => (
                   <div key={it.id} className={styles.extraRow}>
-                    <input
+                    <DraftTextInput
                       className={styles.input}
                       placeholder="Kalem adı"
                       value={it.label}
-                      onChange={(e) => updateExtra(it.id, { label: e.target.value })}
+                      onCommit={(value) => updateExtra(it.id, { label: value })}
                     />
-                    <input
+                    <DraftTextInput
                       className={styles.input}
                       inputMode="decimal"
                       placeholder="Tutar"
                       value={it.value}
-                      onChange={(e) => updateExtra(it.id, { value: e.target.value })}
+                      onCommit={(value) => updateExtra(it.id, { value })}
                     />
                     <Button type="button" variant="soft" size="sm" onClick={() => openEklenti({ kind: "extra", id: it.id })}>
                       <Calculator size={13} /> Eklenti Hesapla
@@ -673,6 +692,7 @@ export default function BostaGecenSureUcretiPage() {
             <Button type="button" variant="ghost" size="sm" onClick={addExtra} style={{ marginTop: "0.6rem" }}>
               <Plus size={14} /> Ek Ücret Kalemi
             </Button>
+            </div>
           </section>
 
           <section className={styles.card}>
@@ -758,9 +778,6 @@ export default function BostaGecenSureUcretiPage() {
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
           </div>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => setPreviewOpen(true)}>
               <Eye size={14} /> Önizleme
             </Button>

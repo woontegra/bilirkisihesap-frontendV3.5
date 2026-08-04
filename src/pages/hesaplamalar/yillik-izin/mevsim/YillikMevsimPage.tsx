@@ -1,31 +1,165 @@
 import { Sun } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { YillikPageView } from "../lib/YillikPageView";
-import { WorkPeriodsEditor } from "../lib/WorkPeriodsEditor";
-import { useStandardYillikPage } from "../lib/useStandardYillikPage";
+import { buildMevsimYillikPreviewSections } from "../lib/buildMevsimYillikPreviewSections";
+import { createEmptyUsedRow } from "../lib/core";
+import { isDateOrderInvalid } from "../lib/dates";
+import { makeYillikBackendConfig } from "../lib/makeYillikBackendConfig";
 import { withSyncedSpan, type SimpleWorkPeriod } from "../lib/multiPeriodModel";
+import { formatMoney } from "../lib/money";
+import type { CaseListEntry, UsedLeaveRow } from "../lib/types";
+import { useYillikCaseBackend } from "../lib/useYillikCaseBackend";
+import { WorkPeriodsEditor } from "../lib/WorkPeriodsEditor";
+import { mevsimYillikSaveGate, yillikMevsimBackend } from "./backendCase";
 import { clampYear, computeYillikMevsimResult } from "./engine";
 import { createEmptyForm, snapshotKey } from "./model";
 import { NOTE_BLOCKS } from "./notes";
-import { clearCorruptCases, deleteCase, loadCasesSafe, saveCase } from "./storage";
+import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
 
 const PAGE_TITLE = "Yıllık Ücretli İzin — Mevsimlik İşçi";
 const PREVIEW_TITLE = "Yıllık İzin — Mevsimlik Raporu";
 
-export default function YillikMevsimPage() {
-  const page = useStandardYillikPage({
-    createEmptyForm,
-    snapshotKey,
-    compute: computeYillikMevsimResult,
-    storage: { loadCasesSafe, saveCase, deleteCase, clearCorruptCases },
-    previewTitle: PREVIEW_TITLE,
-    pageTitle: PAGE_TITLE,
-  });
+const backendConfig = makeYillikBackendConfig({
+  backend: yillikMevsimBackend,
+  createEmptyForm,
+  snapshotKey,
+  loadCasesSafe,
+  deleteCase,
+  clearCorruptCases,
+  getSavePayload: mevsimYillikSaveGate,
+});
 
-  const setPeriods = (periods: SimpleWorkPeriod[]) => {
-    page.setForm(withSyncedSpan({ ...page.form, workPeriods: periods }));
-    const spanStart = periods[0]?.iseGiris || "";
-    const spanEnd = periods[periods.length - 1]?.istenCikis || "";
-    page.validateDates(spanStart, spanEnd);
+export default function YillikMevsimPage() {
+  const [form, setForm] = useState(createEmptyForm);
+  const [dateError, setDateError] = useState<string | null>(null);
+  const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [confirmNew, setConfirmNew] = useState(false);
+
+  const applyLoadedForm = useCallback((loaded: ReturnType<typeof createEmptyForm>) => {
+    setForm(loaded);
+    setBaseline(snapshotKey(loaded));
+    setDateError(null);
+  }, []);
+
+  const {
+    cases,
+    storageError,
+    activeId,
+    activeName,
+    nameOpen,
+    setNameOpen,
+    listOpen,
+    setListOpen,
+    confirmDeleteId,
+    setConfirmDeleteId,
+    caseSaving,
+    caseLoading,
+    resetActiveCase,
+    persist,
+    handleSaveClick: saveFromBackend,
+    onOpenCase,
+    onConfirmDelete,
+    clearStorageError,
+  } = useYillikCaseBackend(backendConfig, applyLoadedForm);
+
+  const syncedForm = useMemo(() => withSyncedSpan(form), [form]);
+  const result = useMemo(() => computeYillikMevsimResult(syncedForm), [syncedForm]);
+  const dirty = snapshotKey(form) !== baseline;
+
+  const patch = useCallback(<K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const validateDates = useCallback((start: string, end: string) => {
+    if (isDateOrderInvalid(start, end)) {
+      setDateError("İşten çıkış tarihi, işe giriş tarihinden önce olamaz.");
+      return false;
+    }
+    setDateError(null);
+    return true;
+  }, []);
+
+  const setPeriods = useCallback(
+    (periods: SimpleWorkPeriod[]) => {
+      setForm((prev) => {
+        const next = withSyncedSpan({ ...prev, workPeriods: periods });
+        validateDates(next.startDate, next.endDate);
+        return next;
+      });
+    },
+    [validateDates],
+  );
+
+  const doNew = useCallback(() => {
+    setConfirmNew(false);
+    const empty = createEmptyForm();
+    setForm(empty);
+    resetActiveCase();
+    setBaseline(snapshotKey(empty));
+    setDateError(null);
+  }, [resetActiveCase]);
+
+  const handleNewClick = useCallback(() => {
+    if (dirty) setConfirmNew(true);
+    else doNew();
+  }, [dirty, doNew]);
+
+  const savePayload = useMemo(
+    () => ({
+      brutIzin: result.brutIzin,
+      netIzin: result.netIzin,
+      totalEntitlement: result.totalEntitlement,
+      remainingDays: result.remainingDays,
+      usedTotal: result.usedTotal,
+      sgk: result.sgk,
+      issizlik: result.issizlik,
+      gelirVergisi: result.gelirVergisi,
+      damgaVergisi: result.damgaVergisi,
+      breakdown: result.breakdown,
+      startDate: syncedForm.startDate,
+      endDate: syncedForm.endDate,
+    }),
+    [result, syncedForm.endDate, syncedForm.startDate],
+  );
+
+  const onPersist = useCallback(
+    (name: string) => {
+      void persist(name, form, snapshotKey(form), savePayload, setBaseline, activeId);
+    },
+    [activeId, form, persist, savePayload],
+  );
+
+  const handleSaveClick = useCallback(() => {
+    saveFromBackend(savePayload, form, snapshotKey(form), setBaseline);
+  }, [form, saveFromBackend, savePayload]);
+
+  const caseList: CaseListEntry[] = useMemo(
+    () =>
+      cases.map((c) => ({
+        id: c.id,
+        name: c.name,
+        updatedAt: c.updatedAt,
+        subtitle: `${formatMoney(c.results.netIzin)} ₺ net`,
+      })),
+    [cases],
+  );
+
+  const previewSections = useMemo(
+    () => buildMevsimYillikPreviewSections({ form: syncedForm, result }),
+    [syncedForm, result],
+  );
+
+  const usedRowHandlers = {
+    onAddUsedRow: () => setForm((prev) => ({ ...prev, usedRows: [...prev.usedRows, createEmptyUsedRow()] })),
+    onUpdateUsedRow: (id: string, patchRow: Partial<UsedLeaveRow>) =>
+      setForm((prev) => ({
+        ...prev,
+        usedRows: prev.usedRows.map((r) => (r.id === id ? { ...r, ...patchRow } : r)),
+      })),
+    onRemoveUsedRow: (id: string) =>
+      setForm((prev) => ({ ...prev, usedRows: prev.usedRows.filter((r) => r.id !== id) })),
+    onReplaceUsedRows: (rows: UsedLeaveRow[]) => setForm((prev) => ({ ...prev, usedRows: rows })),
   };
 
   return (
@@ -34,72 +168,75 @@ export default function YillikMevsimPage() {
       pageTitle={PAGE_TITLE}
       pageDescription="Mevsimlik iş ilişkisinde fiili kıdeme göre yıllık izin alacağı."
       previewTitle={PREVIEW_TITLE}
+      previewContentId="yillik-mevsim-preview-content"
       notes={NOTE_BLOCKS}
-      startDate={page.form.startDate}
-      endDate={page.form.endDate}
-      workPeriodLabel={page.result.workPeriodLabel}
+      startDate={syncedForm.startDate}
+      endDate={syncedForm.endDate}
+      workPeriodLabel={result.workPeriodLabel}
       onStartDateChange={() => {}}
       onEndDateChange={() => {}}
-      onDateBlur={() => page.validateDates(page.form.startDate, page.form.endDate)}
-      dateError={page.dateError}
+      onDateBlur={() => validateDates(syncedForm.startDate, syncedForm.endDate)}
+      dateError={dateError}
       workPeriodsSlot={
         <WorkPeriodsEditor
           title="Çalışma dönemleri (sezonlar)"
-          periods={page.form.workPeriods}
+          periods={form.workPeriods}
           onChange={(next) => setPeriods(next as SimpleWorkPeriod[])}
           clampYear={clampYear}
-          onDateBlur={() => page.validateDates(page.form.startDate, page.form.endDate)}
+          onDateBlur={() => validateDates(syncedForm.startDate, syncedForm.endDate)}
         />
       }
-      brut={page.form.brut}
-      onBrutChange={(v) => page.patch("brut", v)}
-      asgariUcretHatasi={page.result.asgariUcretHatasi}
+      brut={form.brut}
+      onBrutChange={(v) => patch("brut", v)}
+      asgariUcretHatasi={result.asgariUcretHatasi}
       show18Or50
-      is18Or50={page.form.is18Or50}
-      on18Or50Change={(v) => page.patch("is18Or50", v)}
+      is18Or50={form.is18Or50}
+      on18Or50Change={(v) => patch("is18Or50", v)}
       showUnderground
-      isUnderground={page.form.isUnderground}
-      onUndergroundChange={(v) => page.patch("isUnderground", v)}
-      usedRows={page.form.usedRows}
-      {...page.usedRowHandlers}
-      usedLeaveSetsModuleId="yillik-izin-used-leave"
-      entitlementLines={page.result.entitlementLines}
+      isUnderground={form.isUnderground}
+      onUndergroundChange={(v) => patch("isUnderground", v)}
+      usedRows={form.usedRows}
+      {...usedRowHandlers}
+      usedLeaveSetsModuleId="yillik-izin-mevsim-used-leave"
+      entitlementLines={result.entitlementLines}
       totalEntitlementLabel="Toplam hak"
-      usedTotal={page.result.usedTotal}
-      remainingDays={page.result.remainingDays}
-      formulaText={page.result.formulaText}
-      brutIzin={page.result.brutIzin}
-      sgk={page.result.sgk}
-      issizlik={page.result.issizlik}
-      gelirVergisi={page.result.gelirVergisi}
-      gelirVergisiDilimleri={page.result.gelirVergisiDilimleri}
-      damgaVergisi={page.result.damgaVergisi}
-      netIzin={page.result.netIzin}
-      dirty={page.dirty}
-      activeName={page.activeName}
-      isUpdate={page.isUpdate}
-      storageError={page.storageError}
-      onClearStorageError={page.setStorageError}
-      cases={page.caseList}
-      nameOpen={page.nameOpen}
-      setNameOpen={page.setNameOpen}
-      listOpen={page.listOpen}
-      setListOpen={page.setListOpen}
-      previewOpen={page.previewOpen}
-      setPreviewOpen={page.setPreviewOpen}
-      confirmNew={page.confirmNew}
-      setConfirmNew={page.setConfirmNew}
-      confirmDeleteId={page.confirmDeleteId}
-      setConfirmDeleteId={page.setConfirmDeleteId}
-      onNewClick={page.handleNewClick}
-      onConfirmNew={page.doNew}
-      onSaveClick={page.handleSaveClick}
-      onPersist={page.persist}
-      onOpenCase={page.onOpenCase}
-      onConfirmDelete={page.onConfirmDelete}
-      previewSections={page.previewSections}
-      employerPayment={page.form.employerPayment ?? ""}
-      onEmployerPaymentChange={(v) => page.patch("employerPayment", v)}
+      usedTotal={result.usedTotal}
+      remainingDays={result.remainingDays}
+      formulaText={result.formulaText}
+      brutIzin={result.brutIzin}
+      sgk={result.sgk}
+      issizlik={result.issizlik}
+      gelirVergisi={result.gelirVergisi}
+      gelirVergisiDilimleri={result.gelirVergisiDilimleri}
+      damgaVergisi={result.damgaVergisi}
+      netIzin={result.netIzin}
+      employerPayment={form.employerPayment ?? ""}
+      onEmployerPaymentChange={(v) => patch("employerPayment", v)}
+      dirty={dirty}
+      activeName={activeName}
+      isUpdate={!!(activeId && activeName)}
+      caseSaving={caseSaving}
+      caseLoading={caseLoading}
+      storageError={storageError}
+      onClearStorageError={clearStorageError}
+      cases={caseList}
+      nameOpen={nameOpen}
+      setNameOpen={setNameOpen}
+      listOpen={listOpen}
+      setListOpen={setListOpen}
+      previewOpen={previewOpen}
+      setPreviewOpen={setPreviewOpen}
+      confirmNew={confirmNew}
+      setConfirmNew={setConfirmNew}
+      confirmDeleteId={confirmDeleteId}
+      setConfirmDeleteId={setConfirmDeleteId}
+      onNewClick={handleNewClick}
+      onConfirmNew={doNew}
+      onSaveClick={handleSaveClick}
+      onPersist={onPersist}
+      onOpenCase={(id) => onOpenCase(id, setForm, setBaseline, () => setDateError(null))}
+      onConfirmDelete={onConfirmDelete}
+      previewSections={previewSections}
     />
   );
 }

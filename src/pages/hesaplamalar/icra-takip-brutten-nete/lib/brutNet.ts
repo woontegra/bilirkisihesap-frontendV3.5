@@ -183,3 +183,63 @@ export function formatMoney(n: number): string {
 export function parseNum(v: string): number {
   return Number(String(v).replace(/\./g, "").replace(",", ".")) || 0;
 }
+
+export type BreakdownRow = {
+  label: string;
+  amount: number;
+  display: "deduction" | "positive" | "net" | "default";
+  emphasize?: boolean;
+};
+
+function formatGelirVergisiBrutLabel(dilimleri: string): string {
+  return dilimleri ? `Gelir vergisi ${dilimleri}` : "Gelir vergisi";
+}
+
+const DAMGA_VERGISI_LABEL = "Damga vergisi (binde 7,59)";
+
+/** V3 `buildGelirDamgaBrutNetRows` / istisnalı full satır yapısı. */
+export function buildSegmentedBreakdownRows(
+  panel: SegmentedNetPanel,
+  options?: { grossLabel?: string; netLabel?: string },
+): BreakdownRow[] {
+  const grossLabel = options?.grossLabel ?? "Brüt alacak";
+  const netLabel = options?.netLabel ?? "Ödenecek net tutar";
+  const rows: BreakdownRow[] = [
+    { label: grossLabel, amount: panel.gross, display: "default" },
+    { label: "SGK primi (%14)", amount: panel.sgk, display: "deduction" },
+    { label: "İşsizlik primi (%1)", amount: panel.issizlik, display: "deduction" },
+  ];
+
+  if ((panel.gelirVergisiIstisna ?? 0) > 0) {
+    rows.push(
+      { label: formatGelirVergisiBrutLabel(panel.gelirVergisiDilimleri), amount: panel.gelirVergisiBrut, display: "deduction" },
+      { label: "Asg. üc. gel. vergi ist.", amount: panel.gelirVergisiIstisna, display: "positive" },
+      { label: "Net gelir vergisi", amount: panel.gelirVergisi, display: "deduction" },
+    );
+  } else {
+    rows.push({
+      label: formatGelirVergisiBrutLabel(panel.gelirVergisiDilimleri),
+      amount: panel.gelirVergisi,
+      display: "deduction",
+    });
+  }
+
+  if ((panel.damgaVergisiIstisna ?? 0) > 0) {
+    rows.push(
+      { label: DAMGA_VERGISI_LABEL, amount: panel.damgaVergisiBrut, display: "deduction" },
+      { label: "Asg. üc. damga vergi ist.", amount: panel.damgaVergisiIstisna, display: "positive" },
+      { label: "Net damga vergisi", amount: panel.damgaVergisi, display: "deduction" },
+    );
+  } else {
+    rows.push({ label: DAMGA_VERGISI_LABEL, amount: panel.damgaVergisi, display: "deduction" });
+  }
+
+  rows.push({ label: netLabel, amount: panel.net, display: "net", emphasize: true });
+  return rows;
+}
+
+export function breakdownRowToPreview(row: BreakdownRow): [string, string] {
+  const prefix =
+    row.display === "positive" ? "+" : row.display === "deduction" ? "−" : "";
+  return [`${row.label}`, `${prefix}${formatMoney(row.amount)} ₺`];
+}

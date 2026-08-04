@@ -12,6 +12,7 @@ import {
   Zap,
 } from "lucide-react";
 import { isAuthenticated, loginWithPassword } from "@/auth/session";
+import { usePanelBranding } from "@/context/PanelBrandingContext";
 import styles from "./LoginPage.module.css";
 
 const HERO_WORDS = ["Fazla Mesai", "Kıdem Tazminatı", "İhbar Tazminatı", "Yıllık İzin", "UBGT"];
@@ -32,6 +33,7 @@ function useRotatingWord(words: string[], intervalMs = 2800) {
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { branding, loginLogoSrc } = usePanelBranding();
   const pageRef = useRef<HTMLDivElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -218,9 +220,13 @@ export default function LoginPage() {
               <header className={styles.brand}>
                 {logoVisible ? (
                   <img
-                    src="/logo.png"
+                    src={loginLogoSrc}
                     alt=""
                     className={styles.logo}
+                    style={{
+                      maxHeight: branding.loginLogoMaxHeight,
+                      maxWidth: branding.loginLogoMaxWidth,
+                    }}
                     onError={() => setLogoVisible(false)}
                   />
                 ) : (

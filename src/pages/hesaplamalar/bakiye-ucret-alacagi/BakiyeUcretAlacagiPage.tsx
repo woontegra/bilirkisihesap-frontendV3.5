@@ -1,9 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Calculator, Download, Eye, FilePlus2, FolderOpen, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import {
+  Calculator,
+  Download,
+  Eye,
+  FilePlus2,
+  FolderOpen,
+  Plus,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+  Trash2,
+  Wallet,
+  X,
+} from "lucide-react";
+import { ApiError } from "@/api/client";
+import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTextInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import {
   applyExtraSetItemsAsExtrasList,
   collectExtrasOnlyItems,
@@ -16,13 +35,22 @@ import {
   upsertLocalExtraSet,
 } from "@/lib/localExtraSetsStore";
 import {
+  bakiyeUcretCaseCrud,
+  buildBakiyeSaveResult,
+  listBakiyeUcretCasesFromBackend,
+  mapBakiyeFormFromBackend,
+  resolveSavedCaseDisplayName,
+} from "./backendCase";
+import {
   calculateRemainingDays,
   calculateRemainingLabel,
   calcWorkPeriodBilirKisi,
+  clampYear,
   computeBakiyeUcret,
   computeEklentiResult,
   formatDateTR,
   formatMoney,
+  isDateOrderInvalid,
   parseNum,
   validateAsgariByResignDate,
   type MonthRow,
@@ -36,9 +64,10 @@ import {
   type SegmentedNetResult,
 } from "./netSegmented";
 import { createEmptyForm, newLocalId, NOTE_TEXT, snapshotKey, type BakiyeForm, type SavedCase } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe, saveCase } from "./storage";
-import styles from "../kotu-niyet-tazminati/KotuNiyetTazminatiPage.module.css";
+import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import styles from "./BakiyeUcretAlacagiPage.module.css";
 
+const PAGE_TITLE = "Bakiye Ücret Alacağı";
 const EXTRA_SETS_MODULE_ID = "bakiye-ucret-alacagi";
 
 function NameModal({
@@ -75,6 +104,59 @@ function NameModal({
       </div>
     </div>
   );
+}
+
+function buildGrossToNetPreviewRows(data: SegmentedNetResult & { gross?: number }): [string, string][] {
+  const gross = data.gross ?? data.totalGross;
+  const rows: [string, string][] = [
+    ["Brüt", `${formatMoney(gross)} ₺`],
+    ["SGK (%14)", `−${formatMoney(data.totalSgk)} ₺`],
+    ["İşsizlik (%1)", `−${formatMoney(data.totalIssizlik)} ₺`],
+  ];
+  if ((data.totalGelirVergisiIstisna ?? 0) > 0) {
+    rows.push(
+      ["GV brüt", `−${formatMoney(data.totalGelirVergisiBrut)} ₺`],
+      ["GV istisna", `+${formatMoney(data.totalGelirVergisiIstisna)} ₺`],
+    );
+  }
+  rows.push([`GV ${data.gelirVergisiDilimleri || ""}`.trim(), `−${formatMoney(data.totalGelirVergisi)} ₺`]);
+  if ((data.totalDamgaVergisiIstisna ?? 0) > 0) {
+    rows.push(
+      ["Damga brüt", `−${formatMoney(data.totalDamgaVergisiBrut)} ₺`],
+      ["Damga istisna", `+${formatMoney(data.totalDamgaVergisiIstisna)} ₺`],
+    );
+  }
+  rows.push(["Damga", `−${formatMoney(data.totalDamgaVergisi)} ₺`], ["Net", `${formatMoney(data.totalNet)} ₺`]);
+  return rows;
+}
+
+function buildNetToGrossPreviewRows(data: SegmentedNetResult & { gross?: number }): [string, string][] {
+  const gross = data.gross ?? data.totalGross;
+  const rows: [string, string][] = [
+    ["Net", `${formatMoney(data.totalNet)} ₺`],
+    ["SGK (%14)", `+${formatMoney(data.totalSgk)} ₺`],
+    ["İşsizlik (%1)", `+${formatMoney(data.totalIssizlik)} ₺`],
+  ];
+  if ((data.totalGelirVergisiIstisna ?? 0) > 0) {
+    rows.push(
+      ["GV brüt", `+${formatMoney(data.totalGelirVergisiBrut)} ₺`],
+      ["GV istisna", `−${formatMoney(data.totalGelirVergisiIstisna)} ₺`],
+      ["Net GV", `+${formatMoney(data.totalGelirVergisi)} ₺`],
+    );
+  } else {
+    rows.push([`GV ${data.gelirVergisiDilimleri || ""}`.trim(), `+${formatMoney(data.totalGelirVergisi)} ₺`]);
+  }
+  if ((data.totalDamgaVergisiIstisna ?? 0) > 0) {
+    rows.push(
+      ["Damga brüt", `+${formatMoney(data.totalDamgaVergisiBrut)} ₺`],
+      ["Damga istisna", `−${formatMoney(data.totalDamgaVergisiIstisna)} ₺`],
+      ["Net damga", `+${formatMoney(data.totalDamgaVergisi)} ₺`],
+    );
+  } else {
+    rows.push(["Damga", `+${formatMoney(data.totalDamgaVergisi)} ₺`]);
+  }
+  rows.push(["Brüt", `${formatMoney(gross)} ₺`]);
+  return rows;
 }
 
 function NetBreakdown({ data, title }: { data: SegmentedNetResult & { gross?: number }; title: string }) {
@@ -138,7 +220,11 @@ function NetBreakdown({ data, title }: { data: SegmentedNetResult & { gross?: nu
 
 export default function BakiyeUcretAlacagiPage() {
   const { success, error: showError } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const caseIdParam = searchParams.get("caseId");
+  const backendLoadedCaseIdRef = useRef<string | null>(null);
   const [form, setForm] = useState<BakiyeForm>(createEmptyForm);
+  const [dateError, setDateError] = useState<string | null>(null);
   const [grossForNet, setGrossForNet] = useState("");
   const [netForGross, setNetForGross] = useState("");
   const lastSyncedTotal = useRef<number | null>(null);
@@ -150,6 +236,7 @@ export default function BakiyeUcretAlacagiPage() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -159,6 +246,28 @@ export default function BakiyeUcretAlacagiPage() {
   const [extraSaveOpen, setExtraSaveOpen] = useState(false);
   const [extraImportOpen, setExtraImportOpen] = useState(false);
   const [savedExtraSets, setSavedExtraSets] = useState<LocalExtraSet[]>([]);
+  const [caseSaving, setCaseSaving] = useState(false);
+
+  useEffect(() => {
+    document.title = `${PAGE_TITLE} | Bilirkişi Hesap`;
+  }, []);
+
+  const patch = useCallback(<K extends keyof BakiyeForm>(key: K, value: BakiyeForm[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const validateDates = useCallback(
+    (start: string, end: string) => {
+      if (isDateOrderInvalid(start, end)) {
+        setDateError("Çalışma dönemi sonu, başlangıçtan önce olamaz.");
+        showError("Çalışma dönemi sonu, başlangıçtan önce olamaz.");
+        return false;
+      }
+      setDateError(null);
+      return true;
+    },
+    [showError],
+  );
 
   const refreshExtraSets = useCallback(() => {
     setSavedExtraSets(listLocalExtraSets(EXTRA_SETS_MODULE_ID));
@@ -230,15 +339,18 @@ export default function BakiyeUcretAlacagiPage() {
     return base + extras;
   }, [form]);
 
-  const result = useMemo(() => {
-    if (!form.startDate || !form.endDate || !form.resignDate || monthly <= 0) return null;
+  const result = useDeferredFormMemo(form, (current) => {
+    const base = parseNum(current.brut);
+    const extras = current.extras.reduce((acc, item) => acc + parseNum(item.value), 0);
+    const monthlyVal = base + extras;
+    if (!current.startDate || !current.endDate || !current.resignDate || monthlyVal <= 0) return null;
     return computeBakiyeUcret({
-      startDate: form.startDate,
-      endDate: form.endDate,
-      resignDate: form.resignDate,
-      monthly,
+      startDate: current.startDate,
+      endDate: current.endDate,
+      resignDate: current.resignDate,
+      monthly: monthlyVal,
     });
-  }, [form, monthly]);
+  });
 
   useEffect(() => {
     setRowOverrides({});
@@ -311,22 +423,83 @@ export default function BakiyeUcretAlacagiPage() {
     ? computeEklentiResult(eklentiMonths[eklentiFor] ?? Array(12).fill(""))
     : 0;
 
-  const reloadCases = useCallback(() => {
-    const loaded = loadCasesSafe();
-    if (!loaded.ok) {
-      setStorageError(loaded.reason);
-      setCases([]);
-      return;
+  const reloadCases = useCallback(async () => {
+    try {
+      const items = await listBakiyeUcretCasesFromBackend();
+      setStorageError(null);
+      setCases(items);
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Kayıtlar yüklenemedi";
+      setStorageError(message);
+      const local = loadCasesSafe();
+      setCases(local.ok ? local.items : []);
     }
-    setStorageError(null);
-    setCases(loaded.items);
   }, []);
 
   useEffect(() => {
     reloadCases();
   }, [reloadCases]);
 
-  const resetForm = () => {
+  const setCaseIdParam = useCallback(
+    (id: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("caseId", id);
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  useEffect(() => {
+    if (!caseIdParam) {
+      backendLoadedCaseIdRef.current = null;
+      return;
+    }
+    if (backendLoadedCaseIdRef.current === caseIdParam) return;
+    const numericId = Number(caseIdParam);
+    if (!Number.isFinite(numericId) || numericId <= 0) {
+      showError("Geçersiz kayıt kimliği");
+      return;
+    }
+    let cancelled = false;
+    void getSavedCase(numericId)
+      .then((record) => {
+        if (cancelled) return;
+        const mapped = mapBakiyeFormFromBackend(record.data);
+        if (!mapped) {
+          showError("Kayıt formu okunamadı");
+          return;
+        }
+        setForm(mapped);
+        setActiveId(String(numericId));
+        setActiveName(resolveSavedCaseDisplayName(record));
+        setBaseline(snapshotKey(mapped));
+        setDateError(null);
+        lastSyncedTotal.current = null;
+        setRowOverrides({});
+        setEditingGross({});
+        backendLoadedCaseIdRef.current = caseIdParam;
+        success(`Kayıt yüklendi: ${resolveSavedCaseDisplayName(record)}`);
+        const next = new URLSearchParams(searchParams);
+        next.delete("caseId");
+        setSearchParams(next, { replace: true });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          backendLoadedCaseIdRef.current = null;
+          showError("Kayıt yüklenemedi");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseIdParam, searchParams, setSearchParams, showError, success]);
+
+  const resetForm = useCallback(() => {
     const empty = createEmptyForm();
     setForm(empty);
     setGrossForNet("");
@@ -339,34 +512,106 @@ export default function BakiyeUcretAlacagiPage() {
     setActiveId(null);
     setActiveName(null);
     setBaseline(snapshotKey(empty));
-  };
+    setDateError(null);
+  }, []);
 
-  const applyCase = (c: SavedCase) => {
-    setForm({ ...c.form });
-    setActiveId(c.id);
-    setActiveName(c.name);
-    setBaseline(snapshotKey(c.form));
-    lastSyncedTotal.current = null;
-    setListOpen(false);
-  };
+  const applyCase = useCallback(
+    (c: SavedCase) => {
+      setForm({ ...c.form });
+      setActiveId(c.id);
+      setActiveName(c.name);
+      setBaseline(snapshotKey(c.form));
+      lastSyncedTotal.current = null;
+      setRowOverrides({});
+      setEditingGross({});
+      setDateError(null);
+      setListOpen(false);
+      success(`Kayıt açıldı: ${c.name}`);
+    },
+    [success],
+  );
 
-  const handleSave = (name: string) => {
-    if (!result || result.error) return;
-    const results = {
-      rows: result.rows,
-      monthRows: displayMonthRows,
-      totalAmount: displayTotal || result.totalAmount,
-      monthly,
-    };
-    const saved = saveCase(name, form, results, activeId);
-    if (!saved) return;
-    setActiveId(saved.id);
-    setActiveName(saved.name);
-    setBaseline(snapshotKey(form));
-    setNameOpen(false);
-    reloadCases();
-    success("Kayıt kaydedildi.");
-  };
+  const persist = useCallback(
+    async (name: string, existingId?: string | null) => {
+      if (!result || result.error || !displayMonthRows.length) {
+        showError("Önce geçerli bir hesaplama yapın");
+        return;
+      }
+      setCaseSaving(true);
+      const wasUpdate = !!(existingId && /^\d+$/.test(existingId));
+      const results = {
+        rows: result.rows,
+        monthRows: displayMonthRows,
+        totalAmount: displayTotal || result.totalAmount,
+        monthly,
+      };
+      try {
+        const record = await bakiyeUcretCaseCrud.saveCase(
+          name,
+          form,
+          buildBakiyeSaveResult(results, { netTotal: netPanel?.totalNet ?? displayTotal }),
+          existingId,
+        );
+        const recordId = String(record.id);
+        setActiveId(recordId);
+        setActiveName(resolveSavedCaseDisplayName(record));
+        setBaseline(snapshotKey(form));
+        setCaseIdParam(recordId);
+        backendLoadedCaseIdRef.current = recordId;
+        await reloadCases();
+        success(wasUpdate ? "Kayıt güncellendi" : "Kayıt kaydedildi");
+        setNameOpen(false);
+      } catch (error) {
+        showError(
+          error instanceof ApiError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : "Kayıt yapılamadı",
+        );
+      } finally {
+        setCaseSaving(false);
+      }
+    },
+    [displayMonthRows, displayTotal, form, monthly, netPanel?.totalNet, reloadCases, result, setCaseIdParam, showError, success],
+  );
+
+  const handleSaveClick = useCallback(() => {
+    if (!result || result.error || !displayMonthRows.length) {
+      showError("Önce geçerli bir hesaplama yapın");
+      return;
+    }
+    if (activeId && activeName && /^\d+$/.test(activeId)) {
+      void persist(activeName, activeId);
+      return;
+    }
+    setNameOpen(true);
+  }, [activeId, activeName, displayMonthRows.length, persist, result, showError]);
+
+  const doDelete = useCallback(async () => {
+    if (!confirmDeleteId) return;
+    try {
+      if (/^\d+$/.test(confirmDeleteId)) {
+        await bakiyeUcretCaseCrud.removeCase(confirmDeleteId);
+      } else {
+        deleteCase(confirmDeleteId);
+      }
+      if (activeId === confirmDeleteId) {
+        resetForm();
+      }
+      setConfirmDeleteId(null);
+      await reloadCases();
+      success("Kayıt silindi");
+    } catch (error) {
+      showError(
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Kayıt silinemedi",
+      );
+    }
+  }, [activeId, confirmDeleteId, reloadCases, resetForm, showError, success]);
 
   const openEklenti = (itemId: string) => {
     setEklentiMonths((prev) => (prev[itemId] ? prev : { ...prev, [itemId]: Array(12).fill("") }));
@@ -410,20 +655,58 @@ export default function BakiyeUcretAlacagiPage() {
 
   const previewSections = useMemo((): PreviewSection[] => {
     if (!displayMonthRows.length) return [];
+    const daily = monthly > 0 ? round2(monthly / 30) : 0;
     const extraRows = form.extras
       .filter((e) => e.label.trim() || parseNum(e.value) > 0)
       .map((e) => [e.label || "Kalem", `${formatMoney(parseNum(e.value))} ₺`]);
+    const totalDays = displayMonthRows.reduce((a, b) => a + b.days, 0);
+    const totalNet = round2(displayMonthRows.reduce((a, b) => a + b.net, 0));
     const sections: PreviewSection[] = [
       {
+        id: "genel",
+        title: "Genel Bilgiler",
+        headers: ["Alan", "Değer"],
+        rows: [
+          ["Çalışma dönemi başlangıcı", form.startDate ? formatDateTR(form.startDate) : "—"],
+          ["Çalışma dönemi sonu", form.endDate ? formatDateTR(form.endDate) : "—"],
+          ["İş akdinin fesih edildiği tarih", form.resignDate ? formatDateTR(form.resignDate) : "—"],
+          ...(workPeriod ? [["Çalışma süresi", workPeriod.label] as [string, string]] : []),
+          ["Kalan süre", remainingLabel || `${remainingDays} gün`],
+          ["Günlük ücret", daily > 0 ? `${formatMoney(daily)} ₺` : "—"],
+        ],
+      },
+    ];
+    if (result?.rows?.length) {
+      const hesaplamaDays = result.rows.reduce((a, b) => a + b.days, 0);
+      sections.push({
+        id: "hesaplama",
+        title: "Bakiye ücret hesaplama cetveli",
+        headers: ["Dönem", "Gün", "Tutar"],
+        rows: [
+          ...result.rows.map((row) => [
+            `${formatDateTR(row.start)} – ${formatDateTR(row.end)}`,
+            String(row.days),
+            `${formatMoney(row.amount)} ₺`,
+          ]),
+          ["TOPLAM", String(hesaplamaDays), `${formatMoney(result.totalAmount)} ₺`],
+        ],
+        lastRowTone: "blue",
+      });
+    }
+    sections.push(
+      {
         id: "cetvel",
-        title: "Bakiye cetveli",
+        title: "Aylık Brüt → Net Dönüşüm",
         headers: ["Dönem", "Gün", "Brüt", "Net"],
-        rows: displayMonthRows.map((mr) => [
-          `${formatDateTR(mr.start)} – ${formatDateTR(mr.end)}`,
-          String(mr.days),
-          `${formatMoney(mr.gross)} ₺`,
-          `${formatMoney(mr.net)} ₺`,
-        ]),
+        rows: [
+          ...displayMonthRows.map((mr) => [
+            `${formatDateTR(mr.start)} – ${formatDateTR(mr.end)}`,
+            String(mr.days),
+            `${formatMoney(mr.gross)} ₺`,
+            `${formatMoney(mr.net)} ₺`,
+          ]),
+          ["TOPLAM", String(totalDays), `${formatMoney(displayTotal)} ₺`, `${formatMoney(totalNet)} ₺`],
+        ],
         lastRowTone: "blue",
       },
       {
@@ -440,78 +723,126 @@ export default function BakiyeUcretAlacagiPage() {
         ],
         lastRowTone: "green",
       },
-    ];
+    );
     if (netPanel) {
       sections.push({
         id: "net",
         title: "Brütten nete",
         headers: ["Kalem", "Tutar"],
-        rows: [
-          ["Brüt", `${formatMoney(netPanel.totalGross)} ₺`],
-          ["SGK", `−${formatMoney(netPanel.totalSgk)} ₺`],
-          ["İşsizlik", `−${formatMoney(netPanel.totalIssizlik)} ₺`],
-          ["GV brüt", `−${formatMoney(netPanel.totalGelirVergisiBrut)} ₺`],
-          ["GV istisna", `+${formatMoney(netPanel.totalGelirVergisiIstisna)} ₺`],
-          ["GV", `−${formatMoney(netPanel.totalGelirVergisi)} ₺`],
-          ["Damga brüt", `−${formatMoney(netPanel.totalDamgaVergisiBrut)} ₺`],
-          ["Damga istisna", `+${formatMoney(netPanel.totalDamgaVergisiIstisna)} ₺`],
-          ["Damga", `−${formatMoney(netPanel.totalDamgaVergisi)} ₺`],
-          ["Net", `${formatMoney(netPanel.totalNet)} ₺`],
-        ],
+        rows: buildGrossToNetPreviewRows(netPanel),
         lastRowTone: "green",
       });
     }
+    if (grossFromNet && netVal > 0) {
+      sections.push({
+        id: "brut",
+        title: "Netten brüte",
+        headers: ["Kalem", "Tutar"],
+        rows: buildNetToGrossPreviewRows(grossFromNet),
+        lastRowTone: "blue",
+      });
+    }
     return sections;
-  }, [displayMonthRows, displayTotal, form, monthly, remainingDays, remainingLabel, netPanel]);
+  }, [
+    displayMonthRows,
+    displayTotal,
+    form,
+    grossFromNet,
+    monthly,
+    netPanel,
+    netVal,
+    remainingDays,
+    remainingLabel,
+    result,
+    workPeriod,
+  ]);
 
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <h1 className={styles.title}>Bakiye Ücret Alacağı</h1>
-          <p className={styles.desc}>
-            <Calculator size={14} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />
-            Fesih sonrası kalan süre — ay bölme + istisnalı brütten nete.
-          </p>
-          {storageError ? (
-            <p className={styles.helper}>
-              {storageError}{" "}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  clearCorruptCases();
-                  setStorageError(null);
-                  reloadCases();
-                }}
-              >
-                Temizle
-              </Button>
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <Wallet size={20} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <h1 className={styles.title}>{PAGE_TITLE}</h1>
+            <p className={styles.desc}>
+              Fesih sonrası kalan süre için ay bölme cetveli; istisnalı brütten nete dönüşüm.
             </p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={12} /> Hesaplama lokal çalışır
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <span>{activeName}</span>
+            </div>
           ) : null}
+          <div className={styles.quickTotal}>
+            <span>Toplam brüt</span>
+            <span className={styles.quickTotalValue}>{formatMoney(displayTotal)} ₺</span>
+          </div>
+          <div className={styles.heroActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
+              <FolderOpen size={14} /> Kayıtlar
+            </Button>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              onClick={() => (dirty ? setConfirmNew(true) : resetForm())}
+            >
+              <FilePlus2 size={14} /> Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
+
+      {storageError ? (
+        <div className={styles.storageBanner}>
+          {storageError}{" "}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              clearCorruptCases();
+              setStorageError(null);
+              void reloadCases();
+            }}
+          >
+            Temizle
+          </Button>
+        </div>
+      ) : null}
 
       <div className={styles.layout}>
         <section className={styles.card}>
           <div className={styles.fields}>
             <div>
               <label className={styles.label}>Çalışma dönemi başlangıcı</label>
-              <input
-                type="date"
-                className={styles.input}
+              <DraftDateInput
+                max="9999-12-31"
+                className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                 value={form.startDate}
-                onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+                onCommit={(v) => patch("startDate", clampYear(v))}
+                onBlur={() => {
+                  if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
+                }}
               />
             </div>
             <div>
               <label className={styles.label}>Çalışma dönemi sonu</label>
-              <input
-                type="date"
-                className={styles.input}
+              <DraftDateInput
+                max="9999-12-31"
+                className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                 value={form.endDate}
-                onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+                onCommit={(v) => patch("endDate", clampYear(v))}
+                onBlur={() => {
+                  if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
+                }}
               />
             </div>
             {workPeriod ? (
@@ -521,11 +852,11 @@ export default function BakiyeUcretAlacagiPage() {
             ) : null}
             <div>
               <label className={styles.label}>İş Akdinin Fesih Edildiği Tarih</label>
-              <input
-                type="date"
+              <DraftDateInput
+                max="9999-12-31"
                 className={styles.input}
                 value={form.resignDate}
-                onChange={(e) => setForm((f) => ({ ...f, resignDate: e.target.value }))}
+                onCommit={(v) => patch("resignDate", clampYear(v))}
               />
             </div>
             <div>
@@ -538,10 +869,10 @@ export default function BakiyeUcretAlacagiPage() {
             </div>
             <div>
               <label className={styles.label}>Çıplak Brüt Ücret</label>
-              <input
+              <DraftTextInput
                 className={styles.input}
                 value={form.brut}
-                onChange={(e) => setForm((f) => ({ ...f, brut: e.target.value }))}
+                onCommit={(v) => patch("brut", v)}
                 placeholder="25.000,00"
               />
               {asgariErr ? <p className={styles.helper}>{asgariErr}</p> : null}
@@ -689,27 +1020,27 @@ export default function BakiyeUcretAlacagiPage() {
           <div className={styles.fields} style={{ marginTop: "0.85rem" }}>
             <div>
               <label className={styles.label}>Brütten Nete Çevir</label>
-              <input
+              <DraftTextInput
                 className={styles.input}
                 value={grossForNet}
-                onChange={(e) => setGrossForNet(e.target.value)}
+                onCommit={setGrossForNet}
                 placeholder={result ? formatMoney(result.totalAmount) : ""}
               />
               {netPanel ? <NetBreakdown data={netPanel} title="Brütten nete dökümü" /> : null}
             </div>
             <div>
               <label className={styles.label}>Netten Brüte Çevir</label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", alignItems: "center" }}>
-                <input
-                  className={styles.input}
-                  style={{ flex: 1, minWidth: "8rem" }}
+              <div className={styles.inputRow}>
+                <DraftTextInput
+                  className={`${styles.input} ${styles.inputRowInput}`}
                   value={netForGross}
-                  onChange={(e) => setNetForGross(e.target.value)}
+                  onCommit={setNetForGross}
                 />
                 <Button
                   type="button"
                   variant="soft"
                   size="sm"
+                  className={styles.useLeftPanelBtn}
                   disabled={!netPanel || netPanel.totalNet <= 0}
                   onClick={() => netPanel && setNetForGross(formatMoney(netPanel.totalNet))}
                 >
@@ -728,9 +1059,6 @@ export default function BakiyeUcretAlacagiPage() {
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
           </div>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button
               type="button"
               variant="soft"
@@ -743,23 +1071,19 @@ export default function BakiyeUcretAlacagiPage() {
             <Button type="button" variant="ghost" size="sm" onClick={() => (dirty ? setConfirmNew(true) : resetForm())}>
               <FilePlus2 size={14} /> Yeni
             </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              disabled={!result || !!result.error}
-              onClick={() => {
-                if (activeId && activeName) handleSave(activeName);
-                else setNameOpen(true);
-              }}
-            >
-              <Save size={14} /> {activeId ? "Güncelle" : "Kaydet"}
+            <Button type="button" variant="primary" size="sm" onClick={handleSaveClick} disabled={caseSaving}>
+              <Save size={14} /> {caseSaving ? "Kaydediliyor…" : activeId && /^\d+$/.test(activeId) ? "Güncelle" : "Kaydet"}
             </Button>
           </div>
         </div>
       </div>
 
-      <NameModal open={nameOpen} initial={activeName ?? "Bakiye Ücret"} onClose={() => setNameOpen(false)} onConfirm={handleSave} />
+      <NameModal
+        open={nameOpen}
+        initial={activeName ?? PAGE_TITLE}
+        onClose={() => setNameOpen(false)}
+        onConfirm={(name) => void persist(name, null)}
+      />
 
       <NameModal
         open={extraSaveOpen}
@@ -912,15 +1236,7 @@ export default function BakiyeUcretAlacagiPage() {
         description="Bu kayıt kalıcı olarak silinecek."
         confirmLabel="Sil"
         danger
-        onConfirm={() => {
-          if (confirmDeleteId) {
-            deleteCase(confirmDeleteId);
-            if (activeId === confirmDeleteId) resetForm();
-            reloadCases();
-            success("Kayıt silindi.");
-          }
-          setConfirmDeleteId(null);
-        }}
+        onConfirm={() => void doDelete()}
         onCancel={() => setConfirmDeleteId(null)}
       />
       <CalculationPreviewModal

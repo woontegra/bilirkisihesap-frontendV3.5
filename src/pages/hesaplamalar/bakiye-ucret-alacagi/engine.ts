@@ -21,6 +21,18 @@ export function formatDateTR(iso: string): string {
   return y && m && d ? `${d}.${m}.${y}` : iso;
 }
 
+export function clampYear(value: string): string {
+  if (!value || !value.includes("-")) return value;
+  const parts = value.split("-");
+  if (parts[0] && parts[0].length > 4) parts[0] = parts[0].substring(0, 4);
+  return parts.join("-");
+}
+
+export function isDateOrderInvalid(startDate: string, endDate: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) return false;
+  return new Date(endDate) < new Date(startDate);
+}
+
 export type MonthRow = { start: string; end: string; days: number; gross: number; net: number };
 export type SummaryRow = { start: string; end: string; days: number; amount: number };
 

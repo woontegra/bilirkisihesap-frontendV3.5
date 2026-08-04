@@ -3,6 +3,7 @@
  * Toplam haftayı originalTotalWeeks ile eşitler; yalnızca tamsayı ±1 ayarlanır.
  */
 
+import { HALF_YEAR_DAY_LIMIT, MAX_WEEKS_PER_YEAR } from "./constants";
 import type { PeriodRow } from "./model";
 
 function startOfLocalDay(d: Date): Date {
@@ -21,16 +22,21 @@ function parseLocalDay(iso: string): Date | null {
   return startOfLocalDay(dt);
 }
 
+/**
+ * Backend `gemiFM.service` `calculateWeekCount` ile aynı: round(gün/7), 25→26, ≤370 günde max 52.
+ * Eski 7-gün adım sayımı tam yılda 53 hafta üretiyordu.
+ */
 export function countWeeksBySevenDaySteps(start: Date, end: Date): number {
   if (end < start) return 0;
-  let cursor = startOfLocalDay(start);
-  const until = startOfLocalDay(end);
-  let weeks = 0;
+  const a = startOfLocalDay(start);
+  const b = startOfLocalDay(end);
   const MS = 86400000;
-  while (cursor <= until) {
-    weeks += 1;
-    cursor = new Date(cursor.getTime() + 7 * MS);
-  }
+  const days = Math.floor((b.getTime() - a.getTime()) / MS) + 1;
+  if (days <= 0) return 0;
+  let weeks = Math.round(days / 7);
+  if (weeks === 25 && days <= HALF_YEAR_DAY_LIMIT) weeks = 26;
+  if (days <= 370 && weeks > MAX_WEEKS_PER_YEAR) weeks = MAX_WEEKS_PER_YEAR;
+  if (weeks < 1) weeks = 1;
   return weeks;
 }
 

@@ -22,6 +22,18 @@ export type StandardYillikForm = StandardYillikFormBase & {
 export type StandardComputeResult = {
   workPeriodLabel: string;
   entitlementLines: EntitlementLine[];
+  breakdown?: {
+    y1: number;
+    y2: number;
+    y3: number;
+    d1: number;
+    d2: number;
+    d3: number;
+    total: number;
+    daysPerYear1: number;
+    daysPerYear2: number;
+    daysPerYear3: number;
+  };
   totalEntitlement: number;
   usedTotal: number;
   remainingDays: number;

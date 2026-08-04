@@ -4,6 +4,7 @@ export type SavedCaseRecord = {
   id: number;
   name?: string | null;
   kayit_adi?: string | null;
+  aciklama?: string | null;
   type?: string;
   hesaplama_tipi?: string;
   data?: unknown;

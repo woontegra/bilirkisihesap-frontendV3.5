@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import {
@@ -70,6 +72,7 @@ import { MetinHesaplamasi } from "./MetinHesaplamasi";
 import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
+import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import styles from "./HaftalikKarmaFmPage.module.css";
 
 const PAGE_TITLE = "Haftalık Karma Fazla Mesai Hesaplama";
@@ -310,7 +313,7 @@ export default function HaftalikKarmaFmPage() {
 
   const isDirty = useMemo(() => snapshotKey(form) !== baseline, [form, baseline]);
   const dateError = useMemo(() => validateDateRange(form.iseGiris, form.istenCikis), [form.iseGiris, form.istenCikis]);
-  const result = useMemo(() => computeHaftalikKarmaResultV3(form), [form]);
+  const result = useDeferredFormMemo(form, computeHaftalikKarmaResultV3);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -658,7 +661,8 @@ export default function HaftalikKarmaFmPage() {
 
   const previewSections = useMemo((): PreviewSection[] => {
     const money = (v: number) => `${formatMoney(v)} ₺`;
-    return [
+    return insertExclusionsPreviewSection(
+      [
       {
         id: "ust",
         title: "Genel Bilgiler",
@@ -715,7 +719,9 @@ export default function HaftalikKarmaFmPage() {
         ],
         lastRowTone: "green",
       },
-    ];
+      ],
+      form.exclusions,
+    );
   }, [form, result]);
 
   return (
@@ -798,20 +804,18 @@ export default function HaftalikKarmaFmPage() {
           <div className={styles.grid2}>
             <label className={styles.field}>
               <span>İşe Giriş</span>
-              <input
-                type="date"
+              <DraftDateInput
                 className={styles.input}
                 value={form.iseGiris}
-                onChange={(e) => setField("iseGiris", e.target.value)}
+                onCommit={(v) => setField("iseGiris", v)}
               />
             </label>
             <label className={styles.field}>
               <span>İşten Çıkış</span>
-              <input
-                type="date"
+              <DraftDateInput
                 className={styles.input}
                 value={form.istenCikis}
-                onChange={(e) => setField("istenCikis", e.target.value)}
+                onCommit={(v) => setField("istenCikis", v)}
               />
             </label>
           </div>

@@ -6,6 +6,7 @@ import {
   updateUserProfile,
   type BillingProfile,
 } from "@/api/profile";
+import { applyAuthMeResponse, readCurrentUser } from "@/auth/session";
 import { FormField } from "@/components/admin/FormField";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/context/ToastContext";
@@ -19,27 +20,12 @@ function syncProfileToStorage(profile: {
   company: string;
   role?: string;
 }) {
-  try {
-    const current = JSON.parse(localStorage.getItem("current_user") || "{}") as Record<
-      string,
-      unknown
-    >;
-    localStorage.setItem(
-      "current_user",
-      JSON.stringify({
-        ...current,
-        id: profile.id ?? current.id,
-        name: profile.name,
-        email: profile.email || current.email,
-        phone: profile.phone,
-        company: profile.company,
-        role: profile.role || current.role,
-      }),
-    );
-    if (profile.email) localStorage.setItem("email", profile.email);
-  } catch {
-    /* ignore */
-  }
+  applyAuthMeResponse({
+    id: profile.id,
+    name: profile.name,
+    email: profile.email,
+    role: profile.role,
+  });
 }
 
 const emptyBilling: BillingProfile = {
@@ -82,17 +68,12 @@ export default function ProfileInfoTab() {
       } catch {
         if (!active) return;
         try {
-          const current = JSON.parse(localStorage.getItem("current_user") || "{}") as {
-            name?: string;
-            email?: string;
-            phone?: string;
-            company?: string;
-          };
+          const current = readCurrentUser();
           setForm({
-            name: current.name || "",
-            email: current.email || localStorage.getItem("email") || "",
-            phone: current.phone || "",
-            company: current.company || "",
+            name: current?.name || "",
+            email: current?.email || "",
+            phone: (current as { phone?: string } | null)?.phone || "",
+            company: (current as { company?: string } | null)?.company || "",
           });
         } catch {
           /* ignore */
@@ -186,7 +167,7 @@ export default function ProfileInfoTab() {
       <div className={styles.infoBanner}>
         <div>
           <strong>Profil resmi</strong>
-          Üst çubuktaki avatar alanından profil görselinizi yönetebilirsiniz.
+          Yukarıdaki profil fotoğrafına tıklayarak görselinizi yükleyebilir veya kaldırabilirsiniz.
         </div>
       </div>
 

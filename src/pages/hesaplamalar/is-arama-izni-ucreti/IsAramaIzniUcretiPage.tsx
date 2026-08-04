@@ -15,9 +15,12 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { DraftDateInput, DraftTextInput } from "@/components/form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import {
   buildIsAramaIzniSaveResult,
   isAramaIzniCaseCrud,
@@ -152,6 +155,7 @@ export default function IsAramaIzniUcretiPage() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  useCalculationCaseBinding(activeId);
   const [baseline, setBaseline] = useState(() => snapshotKey(createEmptyForm()));
   const [nameOpen, setNameOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -169,7 +173,7 @@ export default function IsAramaIzniUcretiPage() {
     [searchParams, setSearchParams],
   );
 
-  const result = useMemo(() => computeIsArama(form), [form]);
+  const result = useDeferredFormMemo(form, computeIsArama);
   const dirty = snapshotKey(form) !== baseline;
   const haftalikGunNum = Number(form.haftalikCalismaGunu) || 5;
 
@@ -240,6 +244,16 @@ export default function IsAramaIzniUcretiPage() {
   const patch = useCallback(<K extends keyof IsAramaForm>(key: K, value: IsAramaForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
+
+  const handleStartDateChange = useCallback(
+    (value: string) => patch("startDate", clampYear(value)),
+    [patch],
+  );
+
+  const handleEndDateChange = useCallback(
+    (value: string) => patch("endDate", clampYear(value)),
+    [patch],
+  );
 
   const validateDates = useCallback(
     (start: string, end: string) => {
@@ -448,19 +462,41 @@ export default function IsAramaIzniUcretiPage() {
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <div className={styles.heroIcon} aria-hidden>
-          <BriefcaseBusiness size={20} />
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <h1 className={styles.title}>{PAGE_TITLE}</h1>
-          <p className={styles.desc}>
-            İş Kanunu m.17 ihbar süresi ve haftalık çalışma gününe göre iş arama izni saatleri;
-            giydirilmiş brütten saatlik ücret ile hesaplanır. Hesaplama tamamen lokal çalışır.
-          </p>
-          <div className={styles.privacyBadge}>
-            <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+        <div className={styles.heroMain}>
+          <div className={styles.heroIcon} aria-hidden>
+            <BriefcaseBusiness size={20} />
           </div>
-          {activeName ? <div className={styles.recordBadge}>Kayıt: {activeName}</div> : null}
+          <div style={{ minWidth: 0 }}>
+            <h1 className={styles.title}>{PAGE_TITLE}</h1>
+            <p className={styles.desc}>
+              İş Kanunu m.17 ihbar süresi ve haftalık çalışma gününe göre iş arama izni saatleri;
+              giydirilmiş brütten saatlik ücret ile hesaplanır.
+            </p>
+            <div className={styles.privacyBadge}>
+              <ShieldCheck size={12} /> Hesaplama lokal çalışır
+            </div>
+          </div>
+        </div>
+        <div className={styles.heroAside}>
+          {activeName ? (
+            <div className={styles.recordBadge}>
+              <span>{activeName}</span>
+            </div>
+          ) : null}
+          <div className={styles.quickTotal}>
+            <span>Net iş arama izni</span>
+            <span className={styles.quickTotalValue}>
+              <AnimatedMoney value={result.net} /> ₺
+            </span>
+          </div>
+          <div className={styles.heroActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
+              <FolderOpen size={14} /> Kayıtlar
+            </Button>
+            <Button type="button" variant="soft" size="sm" onClick={handleNew}>
+              <FilePlus2 size={14} /> Yeni Hesaplama
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -494,13 +530,12 @@ export default function IsAramaIzniUcretiPage() {
                 <label className={styles.label} htmlFor="ia-ise-giris">
                   İşe giriş
                 </label>
-                <input
+                <DraftDateInput
                   id="ia-ise-giris"
-                  type="date"
                   max="9999-12-31"
                   className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                   value={form.startDate}
-                  onChange={(e) => patch("startDate", clampYear(e.target.value))}
+                  onCommit={handleStartDateChange}
                   onBlur={() => {
                     if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
                   }}
@@ -510,13 +545,12 @@ export default function IsAramaIzniUcretiPage() {
                 <label className={styles.label} htmlFor="ia-isten-cikis">
                   İşten çıkış
                 </label>
-                <input
+                <DraftDateInput
                   id="ia-isten-cikis"
-                  type="date"
                   max="9999-12-31"
                   className={`${styles.input} ${dateError ? styles.inputError : ""}`}
                   value={form.endDate}
-                  onChange={(e) => patch("endDate", clampYear(e.target.value))}
+                  onCommit={handleEndDateChange}
                   onBlur={() => {
                     if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
                   }}
@@ -541,13 +575,13 @@ export default function IsAramaIzniUcretiPage() {
                 <label className={styles.label} htmlFor="ia-brut">
                   Çıplak brüt ücret
                 </label>
-                <input
+                <DraftTextInput
                   id="ia-brut"
                   className={styles.input}
                   inputMode="decimal"
                   placeholder="Örn: 25.000"
                   value={form.brut}
-                  onChange={(e) => patch("brut", e.target.value)}
+                  onCommit={(v) => patch("brut", v)}
                 />
                 <p className={styles.helper}>V3 ile uyum: hesaplama yalnızca çıplak brüt üzerinden yapılır.</p>
               </div>
@@ -582,13 +616,13 @@ export default function IsAramaIzniUcretiPage() {
               <label className={styles.label} htmlFor="ia-izin-gun">
                 Gün bazlı düşüm <span className={styles.optionalTag}>(günlük {getGunlukCalismaSaati().toFixed(1)} saat)</span>
               </label>
-              <input
+              <DraftTextInput
                 id="ia-izin-gun"
                 className={styles.input}
                 inputMode="decimal"
                 placeholder="Örn: 2"
                 value={form.kullandirilanIzinGun}
-                onChange={(e) => patch("kullandirilanIzinGun", e.target.value)}
+                onCommit={(v) => patch("kullandirilanIzinGun", v)}
               />
               {parseNum(form.kullandirilanIzinGun) > 0 ? (
                 <p className={styles.helper}>
@@ -618,30 +652,28 @@ export default function IsAramaIzniUcretiPage() {
                         <div className={styles.fields3}>
                           <div className={styles.field}>
                             <label className={styles.label}>Başlangıç</label>
-                            <input
-                              type="date"
+                            <DraftDateInput
                               className={styles.input}
                               value={d.baslangic}
-                              onChange={(e) => updateDusum(d.id, { baslangic: e.target.value })}
+                              onCommit={(v) => updateDusum(d.id, { baslangic: clampYear(v) })}
                             />
                           </div>
                           <div className={styles.field}>
                             <label className={styles.label}>Bitiş</label>
-                            <input
-                              type="date"
+                            <DraftDateInput
                               className={styles.input}
                               value={d.bitis}
-                              onChange={(e) => updateDusum(d.id, { bitis: e.target.value })}
+                              onCommit={(v) => updateDusum(d.id, { bitis: clampYear(v) })}
                             />
                           </div>
                           <div className={styles.field}>
                             <label className={styles.label}>Günlük saat</label>
-                            <input
+                            <DraftTextInput
                               className={styles.input}
                               inputMode="decimal"
                               placeholder="Örn: 2"
                               value={d.gunlukSaat}
-                              onChange={(e) => updateDusum(d.id, { gunlukSaat: e.target.value })}
+                              onCommit={(v) => updateDusum(d.id, { gunlukSaat: v })}
                             />
                           </div>
                         </div>
@@ -782,9 +814,6 @@ export default function IsAramaIzniUcretiPage() {
                 : "Yeni hesaplama"}
           </div>
           <div className={styles.stickyActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
-              <FolderOpen size={14} /> Aç
-            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => setPreviewOpen(true)}>
               <Eye size={14} /> Önizleme
             </Button>

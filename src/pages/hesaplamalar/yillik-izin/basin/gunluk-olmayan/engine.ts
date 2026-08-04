@@ -3,6 +3,7 @@
  */
 
 import { calculateBrutIzin, calculateNetIzin, calculateUsedTotal, resolveExitYear } from "../../lib/core";
+import { calcWorkPeriodBilirKisi } from "../../lib/dates";
 import { getAsgariUcretByDate } from "../../lib/asgariUcret";
 import { formatMoney, parseNum, round2 } from "../../lib/money";
 import type { YillikBasinGunlukOlmayanForm } from "./model";
@@ -28,11 +29,20 @@ export function computeYillikBasinGunlukOlmayanResult(form: YillikBasinGunlukOlm
   const remainingDays = Math.max(0, izinResult.izinGun - usedTotal);
   const brutVal = parseNum(form.brut);
   const exitYear = resolveExitYear(form.endDate);
+  const calismaSuresiLabel =
+    calcWorkPeriodBilirKisi(effectiveBaslangic, form.endDate).label || "—";
 
   let brutIzin = 0;
-  let net = { sgk: 0, issizlik: 0, gelirVergisi: 0, gelirVergisiDilimleri: "", damgaVergisi: 0, netIzin: 0 };
+  let net = {
+    sgk: 0,
+    issizlik: 0,
+    gelirVergisi: 0,
+    gelirVergisiDilimleri: "",
+    damgaVergisi: 0,
+    netIzin: 0,
+  };
 
-  if (brutVal > 0) {
+  if (brutVal > 0 && remainingDays >= 0) {
     brutIzin = round2(calculateBrutIzin(brutVal, remainingDays));
     net = calculateNetIzin(brutIzin, exitYear, "forYear");
   }
@@ -45,19 +55,33 @@ export function computeYillikBasinGunlukOlmayanResult(form: YillikBasinGunlukOlm
     }
   }
 
+  const entitlementLines =
+    izinResult.devre > 0
+      ? [
+          { label: "Toplam ay", value: `${izinResult.toplamAy} ay` },
+          { label: "6 aylık devre", value: `${izinResult.devre} devre` },
+          {
+            label: "İzin hakkı",
+            value: `${izinResult.hafta} hafta (${izinResult.izinGun} gün)`,
+          },
+        ]
+      : [{ label: "İzin hakkı", value: "0 gün" }];
+
   return {
     izinResult,
     usedTotal,
     remainingDays,
     totalEntitlement: izinResult.izinGun,
-    entitlementLines: izinResult.devre > 0
-      ? [{ label: "6 aylık devre", value: `${izinResult.devre} devre × 14 gün = ${izinResult.izinGun} gün` }]
-      : [{ label: "İzin hakkı", value: "0 gün" }],
-    formulaText: remainingDays > 0 && brutVal > 0 ? `(${formatMoney(brutVal)} / 30 × ${remainingDays} gün)` : "—",
+    entitlementLines,
+    formulaText:
+      remainingDays > 0 && brutVal > 0
+        ? `(${formatMoney(brutVal)} / 30 × ${remainingDays} gün)`
+        : "—",
     brutIzin,
     ...net,
     asgariUcretHatasi,
-    workPeriodLabel: `${izinResult.toplamAy} ay / ${izinResult.devre} devre`,
+    workPeriodLabel: calismaSuresiLabel,
+    calismaSuresiLabel,
   };
 }
 
