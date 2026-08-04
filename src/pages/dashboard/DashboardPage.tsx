@@ -39,12 +39,10 @@ export default function DashboardPage() {
 
   const sub = useMemo(() => buildSubscriptionProgress(userInfo ?? {}), [userInfo]);
 
-  const subscriptionUiStatus = useMemo(() => {
-    if (userInfo?.licenseActive === true && sub.hasSubscription && sub.daysRemaining > 0) {
-      return "active" as const;
-    }
-    return resolveSubscriptionUiStatus(sub, userInfo?.licenseActive, userInfo?.licenseStatus);
-  }, [sub, userInfo?.licenseActive, userInfo?.licenseStatus]);
+  const subscriptionUiStatus = useMemo(
+    () => resolveSubscriptionUiStatus(sub, userInfo?.licenseActive, userInfo?.licenseStatus),
+    [sub, userInfo?.licenseActive, userInfo?.licenseStatus],
+  );
 
   const planLabel = useMemo(
     () =>

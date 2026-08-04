@@ -271,7 +271,7 @@ function DemoSubscriptionSection() {
   const remainingDays = progress.hasSubscription ? Math.max(0, progress.daysRemaining) : 0;
   const expired =
     demo?.licenseStatus === "EXPIRED" ||
-    (demo != null && demo.licenseActive === false) ||
+    demo?.licenseStatus === "INACTIVE" ||
     (progress.hasSubscription && progress.daysRemaining <= 0);
 
   return (

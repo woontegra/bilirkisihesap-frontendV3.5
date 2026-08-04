@@ -12,7 +12,12 @@ export function resolveSubscriptionUiStatus(
   }
 
   const status = (licenseStatus ?? "").toUpperCase();
-  if (licenseActive === false || status === "EXPIRED" || status === "INACTIVE") {
+
+  if (status === "EXPIRED" || status === "INACTIVE") {
+    return "expired";
+  }
+
+  if (sub.endDate && sub.endDate.getTime() <= Date.now()) {
     return "expired";
   }
 
@@ -20,7 +25,7 @@ export function resolveSubscriptionUiStatus(
     return "active";
   }
 
-  if (sub.endDate && sub.endDate.getTime() <= Date.now()) {
+  if (licenseActive === false) {
     return "expired";
   }
 
