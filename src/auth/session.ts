@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "@/config/apiBase";
+
 const ACCESS_TOKEN_KEY = "access_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
 const TOKEN_EXPIRY_KEY = "token_expiry";
@@ -218,8 +220,6 @@ export async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
   if (!refreshToken) return null;
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
-
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
       method: "POST",
@@ -265,8 +265,6 @@ export async function refreshAccessToken(): Promise<string | null> {
 
 /** Mevcut backend: POST /api/auth/login */
 export async function loginWithPassword(email: string, password: string): Promise<LoginResponse> {
-  const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
-
   const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
     method: "POST",
     headers: {

@@ -6,7 +6,7 @@ import {
   refreshAccessToken,
 } from "@/auth/session";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+import { API_BASE_URL } from "@/config/apiBase";
 
 function getTenantId(): string {
   try {

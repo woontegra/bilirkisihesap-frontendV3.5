@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import {
   Calculator,
@@ -45,6 +45,8 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
 
   const rotatingWord = useRotatingWord(HERO_WORDS);
+  const emailId = useId();
+  const passwordId = useId();
   const bokeh = useMemo(
     () =>
       Array.from({ length: 18 }, (_, i) => ({
@@ -242,13 +244,14 @@ export default function LoginPage() {
               </header>
 
               <form className={styles.form} onSubmit={(e) => void onSubmit(e)}>
-                <label className={styles.field}>
-                  <span className={styles.fieldLabel}>
+                <div className={styles.field}>
+                  <label className={styles.fieldLabel} htmlFor={emailId}>
                     <Sparkles size={14} className={styles.iconAmber} aria-hidden />
                     E-posta
-                  </span>
+                  </label>
                   <div className={styles.inputWrap}>
                     <input
+                      id={emailId}
                       type="email"
                       autoComplete="username"
                       required
@@ -259,15 +262,16 @@ export default function LoginPage() {
                     />
                     <span className={styles.inputGlow} aria-hidden />
                   </div>
-                </label>
+                </div>
 
-                <label className={styles.field}>
-                  <span className={styles.fieldLabel}>
+                <div className={styles.field}>
+                  <label className={styles.fieldLabel} htmlFor={passwordId}>
                     <Lock size={14} className={styles.iconTeal} aria-hidden />
                     Şifre
-                  </span>
+                  </label>
                   <div className={styles.inputWrap}>
                     <input
+                      id={passwordId}
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
                       required
@@ -287,7 +291,7 @@ export default function LoginPage() {
                     </button>
                     <span className={styles.inputGlow} aria-hidden />
                   </div>
-                </label>
+                </div>
 
                 <label className={styles.remember}>
                   <input

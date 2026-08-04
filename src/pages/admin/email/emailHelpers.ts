@@ -3,6 +3,7 @@ import {
   isTokenExpired,
   refreshAccessToken,
 } from "@/auth/session";
+import { API_BASE_URL } from "@/config/apiBase";
 
 export type BarAssociation = {
   id: number;
@@ -184,7 +185,6 @@ export type SendBulkResult =
 
 /** send-bulk için tam hata gövdesi (MISSING_PROTOCOL_FILES vb.) */
 export async function postSendBulk(body: Record<string, unknown>): Promise<SendBulkResult> {
-  const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
   let token = getAccessToken();
   if (token && isTokenExpired()) {
     token = await refreshAccessToken();

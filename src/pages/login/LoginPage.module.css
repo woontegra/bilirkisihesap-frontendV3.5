@@ -426,6 +426,7 @@
   );
   animation: border-spin 5s linear infinite;
   opacity: 0.75;
+  pointer-events: none;
 }
 
 .cardGlow {
@@ -435,10 +436,12 @@
   background: radial-gradient(ellipse at 50% 30%, rgba(26, 111, 124, 0.35), transparent 65%);
   filter: blur(20px);
   animation: card-glow-pulse 4s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .card {
   position: relative;
+  z-index: 1;
   padding: 2rem 1.75rem 1.6rem;
   border-radius: 1.6rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -578,11 +581,27 @@
   background: rgba(255, 255, 255, 0.05);
   color: #f4f8fc;
   font-size: 0.9375rem;
+  user-select: text;
+  -webkit-user-select: text;
   transition:
     border-color 0.25s ease,
     background 0.25s ease,
     box-shadow 0.25s ease,
     transform 0.2s ease;
+}
+
+.input::selection {
+  background: rgba(94, 200, 216, 0.55);
+  color: #030810;
+}
+
+.input::-moz-selection {
+  background: rgba(94, 200, 216, 0.55);
+  color: #030810;
+}
+
+.input:-webkit-autofill::selection {
+  -webkit-text-fill-color: #030810;
 }
 
 .input::placeholder {
