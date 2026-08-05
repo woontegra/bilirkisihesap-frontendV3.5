@@ -78,6 +78,7 @@ export default function SettingsTab() {
   };
 
   const handleNotificationChange = async (type: "email" | "login", value: boolean) => {
+    const previous = notifications;
     const next = { ...notifications, [type]: value };
     setNotifications(next);
     setNotifLoading(true);
@@ -89,7 +90,7 @@ export default function SettingsTab() {
       toast.success("Bildirim ayarları güncellendi");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Ayarlar kaydedilirken bir hata oluştu");
-      setNotifications(notifications);
+      setNotifications(previous);
     } finally {
       setNotifLoading(false);
     }

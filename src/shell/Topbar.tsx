@@ -38,7 +38,7 @@ import { fetchNotifications, markNotificationsRead } from "@/api/notifications";
 
 import type { NotificationItem } from "@/api/types";
 
-import { logout, getSessionTenantId } from "@/auth/session";
+import { logout, getSessionTenantId, readCurrentUser } from "@/auth/session";
 
 import { Button } from "@/components/ui/Button";
 
@@ -122,11 +122,13 @@ export function Topbar({
 
   const navigate = useNavigate();
 
-  const displayName = resolveUserDisplayName(userName);
+  const sessionUser = readCurrentUser();
 
-  const displayEmail = userEmail?.trim() || "";
+  const displayName = resolveUserDisplayName(userName?.trim() || sessionUser?.name);
 
-  const roleLabel = formatUserRoleLabel(userRole);
+  const displayEmail = (userEmail?.trim() || sessionUser?.email || "").trim();
+
+  const roleLabel = formatUserRoleLabel(userRole?.trim() || sessionUser?.role);
 
   const tenantId = getSessionTenantId() ?? undefined;
 
@@ -139,6 +141,8 @@ export function Topbar({
   const [notifOpen, setNotifOpen] = useState(false);
 
   const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
+
+  const [, setAuthRevision] = useState(0);
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
@@ -220,6 +224,18 @@ export function Topbar({
     window.addEventListener("theme-changed", onThemeChanged);
 
     return () => window.removeEventListener("theme-changed", onThemeChanged);
+
+  }, []);
+
+
+
+  useEffect(() => {
+
+    const onAuthChanged = () => setAuthRevision((value) => value + 1);
+
+    window.addEventListener("auth-changed", onAuthChanged);
+
+    return () => window.removeEventListener("auth-changed", onAuthChanged);
 
   }, []);
 

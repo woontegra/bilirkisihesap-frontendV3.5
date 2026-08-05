@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { isAuthenticated, loginWithPassword } from "@/auth/session";
 import { usePanelBranding } from "@/context/PanelBrandingContext";
+import { PANEL_FALLBACK_LOGO_URL } from "@/types/panelBranding";
 import styles from "./LoginPage.module.css";
 
 const HERO_WORDS = ["Fazla Mesai", "Kıdem Tazminatı", "İhbar Tazminatı", "Yıllık İzin", "UBGT"];
@@ -42,11 +43,19 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [logoVisible, setLogoVisible] = useState(true);
+  const [loginLogoAttempt, setLoginLogoAttempt] = useState(0);
   const [mounted, setMounted] = useState(false);
 
   const rotatingWord = useRotatingWord(HERO_WORDS);
   const emailId = useId();
   const passwordId = useId();
+  const resolvedLoginLogoSrc =
+    loginLogoAttempt === 0 ? loginLogoSrc : PANEL_FALLBACK_LOGO_URL;
+
+  useEffect(() => {
+    setLoginLogoAttempt(0);
+    setLogoVisible(true);
+  }, [loginLogoSrc]);
   const bokeh = useMemo(
     () =>
       Array.from({ length: 18 }, (_, i) => ({
@@ -223,14 +232,20 @@ export default function LoginPage() {
                 <div className={styles.logoSlot} aria-hidden={!ready}>
                   {ready && logoVisible ? (
                     <img
-                      src={loginLogoSrc}
+                      src={resolvedLoginLogoSrc}
                       alt=""
                       className={styles.logo}
                       style={{
                         maxHeight: branding.loginLogoMaxHeight,
                         maxWidth: branding.loginLogoMaxWidth,
                       }}
-                      onError={() => setLogoVisible(false)}
+                      onError={() => {
+                        if (loginLogoAttempt === 0 && loginLogoSrc !== PANEL_FALLBACK_LOGO_URL) {
+                          setLoginLogoAttempt(1);
+                          return;
+                        }
+                        setLogoVisible(false);
+                      }}
                     />
                   ) : ready ? (
                     <div className={styles.logoFallback}>

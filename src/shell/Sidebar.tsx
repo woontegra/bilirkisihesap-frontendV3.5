@@ -1,8 +1,10 @@
+import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useCalculationTools } from "@/context/CalculationToolsContext";
 import { usePanelBranding } from "@/context/PanelBrandingContext";
+import { PANEL_FALLBACK_FAVICON_URL, PANEL_FALLBACK_LOGO_URL } from "@/types/panelBranding";
 import { NAV_GROUPS } from "./navConfig";
 import styles from "./Sidebar.module.css";
 
@@ -28,6 +30,25 @@ export function Sidebar({
   const { branding, panelLogoSrc, faviconSrc, ready } = usePanelBranding();
   const collapsedLogoSrc = faviconSrc || panelLogoSrc;
   const useFaviconMark = narrow && Boolean(faviconSrc);
+  const primaryLogoSrc =
+    (narrow ? collapsedLogoSrc : panelLogoSrc) || PANEL_FALLBACK_LOGO_URL;
+  const [logoAttempt, setLogoAttempt] = useState(0);
+
+  useEffect(() => {
+    setLogoAttempt(0);
+  }, [primaryLogoSrc]);
+
+  const sidebarLogoSrc = useMemo(() => {
+    if (logoAttempt === 0) return primaryLogoSrc;
+    if (logoAttempt === 1) {
+      return narrow && useFaviconMark ? PANEL_FALLBACK_FAVICON_URL : PANEL_FALLBACK_LOGO_URL;
+    }
+    return PANEL_FALLBACK_LOGO_URL;
+  }, [logoAttempt, narrow, primaryLogoSrc, useFaviconMark]);
+
+  const handleSidebarLogoError = () => {
+    setLogoAttempt((attempt) => Math.min(attempt + 1, 2));
+  };
   const panelLogoStyle = narrow
     ? undefined
     : {
@@ -66,7 +87,7 @@ export function Sidebar({
         <div className={styles.brandRow}>
           {ready ? (
             <img
-              src={narrow ? collapsedLogoSrc : panelLogoSrc}
+              src={sidebarLogoSrc}
               alt="Bilirkişi Hesaplama Araçları Hizmetleri"
               className={clsx(
                 styles.brandLogo,
@@ -74,6 +95,7 @@ export function Sidebar({
                 narrow && !useFaviconMark && styles.brandLogoCrop,
               )}
               style={panelLogoStyle}
+              onError={handleSidebarLogoError}
             />
           ) : (
             <div
