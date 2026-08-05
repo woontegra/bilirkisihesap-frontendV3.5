@@ -1,3 +1,7 @@
+.themeSelect {
+  max-width: 14rem;
+}
+
 .stack {
   display: grid;
   gap: 0.9rem;

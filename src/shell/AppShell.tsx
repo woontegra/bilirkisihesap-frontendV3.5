@@ -11,11 +11,7 @@ import styles from "./AppShell.module.css";
 
 const COLLAPSE_KEY = "v35_sidebarCollapsed";
 
-type Props = {
-  onRefresh?: () => void;
-};
-
-export function AppShell({ onRefresh }: Props) {
+export function AppShell() {
   const location = useLocation();
   const isDesktop = useMediaQuery(DESKTOP_MQ);
   const isAdmin = readIsAdmin();
@@ -82,7 +78,6 @@ export function AppShell({ onRefresh }: Props) {
           isDesktop={isDesktop}
           onOpenMobile={() => setMobileOpen(true)}
           onToggleCollapse={() => setCollapsed((v) => !v)}
-          onRefresh={onRefresh}
           userName={userInfo?.name}
           userEmail={userInfo?.email}
           userRole={userInfo?.role}

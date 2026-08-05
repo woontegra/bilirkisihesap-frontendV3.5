@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { DashboardProvider } from "@/context/DashboardContext";
 import { CalculationToolsProvider } from "@/context/CalculationToolsContext";
-import { useDashboard } from "@/hooks/useDashboard";
 import AdminPage from "@/pages/admin/AdminPage";
 import ProfilePage from "@/pages/profile/ProfilePage";
 import ControlCenterPage from "@/pages/admin/control-center/ControlCenterPage";
@@ -92,11 +91,6 @@ import { AdminOnly } from "@/routes/AdminOnly";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 import { AppShell } from "@/shell/AppShell";
 
-function ShellWithRefresh() {
-  const { reload } = useDashboard();
-  return <AppShell onRefresh={reload} />;
-}
-
 export default function App() {
   return (
     <Routes>
@@ -107,7 +101,7 @@ export default function App() {
           element={
             <DashboardProvider>
               <CalculationToolsProvider>
-                <ShellWithRefresh />
+                <AppShell />
               </CalculationToolsProvider>
             </DashboardProvider>
           }

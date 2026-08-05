@@ -12,11 +12,13 @@ import {
 
   MessageSquare,
 
+  Moon,
+
   PanelLeft,
 
-  RefreshCw,
-
   Settings,
+
+  Sun,
 
   Ticket,
 
@@ -48,6 +50,8 @@ import { formatUserRoleLabel } from "@/utils/userRole";
 
 import { resolveUserDisplayName } from "@/utils/userDisplay";
 
+import { applyTheme, getStoredTheme, type Theme } from "@/theme/theme";
+
 import AdminHeaderChatActions from "@/components/admin/AdminHeaderChatActions";
 
 import styles from "./Topbar.module.css";
@@ -63,8 +67,6 @@ type Props = {
   onOpenMobile: () => void;
 
   onToggleCollapse: () => void;
-
-  onRefresh?: () => void;
 
   userName?: string;
 
@@ -108,8 +110,6 @@ export function Topbar({
 
   onToggleCollapse,
 
-  onRefresh,
-
   userName,
 
   userEmail,
@@ -137,6 +137,8 @@ export function Topbar({
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [notifOpen, setNotifOpen] = useState(false);
+
+  const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
@@ -213,6 +215,18 @@ export function Topbar({
 
   useEffect(() => {
 
+    const onThemeChanged = () => setTheme(getStoredTheme());
+
+    window.addEventListener("theme-changed", onThemeChanged);
+
+    return () => window.removeEventListener("theme-changed", onThemeChanged);
+
+  }, []);
+
+
+
+  useEffect(() => {
+
     const onDoc = (event: MouseEvent) => {
 
       const target = event.target as Node;
@@ -284,6 +298,14 @@ export function Topbar({
 
 
   const closeMenu = () => setMenuOpen(false);
+
+
+
+  const toggleTheme = () => {
+
+    applyTheme(theme === "dark" ? "light" : "dark");
+
+  };
 
 
 
@@ -365,15 +387,29 @@ export function Topbar({
 
 
 
-        {onRefresh ? (
+        <button
 
-          <Button variant="ghost" size="icon" onClick={onRefresh} aria-label="Yenile">
+          type="button"
 
-            <RefreshCw size={16} />
+          className={styles.iconBtn}
 
-          </Button>
+          aria-label={theme === "dark" ? "Açık moda geç" : "Koyu moda geç"}
 
-        ) : null}
+          onClick={toggleTheme}
+
+        >
+
+          {theme === "dark" ? (
+
+            <Sun size={18} className={styles.sunIcon} aria-hidden />
+
+          ) : (
+
+            <Moon size={18} className={styles.moonIcon} aria-hidden />
+
+          )}
+
+        </button>
 
 
 

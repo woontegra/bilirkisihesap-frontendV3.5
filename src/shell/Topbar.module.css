@@ -35,7 +35,7 @@
   padding: 0 0.65rem;
   border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--surface);
   color: var(--accent);
   font-size: var(--fs-xs);
   font-weight: 600;
@@ -125,6 +125,15 @@
 
 .iconBtn:hover {
   background: var(--surface-muted);
+}
+
+.moonIcon,
+.sunIcon {
+  flex-shrink: 0;
+}
+
+.sunIcon {
+  color: #d97706;
 }
 
 .bell {

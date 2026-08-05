@@ -9,6 +9,7 @@ import { logout } from "@/auth/session";
 import { FormField } from "@/components/admin/FormField";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/context/ToastContext";
+import { applyTheme, getStoredTheme, type Theme } from "@/theme/theme";
 import styles from "./profileTabShared.module.css";
 
 export default function SettingsTab() {
@@ -20,8 +21,19 @@ export default function SettingsTab() {
     confirmPassword: "",
   });
   const [notifications, setNotifications] = useState({ email: true, login: true });
+  const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const onThemeChanged = () => setTheme(getStoredTheme());
+    window.addEventListener("theme-changed", onThemeChanged);
+    return () => window.removeEventListener("theme-changed", onThemeChanged);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -85,6 +97,22 @@ export default function SettingsTab() {
 
   return (
     <div className={styles.stack}>
+      <section className={styles.panel}>
+        <h3 className={styles.panelTitle}>Tema Ayarı</h3>
+        <p className={styles.panelDesc}>Görünüm tercihinizi seçin</p>
+        <FormField label="Tema">
+          <select
+            id="theme"
+            className={styles.themeSelect}
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as Theme)}
+          >
+            <option value="light">Açık</option>
+            <option value="dark">Koyu</option>
+          </select>
+        </FormField>
+      </section>
+
       <section className={styles.panel}>
         <h3 className={styles.panelTitle}>Şifre Değiştir</h3>
         <p className={styles.panelDesc}>Hesap güvenliğiniz için şifrenizi güncelleyin</p>

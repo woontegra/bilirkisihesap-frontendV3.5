@@ -12,6 +12,15 @@
       rel="stylesheet"
     />
     <title>Bilirkişi Hesap · Yönetim Paneli</title>
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem("theme") === "dark") {
+            document.documentElement.classList.add("dark");
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

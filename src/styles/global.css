@@ -52,6 +52,13 @@ body {
   background-attachment: fixed;
 }
 
+html.dark body {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(58, 154, 168, 0.12), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(47, 95, 138, 0.1), transparent 50%),
+    linear-gradient(180deg, var(--page) 0%, var(--page-accent) 100%);
+}
+
 h1,
 h2,
 h3,

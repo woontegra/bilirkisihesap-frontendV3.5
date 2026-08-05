@@ -565,3 +565,37 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--sb-green) 14%, transparent);
   }
 }
+
+:global(html.dark) .sidebar {
+  background:
+    radial-gradient(
+      ellipse 120% 80% at 0% 0%,
+      color-mix(in srgb, var(--accent-soft) 45%, var(--sidebar)),
+      transparent 58%
+    ),
+    linear-gradient(
+      180deg,
+      var(--sidebar) 0%,
+      var(--sidebar-elevated) 42%,
+      color-mix(in srgb, var(--accent) 10%, var(--sidebar)) 100%
+    );
+  box-shadow:
+    6px 0 28px rgba(0, 0, 0, 0.35),
+    inset -1px 0 0 color-mix(in srgb, var(--sb-green) 14%, transparent);
+}
+
+:global(html.dark) .brandRow {
+  background: linear-gradient(
+    180deg,
+    var(--sidebar) 0%,
+    color-mix(in srgb, var(--accent-soft) 35%, var(--sidebar-elevated)) 100%
+  );
+}
+
+:global(html.dark) .footer {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-soft) 18%, var(--sidebar-elevated)) 0%,
+    color-mix(in srgb, var(--sb-green) 10%, var(--sidebar)) 100%
+  );
+}

@@ -5,7 +5,10 @@ import App from "./App";
 import GlobalDateInputValidation from "@/components/GlobalDateInputValidation";
 import { ToastProvider } from "@/context/ToastContext";
 import { PanelBrandingProvider } from "@/context/PanelBrandingContext";
+import { initTheme } from "@/theme/theme";
 import "./styles/global.css";
+
+initTheme();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
