@@ -103,9 +103,23 @@ export function calculateSubscription(
   }
 
   const msDay = 86_400_000;
-  const totalDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / msDay));
-  const daysUsed = Math.min(totalDays, Math.max(0, Math.round((now.getTime() - startDate.getTime()) / msDay)));
-  const daysRemaining = Math.max(0, Math.round((endDate.getTime() - now.getTime()) / msDay));
+
+  const toLocalDayStart = (date: Date) =>
+    new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  const calendarDayDiff = (from: Date, to: Date) =>
+    Math.round((toLocalDayStart(to).getTime() - toLocalDayStart(from).getTime()) / msDay);
+
+  // Başlangıç ve bitiş günleri dahil (5 Ağu 2026 → 4 Ağu 2027 = 365 gün)
+  const totalDays = Math.max(1, calendarDayDiff(startDate, endDate) + 1);
+
+  const startDay = toLocalDayStart(startDate);
+  const nowDay = toLocalDayStart(now);
+  const daysUsed =
+    nowDay < startDay
+      ? 0
+      : Math.min(totalDays, calendarDayDiff(startDate, now) + 1);
+  const daysRemaining = Math.max(0, totalDays - daysUsed);
   const usedPct = Math.min(100, Math.max(0, (daysUsed / totalDays) * 100));
   const remainingPct = Math.min(100, Math.max(0, (daysRemaining / totalDays) * 100));
 
