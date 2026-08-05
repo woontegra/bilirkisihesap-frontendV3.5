@@ -430,8 +430,11 @@
   z-index: 2;
   flex-shrink: 0;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   min-height: var(--shell-footer-height);
-  padding: var(--shell-footer-pad-top) 0.75rem var(--shell-footer-pad-bottom);
+  padding: 0 0.75rem;
   border-top: 1px solid color-mix(in srgb, var(--sb-green) 14%, var(--border-subtle));
   line-height: var(--shell-footer-line);
   background: linear-gradient(
@@ -455,7 +458,8 @@
 }
 
 .collapsed .footer {
-  padding: 0.55rem 0.35rem 0.75rem;
+  min-height: var(--shell-footer-height);
+  padding: 0 0.35rem;
   text-align: center;
 }
 

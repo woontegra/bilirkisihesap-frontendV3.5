@@ -60,19 +60,15 @@
   --sidebar-collapsed: 4.25rem;
   --topbar-height: 3.75rem;
   /* Sidebar sürüm şeridi + hesaplama sayfası sticky bar (desktop hizası) */
+  --shell-footer-pad-y: 0.55rem;
+  --shell-footer-action-height: 2rem; /* Button size="sm" */
+  --shell-footer-height: calc(
+    1px + (var(--shell-footer-pad-y) * 2) + var(--shell-footer-action-height)
+  );
   --shell-footer-title-size: 0.75rem;
   --shell-footer-sub-size: 0.625rem;
   --shell-footer-sub-gap: 0.05rem;
-  --shell-footer-pad-top: 0.4rem;
-  --shell-footer-pad-bottom: 0.5rem;
   --shell-footer-line: 1.25;
-  --shell-footer-height: calc(
-    1px + var(--shell-footer-pad-top) +
-      (var(--shell-footer-title-size) * var(--shell-footer-line)) +
-      var(--shell-footer-sub-gap) +
-      (var(--shell-footer-sub-size) * var(--shell-footer-line)) +
-      var(--shell-footer-pad-bottom)
-  );
   --content-max: 90rem;
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;

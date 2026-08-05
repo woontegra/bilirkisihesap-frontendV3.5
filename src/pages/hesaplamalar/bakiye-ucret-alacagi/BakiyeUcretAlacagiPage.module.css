@@ -559,7 +559,7 @@
   display: flex;
   align-items: center;
   min-height: var(--shell-footer-height);
-  padding: 0.5rem 0.85rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  padding: var(--shell-footer-pad-y) 0.85rem calc(var(--shell-footer-pad-y) + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   backdrop-filter: blur(12px);
@@ -716,7 +716,10 @@
 @media (min-width: 1024px) {
   .stickyBar {
     left: var(--sidebar-width);
+    height: var(--shell-footer-height);
     min-height: var(--shell-footer-height);
+    padding-top: 0;
+    padding-bottom: 0;
     padding-left: 1.5rem;
     padding-right: 1.5rem;
   }
