@@ -1,15 +1,12 @@
 .page {
   --du-max: min(90rem, 1440px);
-  --du-footer-match: calc(
-    1px + 0.85rem + (var(--fs-sm) * 1.35) + 0.15rem + (var(--fs-xs) * 1.35) + 1.1rem
-  );
   display: grid;
   gap: 1.1rem;
   min-width: 0;
   width: 100%;
   max-width: var(--du-max);
   margin: 0 auto;
-  padding-bottom: calc(var(--du-footer-match) + 1.25rem);
+  padding-bottom: calc(var(--shell-footer-height) + 1.25rem);
 }
 
 /* ── Hero ── */
@@ -612,7 +609,7 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  min-height: var(--du-footer-match);
+  min-height: var(--shell-footer-height);
   padding: 0.55rem 0.85rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--surface) 94%, transparent);
@@ -1244,8 +1241,8 @@
 
   .stickyBar {
     left: var(--sidebar-width);
-    height: var(--du-footer-match);
-    min-height: var(--du-footer-match);
+    height: var(--shell-footer-height);
+    min-height: var(--shell-footer-height);
     padding-top: 0;
     padding-bottom: 0;
     padding-left: 1.75rem;

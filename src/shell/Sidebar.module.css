@@ -429,9 +429,11 @@
   position: relative;
   z-index: 2;
   flex-shrink: 0;
-  padding: 0.4rem 0.75rem 0.5rem;
+  box-sizing: border-box;
+  min-height: var(--shell-footer-height);
+  padding: var(--shell-footer-pad-top) 0.75rem var(--shell-footer-pad-bottom);
   border-top: 1px solid color-mix(in srgb, var(--sb-green) 14%, var(--border-subtle));
-  line-height: 1.25;
+  line-height: var(--shell-footer-line);
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--accent-soft) 25%, white) 0%,
@@ -441,14 +443,14 @@
 
 .footerTitle {
   font-family: var(--font-serif);
-  font-size: 0.75rem;
+  font-size: var(--shell-footer-title-size);
   font-weight: 600;
   color: var(--accent-hover);
 }
 
 .footerSub {
-  margin-top: 0.05rem;
-  font-size: 0.625rem;
+  margin-top: var(--shell-footer-sub-gap);
+  font-size: var(--shell-footer-sub-size);
   color: color-mix(in srgb, var(--accent) 45%, var(--muted));
 }
 

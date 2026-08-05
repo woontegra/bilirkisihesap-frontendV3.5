@@ -1,15 +1,12 @@
 .page {
   --ia-max: min(77.5rem, 1240px);
-  --ia-footer: calc(
-    1px + 0.85rem + (var(--fs-sm) * 1.35) + 0.15rem + (var(--fs-xs) * 1.35) + 1.1rem
-  );
   display: grid;
   gap: 1.1rem;
   min-width: 0;
   width: 100%;
   max-width: var(--ia-max);
   margin: 0 auto;
-  padding-bottom: calc(var(--ia-footer) + 1.25rem);
+  padding-bottom: calc(var(--shell-footer-height) + 1.25rem);
 }
 
 .hero {
@@ -462,7 +459,7 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  min-height: var(--ia-footer);
+  min-height: var(--shell-footer-height);
   padding: 0.55rem 0.85rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--surface) 94%, transparent);
@@ -715,8 +712,8 @@
 @media (min-width: 1024px) {
   .stickyBar {
     left: var(--sidebar-width);
-    height: var(--ia-footer);
-    min-height: var(--ia-footer);
+    height: var(--shell-footer-height);
+    min-height: var(--shell-footer-height);
     padding-top: 0;
     padding-bottom: 0;
     padding-left: 1.75rem;
