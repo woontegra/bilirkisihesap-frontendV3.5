@@ -640,6 +640,13 @@
   overflow-x: hidden;
 }
 
+.offlineFormActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.25rem;
+}
+
 .formIntro {
   margin: 0;
   font-size: 0.78rem;

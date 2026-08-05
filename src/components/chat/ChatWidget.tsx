@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { CheckCircle2, Headphones, Send, X } from "lucide-react";
 import { SupportBotIcon } from "./SupportBotIcon";
-import { API_BASE_URL, apiClient } from "@/api/client";
+import { API_BASE_URL, apiClient, ApiError } from "@/api/client";
 import { getAccessToken } from "@/auth/session";
 import { Button } from "@/components/ui/Button";
 import { usePanelBranding } from "@/context/PanelBrandingContext";
@@ -116,9 +116,32 @@ export default function ChatWidget() {
   const [offlineMessage, setOfflineMessage] = useState("");
   const [offlineSubmitting, setOfflineSubmitting] = useState(false);
   const [offlineSubmitState, setOfflineSubmitState] = useState<SubmitState>("idle");
+  const [offlineSubmitError, setOfflineSubmitError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const conversationIdRef = useRef<string | null>(null);
+
+  const resetOfflineForm = useCallback((options?: { keepSuccess?: boolean }) => {
+    const stored = readStoredUser();
+    setOfflineName(stored.name);
+    setOfflineEmail(stored.email);
+    setOfflineTopic(OFFLINE_TOPICS[0]);
+    setOfflineMessage("");
+    setOfflineSubmitError(null);
+    if (!options?.keepSuccess) {
+      setOfflineSubmitState("idle");
+    }
+  }, []);
+
+  const closePanel = useCallback(() => {
+    setOpen(false);
+    resetOfflineForm();
+  }, [resetOfflineForm]);
+
+  const openPanel = useCallback(() => {
+    persistMinimized(false);
+    setOpen(true);
+  }, []);
 
   useEffect(() => {
     conversationIdRef.current = conversationId;
@@ -291,12 +314,14 @@ export default function ChatWidget() {
     const message = offlineMessage.trim();
 
     if (!name || !email || !message) {
+      setOfflineSubmitError("Ad, e-posta ve mesaj alanlarını doldurun.");
       setOfflineSubmitState("error");
       return;
     }
 
     setOfflineSubmitting(true);
     setOfflineSubmitState("idle");
+    setOfflineSubmitError(null);
     try {
       const description = [`Gönderen: ${name}`, `E-posta: ${email}`, "", message].join("\n");
       await apiClient("/api/tickets", {
@@ -308,9 +333,15 @@ export default function ChatWidget() {
         },
       });
       setOfflineSubmitState("success");
+      setOfflineName("");
+      setOfflineEmail("");
+      setOfflineTopic(OFFLINE_TOPICS[0]);
       setOfflineMessage("");
-    } catch {
+    } catch (err) {
       setOfflineSubmitState("error");
+      setOfflineSubmitError(
+        err instanceof ApiError ? err.message : "Mesajınız gönderilemedi. Lütfen tekrar deneyin.",
+      );
     } finally {
       setOfflineSubmitting(false);
     }
@@ -351,7 +382,7 @@ export default function ChatWidget() {
             type="button"
             className={`${styles.miniFab} ${launcherCopy.variant === "online" ? styles.miniFabOnline : styles.miniFabOffline}`}
             aria-label="Destek widgetını aç"
-            onClick={() => persistMinimized(false)}
+            onClick={openPanel}
           >
             <LauncherOrb online={launcherCopy.variant === "online"} size={64} iconClassName={styles.miniFabIcon} />
           </button>
@@ -366,10 +397,7 @@ export default function ChatWidget() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setOpen(true);
-                setOfflineSubmitState("idle");
-              }}
+              onClick={openPanel}
               className={styles.launcher}
               aria-label={launcherCopy.title}
             >
@@ -392,7 +420,7 @@ export default function ChatWidget() {
       {open
         ? createPortal(
             <div className={styles.overlay}>
-              <div className={styles.backdrop} onClick={() => setOpen(false)} aria-hidden />
+              <div className={styles.backdrop} onClick={closePanel} aria-hidden />
               <div
                 className={`${styles.panel} ${isOnline ? styles.panelOnline : styles.panelOffline}`}
                 role="dialog"
@@ -423,7 +451,7 @@ export default function ChatWidget() {
                     <button type="button" className={styles.minimizeBtn} onClick={handleMinimize} aria-label="Gizle">
                       Gizle
                     </button>
-                    <button type="button" className={styles.closeBtn} onClick={() => setOpen(false)} aria-label="Kapat">
+                    <button type="button" className={styles.closeBtn} onClick={closePanel} aria-label="Kapat">
                       <X className={styles.closeIcon} aria-hidden />
                     </button>
                   </div>
@@ -436,14 +464,7 @@ export default function ChatWidget() {
                         <CheckCircle2 className={styles.successIcon} aria-hidden />
                         <h4 className={styles.successTitle}>Mesajınız alındı</h4>
                         <p className={styles.successText}>En kısa sürede size dönüş yapacağız.</p>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => {
-                            setOpen(false);
-                            setOfflineSubmitState("idle");
-                          }}
-                        >
+                        <Button type="button" variant="ghost" onClick={closePanel}>
                           Kapat
                         </Button>
                       </div>
@@ -496,16 +517,15 @@ export default function ChatWidget() {
                       </>
                     ) : (
                       <form
+                        id="support-offline-form"
                         className={styles.offlineForm}
                         onSubmit={(e) => {
                           e.preventDefault();
                           void submitOfflineTicket();
                         }}
                       >
-                        {offlineSubmitState === "error" ? (
-                          <p className={styles.alertError}>
-                            Mesajınız gönderilemedi. Lütfen daha sonra tekrar deneyin.
-                          </p>
+                        {offlineSubmitState === "error" && offlineSubmitError ? (
+                          <p className={styles.alertError}>{offlineSubmitError}</p>
                         ) : null}
 
                         <p className={styles.formIntro}>
@@ -566,63 +586,63 @@ export default function ChatWidget() {
                             className={styles.fieldTextarea}
                             value={offlineMessage}
                             onChange={(e) => setOfflineMessage(e.target.value.slice(0, 2000))}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                void submitOfflineTicket();
+                              }
+                            }}
                             placeholder="Mesajınızı yazın…"
                             required
                           />
+                        </div>
+
+                        <div className={styles.offlineFormActions}>
+                          <Button type="submit" disabled={offlineSubmitting}>
+                            {offlineSubmitting ? "Gönderiliyor…" : "Mesajı Gönder"}
+                          </Button>
+                          <p className={styles.helpText}>
+                            Enter ile gönderebilirsiniz. Shift+Enter yeni satır ekler.
+                          </p>
                         </div>
                       </form>
                     )}
                   </div>
                 </div>
 
-                {!(offlineSubmitState === "success" && isOfflineMode) ? (
+                {!(offlineSubmitState === "success" && isOfflineMode) && isOnline ? (
                   <footer className={styles.footer}>
-                    {isOnline ? (
-                      <>
-                        <div className={styles.footerRow}>
-                          <input
-                            type="text"
-                            value={input}
-                            onChange={(e) => setInput(e.target.value.slice(0, 1000))}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                void sendMessage();
-                              }
-                            }}
-                            placeholder="Mesajınızı yazın…"
-                            maxLength={1000}
-                            enterKeyHint="send"
-                            autoComplete="off"
-                            className={`${styles.fieldInput} ${styles.footerInput}`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => void sendMessage()}
-                            disabled={!input.trim() || sending}
-                            className={styles.sendBtn}
-                            aria-label="Gönder"
-                          >
-                            <Send className={styles.sendIcon} aria-hidden />
-                          </button>
-                        </div>
-                        <p className={styles.helpText}>
-                          <span className={styles.helpTextFull}>Enter ile gönderebilirsiniz.</span>
-                          <span className={styles.helpTextShort}>Enter = gönder</span>
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          type="button"
-                          disabled={offlineSubmitting}
-                          onClick={() => void submitOfflineTicket()}
-                        >
-                          {offlineSubmitting ? "Gönderiliyor…" : "Mesajı Gönder"}
-                        </Button>
-                        <p className={styles.helpText}>Talebiniz destek paneline kaydedilir ve e-posta ile iletilir.</p>
-                      </>
-                    )}
+                    <div className={styles.footerRow}>
+                      <input
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value.slice(0, 1000))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            void sendMessage();
+                          }
+                        }}
+                        placeholder="Mesajınızı yazın…"
+                        maxLength={1000}
+                        enterKeyHint="send"
+                        autoComplete="off"
+                        className={`${styles.fieldInput} ${styles.footerInput}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void sendMessage()}
+                        disabled={!input.trim() || sending}
+                        className={styles.sendBtn}
+                        aria-label="Gönder"
+                      >
+                        <Send className={styles.sendIcon} aria-hidden />
+                      </button>
+                    </div>
+                    <p className={styles.helpText}>
+                      <span className={styles.helpTextFull}>Enter ile gönderebilirsiniz.</span>
+                      <span className={styles.helpTextShort}>Enter = gönder</span>
+                    </p>
                   </footer>
                 ) : null}
               </div>
