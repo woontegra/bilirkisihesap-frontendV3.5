@@ -18,9 +18,9 @@ export const PANEL_FALLBACK_FAVICON_URL = "https://panel.bilirkisihesap.com/favi
 const LEGACY_API_HOSTS = new Set(["api.bilirkisihesap.com"]);
 
 export const DEFAULT_PANEL_BRANDING: PanelBrandingSettings = {
-  loginLogoUrl: PANEL_FALLBACK_LOGO_URL,
-  panelLogoUrl: PANEL_FALLBACK_LOGO_URL,
-  faviconUrl: PANEL_FALLBACK_FAVICON_URL,
+  loginLogoUrl: "",
+  panelLogoUrl: "",
+  faviconUrl: "",
   loginLogoMaxHeight: 52,
   loginLogoMaxWidth: 208,
   panelLogoMaxHeight: 38,
@@ -28,6 +28,33 @@ export const DEFAULT_PANEL_BRANDING: PanelBrandingSettings = {
   panelLogoCollapsedMaxHeight: 44,
   panelLogoCollapsedMaxWidth: 44,
 };
+
+export function isFallbackBrandingUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  return trimmed === PANEL_FALLBACK_LOGO_URL || trimmed === PANEL_FALLBACK_FAVICON_URL;
+}
+
+export function isUploadBrandingPath(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return url.trim().startsWith("/uploads/branding/");
+}
+
+/** localStorage'a yalnız gerçek upload path'leri yaz; CDN fallback canonical sayılmasın. */
+export function stripFallbackUrlsForCache(branding: PanelBrandingSettings): PanelBrandingSettings {
+  const pick = (url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed || isFallbackBrandingUrl(trimmed)) return "";
+    if (isUploadBrandingPath(trimmed)) return trimmed;
+    return "";
+  };
+  return {
+    ...branding,
+    loginLogoUrl: pick(branding.loginLogoUrl),
+    panelLogoUrl: pick(branding.panelLogoUrl),
+    faviconUrl: pick(branding.faviconUrl),
+  };
+}
 
 export function resolveBrandingAssetUrl(
   url: string | null | undefined,
@@ -65,7 +92,7 @@ export function resolveBrandingAssetUrl(
   return `${resolved}${sep}v=${encodeURIComponent(String(cacheBust))}`;
 }
 
-const BRANDING_CACHE_KEY = "v35_panel_branding_v3";
+const BRANDING_CACHE_KEY = "v35_panel_branding_v4";
 
 function normalizeCachedBranding(raw: Partial<PanelBrandingSettings>): PanelBrandingSettings {
   const num = (value: unknown, fallback: number) => {
@@ -74,17 +101,26 @@ function normalizeCachedBranding(raw: Partial<PanelBrandingSettings>): PanelBran
   };
   return {
     loginLogoUrl:
-      typeof raw.loginLogoUrl === "string" && raw.loginLogoUrl.trim()
+      typeof raw.loginLogoUrl === "string" &&
+      raw.loginLogoUrl.trim() &&
+      !isFallbackBrandingUrl(raw.loginLogoUrl) &&
+      isUploadBrandingPath(raw.loginLogoUrl)
         ? raw.loginLogoUrl.trim()
-        : DEFAULT_PANEL_BRANDING.loginLogoUrl,
+        : "",
     panelLogoUrl:
-      typeof raw.panelLogoUrl === "string" && raw.panelLogoUrl.trim()
+      typeof raw.panelLogoUrl === "string" &&
+      raw.panelLogoUrl.trim() &&
+      !isFallbackBrandingUrl(raw.panelLogoUrl) &&
+      isUploadBrandingPath(raw.panelLogoUrl)
         ? raw.panelLogoUrl.trim()
-        : DEFAULT_PANEL_BRANDING.panelLogoUrl,
+        : "",
     faviconUrl:
-      typeof raw.faviconUrl === "string" && raw.faviconUrl.trim()
+      typeof raw.faviconUrl === "string" &&
+      raw.faviconUrl.trim() &&
+      !isFallbackBrandingUrl(raw.faviconUrl) &&
+      isUploadBrandingPath(raw.faviconUrl)
         ? raw.faviconUrl.trim()
-        : DEFAULT_PANEL_BRANDING.faviconUrl,
+        : "",
     loginLogoMaxHeight: num(raw.loginLogoMaxHeight, DEFAULT_PANEL_BRANDING.loginLogoMaxHeight),
     loginLogoMaxWidth: num(raw.loginLogoMaxWidth, DEFAULT_PANEL_BRANDING.loginLogoMaxWidth),
     panelLogoMaxHeight: num(raw.panelLogoMaxHeight, DEFAULT_PANEL_BRANDING.panelLogoMaxHeight),
@@ -120,7 +156,10 @@ export function readCachedPanelBranding(): PanelBrandingSettings | null {
 export function writeCachedPanelBranding(data: PanelBrandingSettings): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(BRANDING_CACHE_KEY, JSON.stringify(normalizeCachedBranding(data)));
+    localStorage.setItem(
+      BRANDING_CACHE_KEY,
+      JSON.stringify(normalizeCachedBranding(stripFallbackUrlsForCache(data))),
+    );
   } catch {
     /* ignore quota / private mode */
   }
@@ -151,10 +190,6 @@ export function preloadBrandingAssets(
   ).then(() => undefined);
 }
 
-function isBrandingUploadPath(url: string): boolean {
-  return url.includes("/uploads/branding/");
-}
-
 function probeImageUrl(src: string): Promise<boolean> {
   if (!src) return Promise.resolve(false);
   return new Promise((resolve) => {
@@ -165,15 +200,15 @@ function probeImageUrl(src: string): Promise<boolean> {
   });
 }
 
-/** Railway'de kaybolmuş /uploads yollarını CDN'e çevir (API deploy edilmeden de çalışır). */
+/** Public görüntüleme: upload path erişilemiyorsa fallback döner; upload path korunur. */
 export async function ensureAccessibleBrandingSettings(
   branding: PanelBrandingSettings,
 ): Promise<PanelBrandingSettings> {
   async function resolveField(url: string, fallback: string): Promise<string> {
     const trimmed = url?.trim() ?? "";
-    if (!trimmed || !isBrandingUploadPath(trimmed)) {
-      return trimmed || fallback;
-    }
+    if (!trimmed) return fallback;
+    if (isFallbackBrandingUrl(trimmed)) return fallback;
+    if (!isUploadBrandingPath(trimmed)) return fallback;
     const ok = await probeImageUrl(resolveBrandingAssetUrl(trimmed));
     return ok ? trimmed : fallback;
   }

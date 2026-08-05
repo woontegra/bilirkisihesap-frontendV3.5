@@ -1,9 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ImageIcon, Loader2, RotateCcw, Save, Upload } from "lucide-react";
-import { ApiError } from "@/api/client";
+import { ApiError, apiClient } from "@/api/client";
 import {
   fetchAdminPanelBranding,
-  saveAdminPanelBranding,
   uploadPanelBrandingAsset,
   type BrandingUploadType,
 } from "@/api/panelBranding";
@@ -21,6 +20,35 @@ import shared from "../adminShared.module.css";
 import styles from "./BrandingPage.module.css";
 
 type UploadKey = BrandingUploadType;
+
+type BrandingSizePayload = Pick<
+  PanelBrandingSettings,
+  | "loginLogoMaxHeight"
+  | "loginLogoMaxWidth"
+  | "panelLogoMaxHeight"
+  | "panelLogoMaxWidth"
+  | "panelLogoCollapsedMaxHeight"
+  | "panelLogoCollapsedMaxWidth"
+>;
+
+type BrandingApiResponse = {
+  success: boolean;
+  data?: PanelBrandingSettings;
+  error?: string;
+  message?: string;
+};
+
+async function saveBrandingSizes(sizes: BrandingSizePayload): Promise<PanelBrandingSettings> {
+  const res = await apiClient<BrandingApiResponse>("/api/admin/panel-branding", {
+    method: "PUT",
+    adminRole: true,
+    body: sizes,
+  });
+  if (!res?.success || !res.data) {
+    throw new ApiError(res?.error || res?.message || "Marka ayarları kaydedilemedi", 500);
+  }
+  return res.data;
+}
 
 function num(value: string, fallback: number): number {
   const n = Number(value);
@@ -147,9 +175,23 @@ export default function BrandingPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const data = await saveAdminPanelBranding(form);
-      setForm(data);
-      applyBranding(data);
+      const data = await saveBrandingSizes({
+        loginLogoMaxHeight: form.loginLogoMaxHeight,
+        loginLogoMaxWidth: form.loginLogoMaxWidth,
+        panelLogoMaxHeight: form.panelLogoMaxHeight,
+        panelLogoMaxWidth: form.panelLogoMaxWidth,
+        panelLogoCollapsedMaxHeight: form.panelLogoCollapsedMaxHeight,
+        panelLogoCollapsedMaxWidth: form.panelLogoCollapsedMaxWidth,
+      });
+      setForm((prev) => ({
+        ...prev,
+        loginLogoMaxHeight: data.loginLogoMaxHeight,
+        loginLogoMaxWidth: data.loginLogoMaxWidth,
+        panelLogoMaxHeight: data.panelLogoMaxHeight,
+        panelLogoMaxWidth: data.panelLogoMaxWidth,
+        panelLogoCollapsedMaxHeight: data.panelLogoCollapsedMaxHeight,
+        panelLogoCollapsedMaxWidth: data.panelLogoCollapsedMaxWidth,
+      }));
       success("Boyut ayarları kaydedildi.");
     } catch (err) {
       toastError(err instanceof ApiError ? err.message : "Kayıt başarısız.");

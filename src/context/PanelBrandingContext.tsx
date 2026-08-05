@@ -13,10 +13,10 @@ import { fetchPublicPanelBranding } from "@/api/panelBranding";
 import {
   brandingAssetVersion,
   DEFAULT_PANEL_BRANDING,
-  ensureAccessibleBrandingSettings,
   preloadBrandingAssets,
   readCachedPanelBranding,
   resolveBrandingAssetUrl,
+  stripFallbackUrlsForCache,
   writeCachedPanelBranding,
   type PanelBrandingSettings,
 } from "@/types/panelBranding";
@@ -68,14 +68,13 @@ export function PanelBrandingProvider({ children }: { children: ReactNode }) {
     const hadCache = Boolean(bootCacheRef.current);
     try {
       const data = await fetchPublicPanelBranding();
-      const accessible = await ensureAccessibleBrandingSettings(data);
-      const version = brandingAssetVersion(accessible);
-      await preloadBrandingAssets(accessible, version);
-      bootCacheRef.current = accessible;
-      writeCachedPanelBranding(accessible);
-      setBranding(accessible);
+      const version = brandingAssetVersion(data);
+      await preloadBrandingAssets(data, version);
+      bootCacheRef.current = stripFallbackUrlsForCache(data);
+      writeCachedPanelBranding(data);
+      setBranding(data);
       setAssetVersion(version);
-      applyFavicon(accessible.faviconUrl, version);
+      applyFavicon(data.faviconUrl, version);
     } catch {
       if (!hadCache) {
         setBranding(DEFAULT_PANEL_BRANDING);
@@ -91,18 +90,15 @@ export function PanelBrandingProvider({ children }: { children: ReactNode }) {
   }, [refreshBranding]);
 
   const applyBranding = useCallback((next: PanelBrandingSettings) => {
-    void (async () => {
-      const accessible = await ensureAccessibleBrandingSettings(next);
-      const version = brandingAssetVersion(accessible);
-      bootCacheRef.current = accessible;
-      writeCachedPanelBranding(accessible);
-      setBranding(accessible);
-      setAssetVersion(version);
-      setReady(true);
-      setLoading(false);
-      applyFavicon(accessible.faviconUrl, version);
-      await preloadBrandingAssets(accessible, version);
-    })();
+    const version = brandingAssetVersion(next);
+    bootCacheRef.current = stripFallbackUrlsForCache(next);
+    writeCachedPanelBranding(next);
+    setBranding(next);
+    setAssetVersion(version);
+    setReady(true);
+    setLoading(false);
+    applyFavicon(next.faviconUrl, version);
+    void preloadBrandingAssets(next, version);
   }, []);
 
   const versionKey = assetVersion || brandingAssetVersion(branding);
