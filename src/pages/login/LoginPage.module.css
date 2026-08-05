@@ -484,10 +484,18 @@
   height: 3.25rem;
   width: auto;
   max-width: 13rem;
-  margin: 0 auto 0.85rem;
+  margin: 0;
   object-fit: contain;
   filter: drop-shadow(0 4px 16px rgba(26, 111, 124, 0.4));
   animation: logo-float 4s ease-in-out infinite;
+}
+
+.logoSlot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.5rem;
+  margin: 0 auto 0.85rem;
 }
 
 .logoFallback {
@@ -495,7 +503,6 @@
   place-items: center;
   width: 3.5rem;
   height: 3.5rem;
-  margin: 0 auto 0.85rem;
   border-radius: 1rem;
   background: linear-gradient(135deg, rgba(26, 111, 124, 0.5), rgba(47, 95, 138, 0.5));
   color: #b8ecf4;

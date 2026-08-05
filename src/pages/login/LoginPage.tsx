@@ -33,7 +33,7 @@ function useRotatingWord(words: string[], intervalMs = 2800) {
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { branding, loginLogoSrc } = usePanelBranding();
+  const { branding, loginLogoSrc, ready } = usePanelBranding();
   const pageRef = useRef<HTMLDivElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -220,22 +220,24 @@ export default function LoginPage() {
               <span className={styles.versionBadge}>v3.5</span>
 
               <header className={styles.brand}>
-                {logoVisible ? (
-                  <img
-                    src={loginLogoSrc}
-                    alt=""
-                    className={styles.logo}
-                    style={{
-                      maxHeight: branding.loginLogoMaxHeight,
-                      maxWidth: branding.loginLogoMaxWidth,
-                    }}
-                    onError={() => setLogoVisible(false)}
-                  />
-                ) : (
-                  <div className={styles.logoFallback} aria-hidden>
-                    <Calculator size={28} />
-                  </div>
-                )}
+                <div className={styles.logoSlot} aria-hidden={!ready}>
+                  {ready && logoVisible ? (
+                    <img
+                      src={loginLogoSrc}
+                      alt=""
+                      className={styles.logo}
+                      style={{
+                        maxHeight: branding.loginLogoMaxHeight,
+                        maxWidth: branding.loginLogoMaxWidth,
+                      }}
+                      onError={() => setLogoVisible(false)}
+                    />
+                  ) : ready ? (
+                    <div className={styles.logoFallback}>
+                      <Calculator size={28} />
+                    </div>
+                  ) : null}
+                </div>
                 <h2 className={styles.title}>Hoş geldiniz</h2>
                 <p className={styles.sub}>
                   <Shield size={15} className={styles.subIcon} aria-hidden />

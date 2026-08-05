@@ -3,20 +3,27 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { fetchPublicPanelBranding } from "@/api/panelBranding";
 import {
+  brandingAssetVersion,
   DEFAULT_PANEL_BRANDING,
+  preloadBrandingAssets,
+  readCachedPanelBranding,
   resolveBrandingAssetUrl,
+  writeCachedPanelBranding,
   type PanelBrandingSettings,
 } from "@/types/panelBranding";
 
 type PanelBrandingContextValue = {
   branding: PanelBrandingSettings;
   loading: boolean;
+  ready: boolean;
   refreshBranding: () => Promise<void>;
   applyBranding: (next: PanelBrandingSettings) => void;
   loginLogoSrc: string;
@@ -39,17 +46,40 @@ function applyFavicon(url: string, cacheBust?: string | number) {
 }
 
 export function PanelBrandingProvider({ children }: { children: ReactNode }) {
-  const [branding, setBranding] = useState<PanelBrandingSettings>(DEFAULT_PANEL_BRANDING);
-  const [loading, setLoading] = useState(true);
-  const [assetVersion, setAssetVersion] = useState(0);
+  const bootCacheRef = useRef(readCachedPanelBranding());
+  const [branding, setBranding] = useState<PanelBrandingSettings>(
+    () => bootCacheRef.current ?? DEFAULT_PANEL_BRANDING,
+  );
+  const [loading, setLoading] = useState(() => !bootCacheRef.current);
+  const [ready, setReady] = useState(() => Boolean(bootCacheRef.current));
+  const [assetVersion, setAssetVersion] = useState(() =>
+    bootCacheRef.current ? brandingAssetVersion(bootCacheRef.current) : "",
+  );
+
+  useLayoutEffect(() => {
+    const cached = bootCacheRef.current;
+    if (cached) {
+      applyFavicon(cached.faviconUrl, brandingAssetVersion(cached));
+    }
+  }, []);
 
   const refreshBranding = useCallback(async () => {
+    const hadCache = Boolean(bootCacheRef.current);
     try {
       const data = await fetchPublicPanelBranding();
+      const version = brandingAssetVersion(data);
+      await preloadBrandingAssets(data, version);
+      bootCacheRef.current = data;
+      writeCachedPanelBranding(data);
       setBranding(data);
+      setAssetVersion(version);
+      applyFavicon(data.faviconUrl, version);
     } catch {
-      setBranding(DEFAULT_PANEL_BRANDING);
+      if (!hadCache) {
+        setBranding(DEFAULT_PANEL_BRANDING);
+      }
     } finally {
+      setReady(true);
       setLoading(false);
     }
   }, []);
@@ -58,26 +88,32 @@ export function PanelBrandingProvider({ children }: { children: ReactNode }) {
     void refreshBranding();
   }, [refreshBranding]);
 
-  useEffect(() => {
-    applyFavicon(branding.faviconUrl, assetVersion || branding.faviconUrl);
-  }, [branding.faviconUrl, assetVersion]);
-
   const applyBranding = useCallback((next: PanelBrandingSettings) => {
+    const version = brandingAssetVersion(next);
+    bootCacheRef.current = next;
+    writeCachedPanelBranding(next);
     setBranding(next);
-    setAssetVersion(Date.now());
+    setAssetVersion(version);
+    setReady(true);
+    setLoading(false);
+    applyFavicon(next.faviconUrl, version);
+    void preloadBrandingAssets(next, version);
   }, []);
+
+  const versionKey = assetVersion || brandingAssetVersion(branding);
 
   const value = useMemo(
     (): PanelBrandingContextValue => ({
       branding,
       loading,
+      ready,
       refreshBranding,
       applyBranding,
-      loginLogoSrc: resolveBrandingAssetUrl(branding.loginLogoUrl, assetVersion || branding.loginLogoUrl),
-      panelLogoSrc: resolveBrandingAssetUrl(branding.panelLogoUrl, assetVersion || branding.panelLogoUrl),
-      faviconSrc: resolveBrandingAssetUrl(branding.faviconUrl, assetVersion || branding.faviconUrl),
+      loginLogoSrc: resolveBrandingAssetUrl(branding.loginLogoUrl, versionKey),
+      panelLogoSrc: resolveBrandingAssetUrl(branding.panelLogoUrl, versionKey),
+      faviconSrc: resolveBrandingAssetUrl(branding.faviconUrl, versionKey),
     }),
-    [applyBranding, assetVersion, branding, loading, refreshBranding],
+    [applyBranding, branding, loading, ready, refreshBranding, versionKey],
   );
 
   return <PanelBrandingContext.Provider value={value}>{children}</PanelBrandingContext.Provider>;

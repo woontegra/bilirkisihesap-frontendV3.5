@@ -166,6 +166,11 @@
   object-position: left center;
 }
 
+.brandLogoPending {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .brandRow:hover .brandLogo:not(.brandLogoCollapsed) {
   transform: scale(1.02);
 }

@@ -25,7 +25,7 @@ export function Sidebar({
 }: Props) {
   const narrow = isDesktop && collapsed;
   const tools = useCalculationTools();
-  const { branding, panelLogoSrc, faviconSrc } = usePanelBranding();
+  const { branding, panelLogoSrc, faviconSrc, ready } = usePanelBranding();
   const collapsedLogoSrc = faviconSrc || panelLogoSrc;
   const useFaviconMark = narrow && Boolean(faviconSrc);
   const panelLogoStyle = narrow
@@ -64,16 +64,23 @@ export function Sidebar({
         aria-label="Ana menü"
       >
         <div className={styles.brandRow}>
-          <img
-            src={narrow ? collapsedLogoSrc : panelLogoSrc}
-            alt="Bilirkişi Hesaplama Araçları Hizmetleri"
-            className={clsx(
-              styles.brandLogo,
-              narrow && styles.brandLogoCollapsed,
-              narrow && !useFaviconMark && styles.brandLogoCrop,
-            )}
-            style={panelLogoStyle}
-          />
+          {ready ? (
+            <img
+              src={narrow ? collapsedLogoSrc : panelLogoSrc}
+              alt="Bilirkişi Hesaplama Araçları Hizmetleri"
+              className={clsx(
+                styles.brandLogo,
+                narrow && styles.brandLogoCollapsed,
+                narrow && !useFaviconMark && styles.brandLogoCrop,
+              )}
+              style={panelLogoStyle}
+            />
+          ) : (
+            <div
+              className={clsx(styles.brandLogo, styles.brandLogoPending, narrow && styles.brandLogoCollapsed)}
+              aria-hidden
+            />
+          )}
           {!isDesktop ? (
             <button type="button" className={styles.iconBtn} onClick={onCloseMobile} aria-label="Kapat">
               <X size={18} />

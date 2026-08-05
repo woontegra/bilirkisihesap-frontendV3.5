@@ -92,7 +92,7 @@ function shouldShowWidget(pathname: string): boolean {
 
 export default function ChatWidget() {
   const location = useLocation();
-  const { faviconSrc } = usePanelBranding();
+  const { faviconSrc, ready } = usePanelBranding();
   const [authTick, setAuthTick] = useState(0);
   const showWidget = useMemo(
     () => shouldShowWidget(location.pathname),
@@ -401,7 +401,7 @@ export default function ChatWidget() {
                 <header className={`${styles.header} ${isOnline ? styles.headerOnline : styles.headerOffline}`}>
                   <div className={styles.headerMain}>
                     <div className={styles.brandMark} aria-hidden>
-                      {faviconSrc ? (
+                      {ready && faviconSrc ? (
                         <img src={faviconSrc} alt="" className={styles.brandMarkImg} />
                       ) : (
                         <Headphones className={styles.brandMarkIcon} />
