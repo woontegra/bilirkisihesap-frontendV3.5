@@ -28,7 +28,7 @@
   pointer-events: auto;
 }
 
-/* Launcher orb — mavi robot ikon + dalga animasyonu */
+/* Launcher orb — marka destek ikonu + dalga animasyonu */
 .iconOrb {
   position: relative;
   display: flex;
@@ -42,14 +42,14 @@
   position: absolute;
   inset: -2px;
   border-radius: 999px;
-  border: 2px solid rgba(37, 99, 235, 0.55);
+  border: 2px solid color-mix(in srgb, var(--chat-teal) 55%, transparent);
   animation: orbRipple 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
   pointer-events: none;
   z-index: 0;
 }
 
 .orbRingOnline {
-  border-color: rgba(37, 99, 235, 0.55);
+  border-color: color-mix(in srgb, var(--chat-teal) 55%, transparent);
 }
 
 .orbRingOffline {
@@ -109,7 +109,8 @@
   position: relative;
   padding: 0;
   border: none;
-  border-radius: 999px;
+  border-radius: 0;
+  appearance: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -137,8 +138,8 @@
   flex-shrink: 0;
   display: block;
   object-fit: contain;
-  border-radius: 999px;
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.28);
+  background: transparent;
+  box-shadow: none;
 }
 
 .launcherCard {
@@ -245,8 +246,8 @@
   height: 3rem;
   display: block;
   object-fit: contain;
-  border-radius: 999px;
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
+  background: transparent;
+  box-shadow: none;
 }
 
 @keyframes pulseOnline {
@@ -375,28 +376,23 @@
 }
 
 .brandMark {
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 0.65rem;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  width: 2.5rem;
+  height: 2.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: visible;
+  background: transparent;
+  border: none;
 }
 
 .brandMarkImg {
-  width: 1.45rem;
-  height: 1.45rem;
+  width: 2.5rem;
+  height: 2.5rem;
   object-fit: contain;
-}
-
-.brandMarkIcon {
-  width: 1.2rem;
-  height: 1.2rem;
-  color: #fff;
+  background: transparent;
+  box-shadow: none;
 }
 
 .headerCopy {
@@ -964,7 +960,11 @@
   .brandMark {
     width: 2rem;
     height: 2rem;
-    font-size: 0.65rem;
+  }
+
+  .brandMarkImg {
+    width: 2rem;
+    height: 2rem;
   }
 
   .headerTitle {

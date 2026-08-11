@@ -6,7 +6,6 @@ import { SupportBotIcon } from "./SupportBotIcon";
 import { API_BASE_URL, apiClient, ApiError } from "@/api/client";
 import { getAccessToken } from "@/auth/session";
 import { Button } from "@/components/ui/Button";
-import { usePanelBranding } from "@/context/PanelBrandingContext";
 import styles from "./ChatWidget.module.css";
 
 const POLL_INTERVAL = 5000;
@@ -92,7 +91,6 @@ function shouldShowWidget(pathname: string): boolean {
 
 export default function ChatWidget() {
   const location = useLocation();
-  const { faviconSrc, ready } = usePanelBranding();
   const [authTick, setAuthTick] = useState(0);
   const showWidget = useMemo(
     () => shouldShowWidget(location.pathname),
@@ -429,11 +427,7 @@ export default function ChatWidget() {
                 <header className={`${styles.header} ${isOnline ? styles.headerOnline : styles.headerOffline}`}>
                   <div className={styles.headerMain}>
                     <div className={styles.brandMark} aria-hidden>
-                      {ready && faviconSrc ? (
-                        <img src={faviconSrc} alt="" className={styles.brandMarkImg} />
-                      ) : (
-                        <Headphones className={styles.brandMarkIcon} />
-                      )}
+                      <SupportBotIcon className={styles.brandMarkImg} size={40} alt="" />
                     </div>
                     <div className={styles.headerCopy}>
                       <h3 className={styles.headerTitle}>{headerCopy.title}</h3>

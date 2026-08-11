@@ -4,8 +4,8 @@ type SupportBotIconProps = ImgHTMLAttributes<HTMLImageElement> & {
   size?: number;
 };
 
-/** Canlı destek robot ikonu — mavi daire + kulaklıklı asistan */
-export function SupportBotIcon({ size = 48, className, alt = "", ...props }: SupportBotIconProps) {
+/** Canlı destek marka ikonu */
+export function SupportBotIcon({ size = 48, className, alt = "Destek", ...props }: SupportBotIconProps) {
   return (
     <img
       src="/live-chat-icon.png"
