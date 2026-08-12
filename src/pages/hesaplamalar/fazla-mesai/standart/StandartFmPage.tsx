@@ -44,6 +44,7 @@ import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
 import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
+import { isoToTR } from "./v3-engine/lib/dateUtils";
 import {
   computeBaselineWeeklyFmHours,
   formatMoney,
@@ -539,6 +540,7 @@ export default function StandartFmPage() {
   /* önizleme bölümleri */
   const previewSections = useMemo((): PreviewSection[] => {
     const money = (v: number) => `${formatMoney(v)} ₺`;
+    const dateTR = (iso?: string) => (iso ? isoToTR(iso) : "—");
     const sections: PreviewSection[] = [];
     const visibleRows = result.rows.filter(isCetvelRowVisible);
 
@@ -547,8 +549,8 @@ export default function StandartFmPage() {
       title: "Genel Bilgiler",
       headers: ["İşe Giriş", "İşten Çıkış", "Çalışma Süresi", "Haftalık FM Saat"],
       rows: [[
-        form.iseGiris || "—",
-        form.istenCikis || "—",
+        dateTR(form.iseGiris),
+        dateTR(form.istenCikis),
         `${form.weeklyDays} gün${form.weeklyDays === 7 ? ` (${form.sevenDayMode})` : ""}`,
         `${weeklyFmSummaryHours.toFixed(2).replace(".", ",")} sa`,
       ]],
@@ -558,16 +560,22 @@ export default function StandartFmPage() {
       id: "cetvel",
       title: "Fazla Mesai Hesaplama Cetveli",
       headers: ["Dönem", "Hafta", "Ücret", "Katsayı", "FM Saat", "225", "1,5", "Fazla Mesai"],
-      rows: visibleRows.map((r) => [
-        `${r.startISO} – ${r.endISO}${r.note ? ` ${r.note}` : ""}`,
-        String(r.weeks),
-        money(r.brut),
-        String(r.katsayi),
-        r.fmHours.toFixed(2).replace(".", ","),
-        "225",
-        "1,5",
-        money(r.fm),
-      ]),
+      rows: [
+        ...visibleRows.map((r) => [
+          `${dateTR(r.startISO)} – ${dateTR(r.endISO)}${r.note ? ` ${r.note}` : ""}`,
+          String(r.weeks),
+          money(r.brut),
+          String(r.katsayi),
+          r.fmHours.toFixed(2).replace(".", ","),
+          "225",
+          "1,5",
+          money(r.fm),
+        ]),
+        // Ana cetvel tfoot ile aynı kaynak: result.toplamFm (satırları yeniden toplama).
+        ...(visibleRows.length > 0
+          ? [["", "", "", "", "", "", "Toplam Fazla Mesai:", money(result.toplamFm)]]
+          : []),
+      ],
       lastRowTone: "blue",
     });
 
@@ -594,13 +602,20 @@ export default function StandartFmPage() {
         ["Toplam Fazla Mesai (Brüt)", money(result.toplamFm)],
         ["1/3 Hakkaniyet İndirimi", `-${money(result.hakkaniyetIndirimi)}`],
         ...(result.mahsupTutari > 0 ? ([["Mahsuplaşma Miktarı", `-${money(result.mahsupTutari)}`]] as string[][]) : []),
-        ["Son Net Alacak", money(result.sonNet)],
+        ["Son Brüt Alacak", money(result.sonNet)],
       ],
       lastRowTone: "green",
     });
 
-    return insertExclusionsPreviewSection(sections, form.exclusions);
-  }, [form, result]);
+    return insertExclusionsPreviewSection(
+      sections,
+      form.exclusions.map((e) => ({
+        ...e,
+        start: e.start ? isoToTR(e.start) : e.start,
+        end: e.end ? isoToTR(e.end) : e.end,
+      })),
+    );
+  }, [form, result, weeklyFmSummaryHours]);
 
   return (
     <div className={styles.page} aria-busy={caseLoading || undefined}>
@@ -943,7 +958,7 @@ export default function StandartFmPage() {
               </div>
             </div>
             <div className={`${styles.line} ${styles.netLine}`}>
-              <span>Son Net Alacak</span>
+              <span>Son Brüt Alacak</span>
               <FlashValue value={`${formatMoney(result.sonNet)} ₺`} />
             </div>
             <p className={styles.noteInfo}></p>

@@ -42,6 +42,15 @@ function yearOf(iso: string): number {
   return Number.isFinite(y) ? y : 0;
 }
 
+/** Görsel sıralama için ISO/date → timestamp; dd.MM.yyyy string kullanılmaz. Tarihsiz satırlar sonda. */
+function dateTimestamp(iso: string): number {
+  const raw = String(iso || "").trim();
+  if (!raw) return Number.POSITIVE_INFINITY;
+  const normalized = raw.length === 10 ? `${raw}T00:00:00` : raw;
+  const t = Date.parse(normalized);
+  return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
+}
+
 export default function UbgtDayYearAccordion({
   entries,
   manualDayRows,
@@ -103,11 +112,15 @@ export default function UbgtDayYearAccordion({
     }
     return [...map.entries()]
       .sort((a, b) => a[0] - b[0])
-      .map(([year, days]) => ({
-        year,
-        days, // displayDays sırası korunur (+ altına ekleme)
-        daySum: days.reduce((s, d) => s + (d.days || 0), 0),
-      }));
+      .map(([year, days]) => {
+        // Yıl-içi görsel sıra: gerçek date timestamp (motor dizisini mutate etme).
+        const sortedDays = [...days].sort((a, b) => dateTimestamp(a.date) - dateTimestamp(b.date));
+        return {
+          year,
+          days: sortedDays,
+          daySum: sortedDays.reduce((s, d) => s + (d.days || 0), 0),
+        };
+      });
   }, [displayDays, manualDayRows]);
 
   function groupsFallbackYear(days: DisplayDay[]): number {

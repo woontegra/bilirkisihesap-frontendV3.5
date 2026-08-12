@@ -374,6 +374,20 @@ export default function UbgtCalcPage({ mode, title }: Props) {
     return computeUbgt(deferredUbgtComputeInput);
   }, [deferredUbgtComputeInput]);
 
+  /** Görsel sıra: ISO `date` üzerinden kronolojik (yıl ve yıl-içi). Hesap motoruna dokunulmaz. */
+  const sortedExcludedWeekdayHolidays = useMemo(() => {
+    const list = result?.excludedWeekdayHolidays ?? [];
+    if (list.length <= 1) return list;
+    return [...list].sort((a, b) => {
+      const ta = Date.parse(a.date.length === 10 ? `${a.date}T00:00:00` : a.date);
+      const tb = Date.parse(b.date.length === 10 ? `${b.date}T00:00:00` : b.date);
+      if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+      if (Number.isNaN(ta)) return 1;
+      if (Number.isNaN(tb)) return -1;
+      return ta - tb;
+    });
+  }, [result?.excludedWeekdayHolidays]);
+
   // Engine path already applies periodOverrides (incl. coefficient).
   // Cetvel: V3 benzeri manuel satır / gizlenen otomatik satır birleşimi (motor dışı).
   const enginePeriods = result?.periods ?? [];
@@ -422,6 +436,8 @@ export default function UbgtCalcPage({ mode, title }: Props) {
 
   const hakkaniyet = useMemo(() => calcHakkaniyet(displayBrutForNet), [displayBrutForNet]);
   const settleNum = parseNum(form.settleAmount);
+  /** Mahsup sonucu kartı yalnız gerçek mahsup > 0 iken (standart + bilirkişi). */
+  const showMahsupResultCard = Number.isFinite(settleNum) && settleNum > 0;
   const mahsupSonucu = useMemo(() => {
     if (mode === "bilirkisi") {
       return calcMahsupSonucuBilirkisi(displayBrutForNet, hakkaniyet, settleNum);
@@ -1572,12 +1588,12 @@ export default function UbgtCalcPage({ mode, title }: Props) {
         </section>
 
         <section className={styles.card} style={{ animationDelay: "220ms" }}>
-          {result?.excludedWeekdayHolidays?.length ? (
+          {sortedExcludedWeekdayHolidays.length ? (
             <div style={{ marginBottom: "0.65rem" }}>
               <h2 className={styles.cardTitle}>Hafta tatili nedeniyle dışlanan tatiller</h2>
               <ul className={styles.helper} style={{ margin: 0, paddingLeft: "1.1rem" }}>
-                {result.excludedWeekdayHolidays.map((h, i) => (
-                  <li key={i}>
+                {sortedExcludedWeekdayHolidays.map((h, i) => (
+                  <li key={`${h.date}-${h.name}-${i}`}>
                     {formatDateTRLong(h.date)} — {h.name} ({h.duration} gün)
                   </li>
                 ))}
@@ -1674,29 +1690,35 @@ export default function UbgtCalcPage({ mode, title }: Props) {
                     </Button>
                   </div>
                 </label>
-                <div className={`${styles.line} ${styles.netLine}`}>
-                  <span>{mode === "bilirkisi" ? "Mahsuplaşma sonucu" : "Mahsuplaşma Sonucu"}</span>
-                  <FlashValue value={`${formatMoney(mahsupSonucu)} ₺`} />
-                </div>
-                <p className={styles.helper}>
-                  {mode === "bilirkisi"
-                    ? "Brüt − hakkaniyet − mahsup (min 0)"
-                    : "Net − hakkaniyet (mahsup rapor sonucuna dahil edilmez)"}
-                </p>
+                {showMahsupResultCard ? (
+                  <>
+                    <div className={`${styles.line} ${styles.netLine}`}>
+                      <span>{mode === "bilirkisi" ? "Mahsuplaşma sonucu" : "Mahsuplaşma Sonucu"}</span>
+                      <FlashValue value={`${formatMoney(mahsupSonucu)} ₺`} />
+                    </div>
+                    <p className={styles.helper}>
+                      {mode === "bilirkisi"
+                        ? "Brüt − hakkaniyet − mahsup (min 0)"
+                        : "Net − hakkaniyet (mahsup rapor sonucuna dahil edilmez)"}
+                    </p>
+                  </>
+                ) : null}
               </div>
             </article>
 
-            <div className={styles.finalNetCard} style={{ animationDelay: "300ms" }}>
-              <p className={styles.finalNetLabel}>
-                {mode === "bilirkisi" ? "Mahsuplaşma sonucu" : "Mahsuplaşma Sonucu"}
-              </p>
-              <p className={styles.finalNetValue}>
-                <FlashValue value={`${formatMoney(mahsupSonucu)} ₺`} />
-              </p>
-              <p className={styles.helper}>
-                {mode === "bilirkisi" ? "Toplam UBGT günü" : "Toplam UBGT Günü"}: {displayTotalDays}
-              </p>
-            </div>
+            {showMahsupResultCard ? (
+              <div className={styles.finalNetCard} style={{ animationDelay: "300ms" }}>
+                <p className={styles.finalNetLabel}>
+                  {mode === "bilirkisi" ? "Mahsuplaşma sonucu" : "Mahsuplaşma Sonucu"}
+                </p>
+                <p className={styles.finalNetValue}>
+                  <FlashValue value={`${formatMoney(mahsupSonucu)} ₺`} />
+                </p>
+                <p className={styles.helper}>
+                  {mode === "bilirkisi" ? "Toplam UBGT günü" : "Toplam UBGT Günü"}: {displayTotalDays}
+                </p>
+              </div>
+            ) : null}
           </>
         ) : null}
 
