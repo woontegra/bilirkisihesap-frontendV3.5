@@ -18,6 +18,20 @@ import styles from "./LoginPage.module.css";
 
 const HERO_WORDS = ["Fazla Mesai", "Kıdem Tazminatı", "İhbar Tazminatı", "Yıllık İzin", "UBGT"];
 const FLOAT_ICONS = [Calculator, Scale, TrendingUp, Sparkles] as const;
+const SUCCESS_REDIRECT_MS = 2200;
+
+type SuccessTransition = {
+  userName: string;
+};
+
+function resolveWelcomeName(name?: string | null, email?: string): string {
+  const trimmed = name?.trim();
+  if (trimmed) return trimmed;
+  const mail = email?.trim();
+  if (!mail) return "Kullanıcı";
+  const local = mail.split("@")[0]?.trim();
+  return local || mail;
+}
 
 function useRotatingWord(words: string[], intervalMs = 2800) {
   const [index, setIndex] = useState(0);
@@ -45,6 +59,7 @@ export default function LoginPage() {
   const [logoVisible, setLogoVisible] = useState(true);
   const [loginLogoAttempt, setLoginLogoAttempt] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [successTransition, setSuccessTransition] = useState<SuccessTransition | null>(null);
 
   const rotatingWord = useRotatingWord(HERO_WORDS);
   const emailId = useId();
@@ -95,7 +110,15 @@ export default function LoginPage() {
     return () => window.removeEventListener("mousemove", onMove);
   }, []);
 
-  if (isAuthenticated()) {
+  useEffect(() => {
+    if (!successTransition) return;
+    const timer = window.setTimeout(() => {
+      navigate("/dashboard", { replace: true });
+    }, SUCCESS_REDIRECT_MS);
+    return () => window.clearTimeout(timer);
+  }, [navigate, successTransition]);
+
+  if (isAuthenticated() && !successTransition) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -104,13 +127,15 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await loginWithPassword(email.trim(), password);
+      const payload = await loginWithPassword(email.trim(), password);
       if (rememberMe) {
         localStorage.setItem("remember_email", email.trim());
       } else {
         localStorage.removeItem("remember_email");
       }
-      navigate("/dashboard", { replace: true });
+      setSuccessTransition({
+        userName: resolveWelcomeName(payload.user.name, payload.user.email),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Giriş başarısız");
     } finally {
@@ -353,6 +378,22 @@ export default function LoginPage() {
           </div>
         </main>
       </div>
+
+      {successTransition ? (
+        <div className={styles.successOverlay} role="status" aria-live="polite" aria-busy="true">
+          <div className={styles.successCard}>
+            <div className={styles.successRingWrap} aria-hidden>
+              <svg className={styles.successRing} viewBox="0 0 48 48">
+                <circle className={styles.successRingTrack} cx="24" cy="24" r="20" />
+                <circle className={styles.successRingProgress} cx="24" cy="24" r="20" />
+              </svg>
+            </div>
+            <h2 className={styles.successTitle}>Giriş başarılı</h2>
+            <p className={styles.successStatus}>Hesap paneliniz hazırlanıyor…</p>
+            <p className={styles.successWelcome}>Hoş geldiniz, {successTransition.userName}</p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

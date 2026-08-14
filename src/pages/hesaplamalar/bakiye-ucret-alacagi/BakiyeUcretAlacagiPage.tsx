@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
-import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import {
   applyExtraSetItemsAsExtrasList,
   collectExtrasOnlyItems,
@@ -38,7 +37,7 @@ import {
   bakiyeUcretCaseCrud,
   buildBakiyeSaveResult,
   listBakiyeUcretCasesFromBackend,
-  mapBakiyeFormFromBackend,
+  mapBakiyeRecordToSavedCase,
   resolveSavedCaseDisplayName,
 } from "./backendCase";
 import {
@@ -53,6 +52,7 @@ import {
   isDateOrderInvalid,
   parseNum,
   validateAsgariByResignDate,
+  type BakiyeResult,
   type MonthRow,
 } from "./engine";
 import {
@@ -63,12 +63,48 @@ import {
   round2,
   type SegmentedNetResult,
 } from "./netSegmented";
-import { createEmptyForm, newLocalId, NOTE_TEXT, snapshotKey, type BakiyeForm, type SavedCase } from "./model";
+import {
+  createEmptyForm,
+  newLocalId,
+  NOTE_TEXT,
+  snapshotKey,
+  type BakiyeForm,
+  type BakiyeResults,
+  type SavedCase,
+} from "./model";
 import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
 import styles from "./BakiyeUcretAlacagiPage.module.css";
 
 const PAGE_TITLE = "Bakiye Ücret Alacağı";
 const EXTRA_SETS_MODULE_ID = "bakiye-ucret-alacagi";
+const CALCULATE_LABEL = "Bakiye Hesapla";
+
+function monthlyFromForm(form: BakiyeForm): number {
+  const base = parseNum(form.brut);
+  const extras = form.extras.reduce((acc, item) => acc + parseNum(item.value), 0);
+  return base + extras;
+}
+
+function resultFromSaved(results: BakiyeResults): BakiyeResult | null {
+  if (!results.monthRows.length) return null;
+  return {
+    rows: results.rows,
+    monthRows: results.monthRows,
+    totalAmount: results.totalAmount,
+  };
+}
+
+function tryAutoCalculate(form: BakiyeForm): BakiyeResult | null {
+  const monthlyVal = monthlyFromForm(form);
+  if (!form.startDate || !form.endDate || !form.resignDate || monthlyVal <= 0) return null;
+  const calc = computeBakiyeUcret({
+    startDate: form.startDate,
+    endDate: form.endDate,
+    resignDate: form.resignDate,
+    monthly: monthlyVal,
+  });
+  return calc.error ? null : calc;
+}
 
 function NameModal({
   open,
@@ -247,6 +283,7 @@ export default function BakiyeUcretAlacagiPage() {
   const [extraImportOpen, setExtraImportOpen] = useState(false);
   const [savedExtraSets, setSavedExtraSets] = useState<LocalExtraSet[]>([]);
   const [caseSaving, setCaseSaving] = useState(false);
+  const [calculatedResult, setCalculatedResult] = useState<BakiyeResult | null>(null);
 
   useEffect(() => {
     document.title = `${PAGE_TITLE} | Bilirkişi Hesap`;
@@ -333,24 +370,8 @@ export default function BakiyeUcretAlacagiPage() {
     );
   };
 
-  const monthly = useMemo(() => {
-    const base = parseNum(form.brut);
-    const extras = form.extras.reduce((a, e) => a + parseNum(e.value), 0);
-    return base + extras;
-  }, [form]);
-
-  const result = useDeferredFormMemo(form, (current) => {
-    const base = parseNum(current.brut);
-    const extras = current.extras.reduce((acc, item) => acc + parseNum(item.value), 0);
-    const monthlyVal = base + extras;
-    if (!current.startDate || !current.endDate || !current.resignDate || monthlyVal <= 0) return null;
-    return computeBakiyeUcret({
-      startDate: current.startDate,
-      endDate: current.endDate,
-      resignDate: current.resignDate,
-      monthly: monthlyVal,
-    });
-  });
+  const monthly = useMemo(() => monthlyFromForm(form), [form]);
+  const result = calculatedResult;
 
   useEffect(() => {
     setRowOverrides({});
@@ -388,6 +409,47 @@ export default function BakiyeUcretAlacagiPage() {
   }, [form.startDate, form.endDate]);
   const selectedYear = form.resignDate ? new Date(form.resignDate).getFullYear() : new Date().getFullYear();
   const dirty = snapshotKey(form) !== baseline;
+
+  const handleCalculate = useCallback(() => {
+    if (isDateOrderInvalid(form.startDate, form.endDate)) {
+      showError("Çalışma dönemi sonu, başlangıçtan önce olamaz.");
+      setCalculatedResult(null);
+      return;
+    }
+    if (!form.startDate || !form.endDate || !form.resignDate) {
+      showError("Lütfen tüm tarih alanlarını doldurun");
+      setCalculatedResult(null);
+      return;
+    }
+    if (!form.brut || parseNum(form.brut) <= 0) {
+      showError("Geçerli bir brüt ücret girin");
+      setCalculatedResult(null);
+      return;
+    }
+    if (monthly <= 0) {
+      showError("Toplam aylık ücret 0'dan büyük olmalıdır");
+      setCalculatedResult(null);
+      return;
+    }
+    const calc = computeBakiyeUcret({
+      startDate: form.startDate,
+      endDate: form.endDate,
+      resignDate: form.resignDate,
+      monthly,
+    });
+    if (calc.error) {
+      showError(calc.error);
+      setCalculatedResult(null);
+      return;
+    }
+    setCalculatedResult(calc);
+    setRowOverrides({});
+    setEditingGross({});
+    lastSyncedTotal.current = null;
+    if (calc.totalAmount > 0) {
+      setGrossForNet(formatMoney(calc.totalAmount));
+    }
+  }, [form, monthly, showError]);
 
   const grossVal = parseNum(grossForNet);
   const netPanel = useMemo((): (SegmentedNetResult & { gross?: number }) | null => {
@@ -469,19 +531,23 @@ export default function BakiyeUcretAlacagiPage() {
     void getSavedCase(numericId)
       .then((record) => {
         if (cancelled) return;
-        const mapped = mapBakiyeFormFromBackend(record.data);
-        if (!mapped) {
+        const saved = mapBakiyeRecordToSavedCase(record);
+        if (!saved) {
           showError("Kayıt formu okunamadı");
           return;
         }
-        setForm(mapped);
+        const restored = resultFromSaved(saved.results) ?? tryAutoCalculate(saved.form);
+        setForm(saved.form);
+        setCalculatedResult(restored);
         setActiveId(String(numericId));
-        setActiveName(resolveSavedCaseDisplayName(record));
-        setBaseline(snapshotKey(mapped));
+        setActiveName(saved.name);
+        setBaseline(snapshotKey(saved.form));
         setDateError(null);
         lastSyncedTotal.current = null;
         setRowOverrides({});
         setEditingGross({});
+        setGrossForNet(restored?.totalAmount ? formatMoney(restored.totalAmount) : "");
+        setNetForGross("");
         backendLoadedCaseIdRef.current = caseIdParam;
         success(`Kayıt yüklendi: ${resolveSavedCaseDisplayName(record)}`);
         const next = new URLSearchParams(searchParams);
@@ -511,19 +577,24 @@ export default function BakiyeUcretAlacagiPage() {
     setEklentiMonths({});
     setActiveId(null);
     setActiveName(null);
+    setCalculatedResult(null);
     setBaseline(snapshotKey(empty));
     setDateError(null);
   }, []);
 
   const applyCase = useCallback(
     (c: SavedCase) => {
+      const restored = resultFromSaved(c.results) ?? tryAutoCalculate(c.form);
       setForm({ ...c.form });
+      setCalculatedResult(restored);
       setActiveId(c.id);
       setActiveName(c.name);
       setBaseline(snapshotKey(c.form));
       lastSyncedTotal.current = null;
       setRowOverrides({});
       setEditingGross({});
+      setGrossForNet(restored?.totalAmount ? formatMoney(restored.totalAmount) : "");
+      setNetForGross("");
       setDateError(null);
       setListOpen(false);
       success(`Kayıt açıldı: ${c.name}`);
@@ -960,6 +1031,9 @@ export default function BakiyeUcretAlacagiPage() {
                 Aylık toplam: {formatMoney(monthly)} ₺
               </p>
             </div>
+            <Button type="button" variant="primary" size="md" onClick={handleCalculate} style={{ width: "100%" }}>
+              <Calculator size={16} /> {CALCULATE_LABEL}
+            </Button>
             <p className={styles.note}>{NOTE_TEXT}</p>
           </div>
         </section>
@@ -1014,7 +1088,9 @@ export default function BakiyeUcretAlacagiPage() {
               </div>
             </>
           ) : (
-            <p className={styles.helper}>Tarihleri ve ücreti girin.</p>
+            <p className={styles.helper}>
+              Alanları doldurup <strong>{CALCULATE_LABEL}</strong> ile hesaplayın.
+            </p>
           )}
 
           <div className={styles.fields} style={{ marginTop: "0.85rem" }}>

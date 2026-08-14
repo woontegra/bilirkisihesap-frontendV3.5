@@ -1064,6 +1064,110 @@
   }
 }
 
+/* ── Login success transition ── */
+.successOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background:
+    linear-gradient(90deg, rgba(3, 8, 16, 0.72) 0%, rgba(3, 8, 16, 0.72) 42%, rgba(243, 244, 246, 0.88) 42%, rgba(243, 244, 246, 0.88) 100%);
+  backdrop-filter: blur(6px);
+  animation: success-overlay-in 0.35s ease-out both;
+}
+
+.successCard {
+  width: min(22rem, 100%);
+  padding: 2rem 1.75rem 1.85rem;
+  border-radius: 1.35rem;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+  text-align: center;
+  animation: success-card-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.successRingWrap {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: 0 auto 1.1rem;
+}
+
+.successRing {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.successRingTrack {
+  fill: none;
+  stroke: #e5e7eb;
+  stroke-width: 3;
+}
+
+.successRingProgress {
+  fill: none;
+  stroke: #10b981;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 125.6;
+  stroke-dashoffset: 125.6;
+  animation: success-ring-fill 1.8s ease-out forwards;
+}
+
+.successTitle {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.successStatus {
+  margin: 0.55rem 0 0;
+  font-size: 0.9375rem;
+  color: #6b7280;
+}
+
+.successWelcome {
+  margin: 1.15rem 0 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #2563eb;
+}
+
+@keyframes success-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes success-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes success-ring-fill {
+  to {
+    stroke-dashoffset: 94;
+  }
+}
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .aurora,
@@ -1088,8 +1192,15 @@
   .submitRing,
   .statusDot,
   .versionBadge,
-  .error {
+  .error,
+  .successOverlay,
+  .successCard,
+  .successRingProgress {
     animation: none !important;
+  }
+
+  .successRingProgress {
+    stroke-dashoffset: 94;
   }
 
   .heroInner,
