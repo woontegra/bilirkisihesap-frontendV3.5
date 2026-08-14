@@ -74,4 +74,4 @@ export function snapshotKey(form: BostaForm): string {
 
 /** V3 `NOTE_TEXT` — yalnızca bu metin. */
 export const NOTE_TEXT =
-  "İşverenin haksız feshi nedeniyle işçinin yeni iş bulana kadar geçen sürede uğradığı kazanç kaybını karşılamak için ödenen tazminattır. İş güvencesi kapsamındaki işçiler için geçerlidir ve genellikle 4 aylık brüt ücret tutarında hesaplanır.";
+  "Yargıtay 9 HD. 2022/548E, 2022/1762 Karar sayılı kararında ki hesaplama kriteri bakımından; yol ücreti giydirilmiş brüt ücret hesaplamasına eklenmemiştir.";

@@ -8,7 +8,7 @@
  *   gv=round2(incomeTax(year, brut-sgk-issizlik))
  *   damga=round2(brut*0.00759)
  *   net=round2(brut-sgk-issizlik-gv-damga)
- *   base = brut+prim+ikramiye+yol+yemek+extras
+ *   base = brut+prim+ikramiye+yemek+extras (yol dahil edilmez)
  *   year = form endDate yılı veya mevcut yıl
  */
 
@@ -64,10 +64,9 @@ export function calculateToplamBrut(input: {
   const brutValue = parseNum(input.brut);
   const primValue = parseNum(input.prim);
   const ikramiyeValue = parseNum(input.ikramiye);
-  const yolValue = parseNum(input.yol);
   const yemekValue = parseNum(input.yemek);
   const extrasSum = (input.extras || []).reduce((acc, it) => acc + parseNum(it.value), 0);
-  return brutValue + primValue + ikramiyeValue + yolValue + yemekValue + extrasSum;
+  return brutValue + primValue + ikramiyeValue + yemekValue + extrasSum;
 }
 
 /** Eklenti: 12 aylık toplam / 360 × 30 (inline — başka modülden import yok). */

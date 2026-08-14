@@ -50,13 +50,12 @@ const PAGE_TITLE = "Boşta Geçen Süre Ücreti";
 const PREVIEW_TITLE = "Boşta Geçen Süre Ücreti Rapor";
 const EXTRA_SETS_MODULE_ID = "bosta-gecen-sure-ucreti";
 
-type WageFieldKey = "prim" | "ikramiye" | "yol" | "yemek";
+type WageFieldKey = "prim" | "ikramiye" | "yemek";
 type EklentiTarget = { kind: "field"; field: WageFieldKey } | { kind: "extra"; id: string };
 
 const WAGE_LABELS: Record<WageFieldKey, string> = {
   prim: "Prim",
   ikramiye: "İkramiye",
-  yol: "Yol",
   yemek: "Yemek",
 };
 
@@ -224,8 +223,7 @@ export default function BostaGecenSureUcretiPage() {
     };
   }, [refreshExtraSets, success]);
 
-  const hasExtraSetData =
-    !!(form.prim || form.ikramiye || form.yol || form.yemek) || form.extras.length > 0;
+  const hasExtraSetData = !!(form.prim || form.ikramiye || form.yemek) || form.extras.length > 0;
 
   const openExtraImport = () => {
     refreshExtraSets();
@@ -235,7 +233,7 @@ export default function BostaGecenSureUcretiPage() {
   const persistExtraSet = (name: string) => {
     try {
       const items = collectExtraSetItems(
-        { prim: form.prim, ikramiye: form.ikramiye, yol: form.yol, yemek: form.yemek },
+        { prim: form.prim, ikramiye: form.ikramiye, yol: "", yemek: form.yemek },
         form.extras,
       );
       upsertLocalExtraSet(EXTRA_SETS_MODULE_ID, name, items);
@@ -249,7 +247,7 @@ export default function BostaGecenSureUcretiPage() {
 
   const importExtraSet = (set: LocalExtraSet) => {
     const { wage, extras } = applyExtraSetItems(set.data);
-    setForm((prev) => ({ ...prev, ...wage, extras }));
+    setForm((prev) => ({ ...prev, ...wage, yol: "", extras }));
     setExtraImportOpen(false);
     success("Ekstra hesaplamalar yüklendi");
   };
@@ -643,7 +641,7 @@ export default function BostaGecenSureUcretiPage() {
                 Ekstra Hesaplamalar (Prim, İkramiye, Yemek vb.)
               </p>
             <div className={styles.wageGrid}>
-              {(["prim", "ikramiye", "yol", "yemek"] as const).map((key) => (
+              {(["prim", "ikramiye", "yemek"] as const).map((key) => (
                 <div key={key} className={styles.wageRow}>
                   <label className={styles.label} htmlFor={`bg-${key}`}>
                     {WAGE_LABELS[key]}
