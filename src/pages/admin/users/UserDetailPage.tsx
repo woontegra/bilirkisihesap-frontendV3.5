@@ -324,16 +324,13 @@ export default function UserDetailPage() {
     const reasons: string[] = [];
     const remainingDays = sub.remainingDays ?? null;
     if (isDemoUser && (login.totalLogins ?? 0) === 0) reasons.push("Demo kullanıcısı giriş yapmadı");
-    if ((login.totalLogins ?? 0) > 0 && (usage.totalCalculations ?? 0) === 0) {
-      reasons.push("Giriş yaptı ancak hesaplama yapmadı");
-    }
     if (isDemoUser && remainingDays != null && remainingDays > 0 && remainingDays <= 2) {
       reasons.push(`Demo süresi ${remainingDays} gün içinde bitiyor`);
     }
     if (isDemoUser && remainingDays != null && remainingDays <= 0) reasons.push("Demo süresi dolmuş");
     if (license?.supheli) reasons.push("Şüpheli kullanım işareti var");
     return reasons;
-  }, [data, isDemoUser, license?.supheli, login.totalLogins, sub.remainingDays, usage.totalCalculations]);
+  }, [data, isDemoUser, license?.supheli, login.totalLogins, sub.remainingDays]);
 
   const riskLabel = interventionReasons.length > 0 ? "Müdahale Gerekli" : "Normal";
 

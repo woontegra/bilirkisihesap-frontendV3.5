@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   BarChart2,
@@ -87,9 +88,68 @@ type BakimData = {
   endsAt?: string | null;
 };
 
-type ConfirmAction =
-  | { type: "convert"; userId: number; email: string | null }
-  | { type: "deactivate"; licenseId: string; email: string | null };
+type DemoLicenseStatus = "converted" | "active_demo" | "expired";
+
+type DemoLoginAnalyticsRow = {
+  userId: number | null;
+  name: string;
+  email: string | null;
+  demoStartsAt: string | null;
+  demoExpiresAt: string | null;
+  loginCount: number;
+  lastLoginAt: string | null;
+  savedCalculationCount: number;
+  licenseStatus: DemoLicenseStatus;
+};
+
+type DemoLoginAnalytics = {
+  summary: {
+    totalDemoUsers: number;
+    neverLoggedIn: number;
+    oneLogin: number;
+    twoToThreeLogins: number;
+    fourPlusLogins: number;
+    convertedToProfessional: number;
+  };
+  rows: DemoLoginAnalyticsRow[];
+};
+
+type DemoLoginFilter =
+  | "all"
+  | "never"
+  | "one"
+  | "two_three"
+  | "four_plus"
+  | "expired"
+  | "active_demo"
+  | "converted";
+
+const DEMO_LOGIN_FILTERS: { key: DemoLoginFilter; label: string }[] = [
+  { key: "all", label: "Tümü" },
+  { key: "never", label: "Hiç giriş yapmadı" },
+  { key: "one", label: "1 giriş" },
+  { key: "two_three", label: "2–3 giriş" },
+  { key: "four_plus", label: "4+ giriş" },
+  { key: "expired", label: "Demo süresi doldu" },
+  { key: "active_demo", label: "Aktif demo" },
+  { key: "converted", label: "Profesyonele geçti" },
+];
+
+function loginBucket(count: number): "never" | "one" | "two_three" | "four_plus" {
+  if (count <= 0) return "never";
+  if (count === 1) return "one";
+  if (count <= 3) return "two_three";
+  return "four_plus";
+}
+
+function licenseStatusMeta(status: DemoLicenseStatus): {
+  label: string;
+  tone: "success" | "warning" | "danger" | "info" | "neutral" | "accent";
+} {
+  if (status === "converted") return { label: "Profesyonele geçti", tone: "success" };
+  if (status === "active_demo") return { label: "Aktif demo", tone: "accent" };
+  return { label: "Demo süresi doldu", tone: "danger" };
+}
 
 function getLastActivity(d: DemoLicenseItem): string | null {
   const a = d.lastLoginAt ? new Date(d.lastLoginAt).getTime() : 0;
@@ -101,19 +161,14 @@ function getLastActivity(d: DemoLicenseItem): string | null {
 function getDemoStatus(d: DemoLicenseItem): { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" | "accent" } {
   if ((d.remainingDays ?? 0) < 0) return { label: "Süresi Bitti", tone: "danger" };
   if (!d.lastLoginAt) return { label: "Giriş Yapmadı", tone: "neutral" };
-  if ((d.calculationCount ?? 0) === 0) {
-    if ((d.remainingDays ?? 0) <= 2) return { label: "Pasif Demo", tone: "warning" };
-    return { label: "Giriş Yaptı / Hesaplama Yok", tone: "info" };
-  }
   const last = getLastActivity(d);
   const daysSince = last
     ? Math.floor((Date.now() - new Date(last).getTime()) / (1000 * 60 * 60 * 24))
     : 999;
-  if ((d.calculationCount ?? 0) >= 5 && daysSince <= 2) {
-    return { label: "Sıcak Demo", tone: "success" };
-  }
+  if (daysSince <= 2) return { label: "Aktif Demo", tone: "success" };
   if (daysSince > 7) return { label: "Pasif Demo", tone: "warning" };
-  return { label: "Hesaplama Yaptı", tone: "accent" };
+  if ((d.remainingDays ?? 0) <= 2) return { label: "Demo bitiyor", tone: "warning" };
+  return { label: "Aktif Demo", tone: "accent" };
 }
 
 export default function ControlCenterPage() {
@@ -124,6 +179,8 @@ export default function ControlCenterPage() {
 
   const [genelData, setGenelData] = useState<GenelData | null>(null);
   const [demosList, setDemosList] = useState<DemoLicenseItem[]>([]);
+  const [demoAnalytics, setDemoAnalytics] = useState<DemoLoginAnalytics | null>(null);
+  const [demoLoginFilter, setDemoLoginFilter] = useState<DemoLoginFilter>("all");
   const [kullanimData, setKullanimData] = useState<KullanimData | null>(null);
   const [saglikData, setSaglikData] = useState<SaglikData | null>(null);
   const [bakimData, setBakimData] = useState<BakimData | null>(null);
@@ -163,10 +220,29 @@ export default function ControlCenterPage() {
   }, []);
 
   const loadDemo = useCallback(async () => {
-    const data = await apiClient<DemoLicenseItem[]>("/api/admin/control-center/demos", {
-      adminRole: true,
-    });
-    setDemosList(Array.isArray(data) ? data : []);
+    const errors: string[] = [];
+    try {
+      const data = await apiClient<DemoLicenseItem[]>("/api/admin/control-center/demos", {
+        adminRole: true,
+      });
+      setDemosList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setDemosList([]);
+      errors.push(err instanceof ApiError ? err.message : "Aktif demo listesi yüklenemedi");
+    }
+    try {
+      const analytics = await apiClient<DemoLoginAnalytics>(
+        "/api/admin/control-center/demo-login-analytics",
+        { adminRole: true },
+      );
+      setDemoAnalytics(analytics);
+    } catch (err) {
+      setDemoAnalytics(null);
+      errors.push(err instanceof ApiError ? err.message : "Demo giriş analizi yüklenemedi");
+    }
+    if (errors.length) {
+      throw new ApiError(errors.join(" · "), 500);
+    }
   }, []);
 
   const loadKullanim = useCallback(async () => {
@@ -298,6 +374,15 @@ export default function ControlCenterPage() {
         ? deactivatingLicenseId === confirmAction.licenseId
         : false;
 
+  const filteredDemoAnalyticsRows = useMemo(() => {
+    const rows = demoAnalytics?.rows ?? [];
+    if (demoLoginFilter === "all") return rows;
+    if (demoLoginFilter === "expired" || demoLoginFilter === "active_demo" || demoLoginFilter === "converted") {
+      return rows.filter((row) => row.licenseStatus === demoLoginFilter);
+    }
+    return rows.filter((row) => loginBucket(row.loginCount) === demoLoginFilter);
+  }, [demoAnalytics?.rows, demoLoginFilter]);
+
   const renderDemoActions = (d: DemoLicenseItem) => (
     <div className={styles.demoActions}>
       <Button
@@ -411,9 +496,9 @@ export default function ControlCenterPage() {
                   index={3}
                 />
                 <StatCard
-                  label="Hiç Hesaplama Yapmamış"
+                  label="Kayıtlı hesaplaması olmayan"
                   value={formatNumberTr(genelData?.usersWithoutCalculations ?? 0)}
-                  hint="Aktivasyon fırsatı"
+                  hint="Kaydedilmiş hesaplama kaydı yok"
                   icon={Calculator}
                   tone="amber"
                   index={4}
@@ -434,8 +519,8 @@ export default function ControlCenterPage() {
                 </h2>
                 <ul className={styles.attentionList}>
                   <li className={styles.attentionItem}>
-                    {formatNumberTr(genelData?.usersWithoutCalculations ?? 0)} kullanıcı hiç
-                    hesaplama yapmamış
+                    {formatNumberTr(genelData?.usersWithoutCalculations ?? 0)} kullanıcının
+                    kaydedilmiş hesaplaması yok
                   </li>
                   <li className={styles.attentionItem}>
                     {formatNumberTr(genelData?.activeDemos ?? 0)} aktif demo var
@@ -454,6 +539,181 @@ export default function ControlCenterPage() {
 
           {activeTab === "demo" ? (
             <>
+              <section className={shared.panel} aria-labelledby="demo-login-title">
+                <h2 id="demo-login-title" className={shared.panelTitle}>
+                  Demo giriş analizi
+                </h2>
+                <p className={styles.helperText}>
+                  Geçmiş ve güncel demo kullanıcılarının giriş sayıları mevcut veritabanı
+                  kayıtlarından alınır. Kayıtlı hesaplama yalnızca kaydedilmiş kayıtları gösterir.
+                </p>
+                <section className={styles.statsGrid} aria-label="Demo giriş özeti">
+                  <StatCard
+                    label="Toplam Demo Kullanıcısı"
+                    value={formatNumberTr(demoAnalytics?.summary.totalDemoUsers ?? 0)}
+                    icon={Users}
+                    tone="teal"
+                    index={0}
+                  />
+                  <StatCard
+                    label="Hiç Giriş Yapmayan"
+                    value={formatNumberTr(demoAnalytics?.summary.neverLoggedIn ?? 0)}
+                    icon={LogIn}
+                    tone="amber"
+                    index={1}
+                  />
+                  <StatCard
+                    label="1 Kez Giriş Yapan"
+                    value={formatNumberTr(demoAnalytics?.summary.oneLogin ?? 0)}
+                    icon={LogIn}
+                    tone="blue"
+                    index={2}
+                  />
+                  <StatCard
+                    label="2–3 Kez Giriş Yapan"
+                    value={formatNumberTr(demoAnalytics?.summary.twoToThreeLogins ?? 0)}
+                    icon={LogIn}
+                    tone="blue"
+                    index={3}
+                  />
+                  <StatCard
+                    label="4+ Kez Giriş Yapan"
+                    value={formatNumberTr(demoAnalytics?.summary.fourPlusLogins ?? 0)}
+                    icon={TrendingUp}
+                    tone="green"
+                    index={4}
+                  />
+                  <StatCard
+                    label="Profesyonel Lisansa Geçen"
+                    value={formatNumberTr(demoAnalytics?.summary.convertedToProfessional ?? 0)}
+                    icon={KeyRound}
+                    tone="green"
+                    index={5}
+                  />
+                </section>
+                <div className={styles.filterChips} role="group" aria-label="Demo giriş filtreleri">
+                  {DEMO_LOGIN_FILTERS.map((filter) => (
+                    <button
+                      key={filter.key}
+                      type="button"
+                      className={
+                        demoLoginFilter === filter.key ? styles.filterChipActive : styles.filterChip
+                      }
+                      aria-pressed={demoLoginFilter === filter.key}
+                      onClick={() => setDemoLoginFilter(filter.key)}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+                <AdminTable
+                  rows={filteredDemoAnalyticsRows}
+                  rowKey={(row) => row.userId ?? `demo-a-${row.email ?? "unknown"}`}
+                  empty={<p className={styles.emptyText}>Bu filtreye uyan demo kullanıcısı yok</p>}
+                  columns={[
+                    {
+                      key: "name",
+                      header: "Ad Soyad",
+                      render: (row) =>
+                        row.userId != null ? (
+                          <Link className={styles.rowLink} to={`/admin/users/${row.userId}/detail`}>
+                            {row.name || "—"}
+                          </Link>
+                        ) : (
+                          row.name || "—"
+                        ),
+                    },
+                    {
+                      key: "email",
+                      header: "E-posta",
+                      render: (row) => row.email ?? "—",
+                    },
+                    {
+                      key: "start",
+                      header: "Demo Başlangıç",
+                      hideOnMobile: true,
+                      render: (row) => formatDateTr(row.demoStartsAt),
+                    },
+                    {
+                      key: "end",
+                      header: "Demo Bitiş",
+                      hideBelowMd: true,
+                      render: (row) => formatDateTr(row.demoExpiresAt),
+                    },
+                    {
+                      key: "logins",
+                      header: "Toplam Giriş",
+                      render: (row) => (
+                        <span style={{ fontVariantNumeric: "tabular-nums" }}>{row.loginCount}</span>
+                      ),
+                    },
+                    {
+                      key: "lastLogin",
+                      header: "Son Giriş",
+                      hideOnMobile: true,
+                      render: (row) => formatDateTr(row.lastLoginAt, true),
+                    },
+                    {
+                      key: "saved",
+                      header: "Kayıtlı Hesaplama",
+                      hideOnMobile: true,
+                      render: (row) => (
+                        <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                          {row.savedCalculationCount}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: "status",
+                      header: "Lisans / Demo Durumu",
+                      hideBelowMd: true,
+                      render: (row) => {
+                        const st = licenseStatusMeta(row.licenseStatus);
+                        return <StatusBadge tone={st.tone}>{st.label}</StatusBadge>;
+                      },
+                    },
+                  ]}
+                />
+                <MobileCards>
+                  {filteredDemoAnalyticsRows.map((row, index) => {
+                    const st = licenseStatusMeta(row.licenseStatus);
+                    return (
+                      <MobileRecordCard key={row.userId ?? `demo-a-m-${index}`} index={index}>
+                        <p className={styles.mobileEmail}>
+                          {row.userId != null ? (
+                            <Link className={styles.rowLink} to={`/admin/users/${row.userId}/detail`}>
+                              {row.name || "—"}
+                            </Link>
+                          ) : (
+                            row.name || "—"
+                          )}
+                        </p>
+                        <p className={styles.mobileTenant}>{row.email ?? "—"}</p>
+                        <div className={styles.mobileRow}>
+                          <span className={styles.mobileLabel}>Toplam giriş</span>
+                          <span className={styles.mobileValue}>{row.loginCount}</span>
+                        </div>
+                        <div className={styles.mobileRow}>
+                          <span className={styles.mobileLabel}>Son giriş</span>
+                          <span className={styles.mobileValue}>
+                            {formatDateTr(row.lastLoginAt, true)}
+                          </span>
+                        </div>
+                        <div className={styles.mobileRow}>
+                          <span className={styles.mobileLabel}>Kayıtlı hesaplama</span>
+                          <span className={styles.mobileValue}>{row.savedCalculationCount}</span>
+                        </div>
+                        <div className={styles.mobileRow}>
+                          <span className={styles.mobileLabel}>Durum</span>
+                          <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
+                        </div>
+                      </MobileRecordCard>
+                    );
+                  })}
+                </MobileCards>
+              </section>
+
+              <h2 className={shared.panelTitle}>Aktif demo lisansları</h2>
               <AdminTable
                 rows={demosList}
                 rowKey={(d) => d.licenseId ?? `demo-${d.userId ?? d.email ?? "unknown"}`}
@@ -493,7 +753,7 @@ export default function ControlCenterPage() {
                   },
                   {
                     key: "calc",
-                    header: "Hesaplama",
+                    header: "Kayıtlı hesaplama",
                     hideOnMobile: true,
                     render: (d) => (
                       <span style={{ fontVariantNumeric: "tabular-nums" }}>{d.calculationCount}</span>
@@ -535,7 +795,7 @@ export default function ControlCenterPage() {
                         </span>
                       </div>
                       <div className={styles.mobileRow}>
-                        <span className={styles.mobileLabel}>Hesaplama</span>
+                        <span className={styles.mobileLabel}>Kayıtlı hesaplama</span>
                         <span className={styles.mobileValue}>{d.calculationCount}</span>
                       </div>
                       {renderDemoActions(d)}

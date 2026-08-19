@@ -40,6 +40,49 @@
   color: var(--text);
 }
 
+.helperText {
+  margin: 0 0 0.85rem;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.filterChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.85rem 0 0.75rem;
+}
+
+.filterChip,
+.filterChipActive {
+  min-height: 2rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.filterChipActive {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.rowLink {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.rowLink:hover {
+  text-decoration: underline;
+}
+
 .demoActions {
   display: flex;
   flex-wrap: wrap;
