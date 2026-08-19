@@ -88,6 +88,10 @@ type BakimData = {
   endsAt?: string | null;
 };
 
+type ConfirmAction =
+  | { type: "convert"; userId: number; email: string | null }
+  | { type: "deactivate"; licenseId: string; email: string | null };
+
 type DemoLicenseStatus = "converted" | "active_demo" | "expired";
 
 type DemoLoginAnalyticsRow = {
