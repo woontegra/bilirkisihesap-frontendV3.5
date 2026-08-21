@@ -77,9 +77,5 @@ export function snapshotKey(form: IseAlmamaForm): string {
   ].join("|");
 }
 
-/** V3 `NOTE_TEXT` — yalnızca bu metin. */
-export const NOTE_BLOCKS: Array<{ text: string; emphasis?: "warning" }> = [
-  {
-    text: "İşe başlatmama tazminatının hesaplamasına ilişkin olarak hesaplama; (Yargıtay 9. Hukuk Dairesi 2019/2672 E., 2019/6911 K.) işe başlatmama tazminatı hesabında işçinin kıdemi esas alınmaktadır. Tazminat tutarı tercihleriniz ve hesaplamasını bu kriterlere göre tespit edebilirsiniz.",
-  },
-];
+/** Hukuki not blokları (boş bırakılabilir). */
+export const NOTE_BLOCKS: Array<{ text: string; emphasis?: "warning" }> = [];

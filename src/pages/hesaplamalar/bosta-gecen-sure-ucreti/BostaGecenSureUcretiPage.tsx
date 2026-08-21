@@ -364,6 +364,36 @@ export default function BostaGecenSureUcretiPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  /** Draft alanlardaki güncel değerleri forma yazar; motor aynı `computeBostaGecenSure` ile çalışmaya devam eder. */
+  const handleCalculate = useCallback(() => {
+    const read = (id: string, fallback: string) => {
+      const el = document.getElementById(id);
+      return el instanceof HTMLInputElement ? el.value : fallback;
+    };
+
+    const brut = read("bg-brut", form.brut);
+    const prim = read("bg-prim", form.prim);
+    const ikramiye = read("bg-ikramiye", form.ikramiye);
+    const yemek = read("bg-yemek", form.yemek);
+    const extras = form.extras.map((it) => ({
+      ...it,
+      label: read(`bg-extra-label-${it.id}`, it.label),
+      value: read(`bg-extra-value-${it.id}`, it.value),
+    }));
+
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+
+    setForm((prev) => ({
+      ...prev,
+      brut,
+      prim,
+      ikramiye,
+      yemek,
+      extras,
+    }));
+  }, [form.brut, form.extras, form.ikramiye, form.prim, form.yemek]);
+
   const handleNew = useCallback(() => {
     if (dirty) {
       setConfirmNew(true);
@@ -597,101 +627,130 @@ export default function BostaGecenSureUcretiPage() {
 
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <Calculator size={16} />
-              <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
-            </div>
-            <p className={styles.cardHint}>
-              Aylık giydirilmiş brüt ücret; boşta geçen süre ücreti {BOSTA_CARPAN} aylık brüt üzerinden hesaplanır.
-            </p>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="bg-brut">
-                Çıplak brüt ücret
-              </label>
-              <DraftTextInput
-                id="bg-brut"
-                className={styles.input}
-                inputMode="decimal"
-                placeholder="Örn: 25.000"
-                value={form.brut}
-                onCommit={(value) => patch("brut", value)}
-              />
-            </div>
-
-            <div className={styles.extraSection}>
-              <div className={styles.cardTitleRow}>
-                <h3 className={styles.extraSectionTitle}>Ekstra Hesaplamalar</h3>
-                <div className={styles.inlineActions}>
-                  <Button type="button" variant="soft" size="sm" onClick={openExtraImport}>
-                    <Download size={14} /> İçe Aktar
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="soft"
-                    size="sm"
-                    onClick={() => setExtraSaveOpen(true)}
-                    disabled={!hasExtraSetData}
-                  >
-                    <Save size={14} /> Kaydet
-                  </Button>
-                </div>
+          <form
+            className={styles.calcForm}
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleCalculate();
+            }}
+          >
+            <section className={styles.card}>
+              <div className={styles.cardHead}>
+                <Calculator size={16} />
+                <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
               </div>
               <p className={styles.cardHint}>
-                Ekstra Hesaplamalar (Prim, İkramiye, Yemek vb.)
+                Aylık giydirilmiş brüt ücret; boşta geçen süre ücreti {BOSTA_CARPAN} aylık brüt üzerinden
+                hesaplanır.
               </p>
-            <div className={styles.wageGrid}>
-              {(["prim", "ikramiye", "yemek"] as const).map((key) => (
-                <div key={key} className={styles.wageRow}>
-                  <label className={styles.label} htmlFor={`bg-${key}`}>
-                    {WAGE_LABELS[key]}
-                  </label>
-                  <DraftTextInput
-                    id={`bg-${key}`}
-                    className={styles.input}
-                    inputMode="decimal"
-                    placeholder="0"
-                    value={form[key]}
-                    onCommit={(value) => patch(key, value)}
-                  />
-                  <Button type="button" variant="soft" size="sm" onClick={() => openEklenti({ kind: "field", field: key })}>
-                    <Calculator size={13} /> Eklenti Hesapla
-                  </Button>
-                </div>
-              ))}
-            </div>
-            {form.extras.length > 0 ? (
-              <div className={styles.extrasGrid} style={{ marginTop: "0.6rem" }}>
-                {form.extras.map((it) => (
-                  <div key={it.id} className={styles.extraRow}>
-                    <DraftTextInput
-                      className={styles.input}
-                      placeholder="Kalem adı"
-                      value={it.label}
-                      onCommit={(value) => updateExtra(it.id, { label: value })}
-                    />
-                    <DraftTextInput
-                      className={styles.input}
-                      inputMode="decimal"
-                      placeholder="Tutar"
-                      value={it.value}
-                      onCommit={(value) => updateExtra(it.id, { value })}
-                    />
-                    <Button type="button" variant="soft" size="sm" onClick={() => openEklenti({ kind: "extra", id: it.id })}>
-                      <Calculator size={13} /> Eklenti Hesapla
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="bg-brut">
+                  Çıplak brüt ücret
+                </label>
+                <DraftTextInput
+                  id="bg-brut"
+                  className={styles.input}
+                  inputMode="decimal"
+                  placeholder="Örn: 25.000"
+                  value={form.brut}
+                  onCommit={(value) => patch("brut", value)}
+                />
+              </div>
+
+              <div className={styles.extraSection}>
+                <div className={styles.cardTitleRow}>
+                  <h3 className={styles.extraSectionTitle}>Ekstra Hesaplamalar</h3>
+                  <div className={styles.inlineActions}>
+                    <Button type="button" variant="soft" size="sm" onClick={openExtraImport}>
+                      <Download size={14} /> İçe Aktar
                     </Button>
-                    <Button type="button" variant="ghost" size="icon" aria-label="Kalemi sil" onClick={() => removeExtra(it.id)}>
-                      <Trash2 size={14} />
+                    <Button
+                      type="button"
+                      variant="soft"
+                      size="sm"
+                      onClick={() => setExtraSaveOpen(true)}
+                      disabled={!hasExtraSetData}
+                    >
+                      <Save size={14} /> Kaydet
                     </Button>
                   </div>
-                ))}
+                </div>
+                <p className={styles.cardHint}>Ekstra Hesaplamalar (Prim, İkramiye, Yemek vb.)</p>
+                <div className={styles.wageGrid}>
+                  {(["prim", "ikramiye", "yemek"] as const).map((key) => (
+                    <div key={key} className={styles.wageRow}>
+                      <label className={styles.label} htmlFor={`bg-${key}`}>
+                        {WAGE_LABELS[key]}
+                      </label>
+                      <DraftTextInput
+                        id={`bg-${key}`}
+                        className={styles.input}
+                        inputMode="decimal"
+                        placeholder="0"
+                        value={form[key]}
+                        onCommit={(value) => patch(key, value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="soft"
+                        size="sm"
+                        onClick={() => openEklenti({ kind: "field", field: key })}
+                      >
+                        <Calculator size={13} /> Eklenti Hesapla
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                {form.extras.length > 0 ? (
+                  <div className={styles.extrasGrid} style={{ marginTop: "0.6rem" }}>
+                    {form.extras.map((it) => (
+                      <div key={it.id} className={styles.extraRow}>
+                        <DraftTextInput
+                          id={`bg-extra-label-${it.id}`}
+                          className={styles.input}
+                          placeholder="Kalem adı"
+                          value={it.label}
+                          onCommit={(value) => updateExtra(it.id, { label: value })}
+                        />
+                        <DraftTextInput
+                          id={`bg-extra-value-${it.id}`}
+                          className={styles.input}
+                          inputMode="decimal"
+                          placeholder="Tutar"
+                          value={it.value}
+                          onCommit={(value) => updateExtra(it.id, { value })}
+                        />
+                        <Button
+                          type="button"
+                          variant="soft"
+                          size="sm"
+                          onClick={() => openEklenti({ kind: "extra", id: it.id })}
+                        >
+                          <Calculator size={13} /> Eklenti Hesapla
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Kalemi sil"
+                          onClick={() => removeExtra(it.id)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <Button type="button" variant="ghost" size="sm" onClick={addExtra} style={{ marginTop: "0.6rem" }}>
+                  <Plus size={14} /> Ek Ücret Kalemi
+                </Button>
               </div>
-            ) : null}
-            <Button type="button" variant="ghost" size="sm" onClick={addExtra} style={{ marginTop: "0.6rem" }}>
-              <Plus size={14} /> Ek Ücret Kalemi
-            </Button>
-            </div>
-          </section>
+
+              <Button type="submit" variant="primary" size="md" className={styles.calcSubmit}>
+                <Calculator size={16} /> Hesapla
+              </Button>
+            </section>
+          </form>
 
           <section className={styles.card}>
             <div className={styles.cardHead}>

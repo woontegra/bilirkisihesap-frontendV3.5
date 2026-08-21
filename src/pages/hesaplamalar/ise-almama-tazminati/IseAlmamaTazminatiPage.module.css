@@ -200,6 +200,17 @@
   gap: 0.65rem;
 }
 
+.calcForm {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.calcSubmit {
+  width: 100%;
+  margin-top: 0.85rem;
+}
+
 .fields3 {
   display: grid;
   gap: 0.65rem;

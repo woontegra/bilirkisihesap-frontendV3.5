@@ -201,6 +201,17 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.calcForm {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.calcSubmit {
+  width: 100%;
+  margin-top: 0.85rem;
+}
+
 .extraSectionTitle {
   margin: 0;
   font-size: var(--fs-sm);

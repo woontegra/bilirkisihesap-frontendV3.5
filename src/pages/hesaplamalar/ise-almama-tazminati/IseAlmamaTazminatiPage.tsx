@@ -264,6 +264,32 @@ export default function IseAlmamaTazminatiPage() {
     [showError],
   );
 
+  /** Draft alanlardaki güncel değerleri forma yazar; motor aynı `computeIseAlmama` ile çalışmaya devam eder. */
+  const handleCalculate = useCallback(() => {
+    const read = (id: string, fallback: string) => {
+      const el = document.getElementById(id);
+      return el instanceof HTMLInputElement ? el.value : fallback;
+    };
+
+    const startDate = clampYearInDateInput(read("ia-ise-giris", form.startDate));
+    const endDate = clampYearInDateInput(read("ia-isten-cikis", form.endDate));
+    const brut = read("ia-brut", form.brut);
+    const brutInputForNet = read("ia-brut-net-ops", form.brutInputForNet);
+
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+
+    setForm((prev) => ({
+      ...prev,
+      startDate,
+      endDate,
+      brut,
+      brutInputForNet,
+    }));
+
+    if (startDate && endDate) validateDates(startDate, endDate);
+  }, [form.brut, form.brutInputForNet, form.endDate, form.startDate, validateDates]);
+
   const handleNew = useCallback(() => {
     if (dirty) {
       setConfirmNew(true);
@@ -486,143 +512,157 @@ export default function IseAlmamaTazminatiPage() {
 
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <Calculator size={16} />
-              <h2 className={styles.cardTitle}>Hesaplama bilgileri</h2>
-            </div>
-            <div className={styles.fields3}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="ia-ise-giris">
-                  İşe giriş
-                </label>
-                <DraftDateInput
-                  id="ia-ise-giris"
-                  max="9999-12-31"
-                  className={`${styles.input} ${dateError ? styles.inputError : ""}`}
-                  value={form.startDate}
-                  onCommit={(value) => {
-                    const next = clampYearInDateInput(value);
-                    patch("startDate", next);
-                    if (next && form.endDate) validateDates(next, form.endDate);
-                  }}
-                  onBlur={() => {
-                    if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
-                  }}
-                />
+          <form
+            className={styles.calcForm}
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleCalculate();
+            }}
+          >
+            <section className={styles.card}>
+              <div className={styles.cardHead}>
+                <Calculator size={16} />
+                <h2 className={styles.cardTitle}>Hesaplama bilgileri</h2>
               </div>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="ia-isten-cikis">
-                  İşten çıkış
-                </label>
-                <DraftDateInput
-                  id="ia-isten-cikis"
-                  max="9999-12-31"
-                  className={`${styles.input} ${dateError ? styles.inputError : ""}`}
-                  value={form.endDate}
-                  onCommit={(value) => {
-                    const next = clampYearInDateInput(value);
-                    patch("endDate", next);
-                    if (form.startDate && next) validateDates(form.startDate, next);
-                  }}
-                  onBlur={() => {
-                    if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
-                  }}
-                />
-              </div>
-              <div className={styles.field}>
-                <span className={styles.label}>Çalışma süresi</span>
-                <div className={styles.readonlyBox}>
-                  <FlashValue value={result.workPeriod?.label || "—"} />
+              <div className={styles.fields3}>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="ia-ise-giris">
+                    İşe giriş
+                  </label>
+                  <DraftDateInput
+                    id="ia-ise-giris"
+                    max="9999-12-31"
+                    className={`${styles.input} ${dateError ? styles.inputError : ""}`}
+                    value={form.startDate}
+                    onCommit={(value) => {
+                      const next = clampYearInDateInput(value);
+                      patch("startDate", next);
+                      if (next && form.endDate) validateDates(next, form.endDate);
+                    }}
+                    onBlur={() => {
+                      if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
+                    }}
+                  />
+                </div>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="ia-isten-cikis">
+                    İşten çıkış
+                  </label>
+                  <DraftDateInput
+                    id="ia-isten-cikis"
+                    max="9999-12-31"
+                    className={`${styles.input} ${dateError ? styles.inputError : ""}`}
+                    value={form.endDate}
+                    onCommit={(value) => {
+                      const next = clampYearInDateInput(value);
+                      patch("endDate", next);
+                      if (form.startDate && next) validateDates(form.startDate, next);
+                    }}
+                    onBlur={() => {
+                      if (form.startDate && form.endDate) validateDates(form.startDate, form.endDate);
+                    }}
+                  />
+                </div>
+                <div className={styles.field}>
+                  <span className={styles.label}>Çalışma süresi</span>
+                  <div className={styles.readonlyBox}>
+                    <FlashValue value={result.workPeriod?.label || "—"} />
+                  </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <Calculator size={16} />
-              <h2 className={styles.cardTitle}>Ücret ve katsayı</h2>
-            </div>
-            <div className={styles.fields}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="ia-brut">
-                  Çıplak brüt ücret
-                </label>
-                <DraftTextInput
-                  id="ia-brut"
-                  className={`${styles.input} ${result.asgariUcretHatasi ? styles.inputError : ""}`}
-                  inputMode="decimal"
-                  placeholder="Örn: 25.000"
-                  value={form.brut}
-                  onCommit={(value) => patch("brut", value)}
-                />
-                <p className={styles.helper}>Dava tarihindeki emsal brüt ücret yazılabilir.</p>
-                {result.asgariUcretHatasi ? (
-                  <p className={styles.warn}>{result.asgariUcretHatasi}</p>
-                ) : null}
+            <section className={styles.card}>
+              <div className={styles.cardHead}>
+                <Calculator size={16} />
+                <h2 className={styles.cardTitle}>Ücret ve katsayı</h2>
               </div>
-            </div>
-
-            <div className={styles.coefTable}>
-              <div className={styles.coefTableHead}>Katsayı tablosu (4–8 ay)</div>
-              {result.coefRows.length === 0 ? (
-                <p className={styles.emptyCoef}>
-                  Geçerli brüt girildiğinde katsayı satırları listelenir.
-                </p>
-              ) : (
-                <div className={styles.coefTableBody}>
-                  {result.coefRows.map((row) => (
-                    <div key={row.k} className={styles.coefTableRow}>
-                      <span className={styles.coefTableLabel}>{row.label}</span>
-                      <span className={styles.coefTableVal}>
-                        <FlashValue value={`${formatMoney(row.value)} ₺`} />
-                      </span>
-                    </div>
-                  ))}
+              <div className={styles.fields}>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="ia-brut">
+                    Çıplak brüt ücret
+                  </label>
+                  <DraftTextInput
+                    id="ia-brut"
+                    className={`${styles.input} ${result.asgariUcretHatasi ? styles.inputError : ""}`}
+                    inputMode="decimal"
+                    placeholder="Örn: 25.000"
+                    value={form.brut}
+                    onCommit={(value) => patch("brut", value)}
+                  />
+                  <p className={styles.helper}>Dava tarihindeki emsal brüt ücret yazılabilir.</p>
+                  {result.asgariUcretHatasi ? (
+                    <p className={styles.warn}>{result.asgariUcretHatasi}</p>
+                  ) : null}
                 </div>
-              )}
-            </div>
-
-            <div className={styles.fields} style={{ marginTop: "0.75rem" }}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="ia-brut-net-ops">
-                  Brüt tutar (opsiyonel)
-                </label>
-                <DraftTextInput
-                  id="ia-brut-net-ops"
-                  className={styles.input}
-                  inputMode="decimal"
-                  placeholder={
-                    result.coefRows.length
-                      ? `Varsayılan: ${formatMoney(defaultBrutPlaceholder)}`
-                      : "Varsayılan: 8 aylık"
-                  }
-                  value={form.brutInputForNet}
-                  onCommit={(value) => patch("brutInputForNet", value)}
-                />
-                <p className={styles.helper}>
-                  Boş bırakılırsa tablonun son satırı (8 aylık) kullanılır.
-                </p>
               </div>
-            </div>
-          </section>
 
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
-            </div>
-            <div className={styles.notes}>
-              {NOTE_BLOCKS.map((n, i) => (
-                <p
-                  key={i}
-                  className={`${styles.note} ${n.emphasis === "warning" ? styles.noteWarn : ""}`}
-                >
-                  {n.text}
-                </p>
-              ))}
-            </div>
-          </section>
+              <div className={styles.coefTable}>
+                <div className={styles.coefTableHead}>Katsayı tablosu (4–8 ay)</div>
+                {result.coefRows.length === 0 ? (
+                  <p className={styles.emptyCoef}>
+                    Geçerli brüt girildiğinde katsayı satırları listelenir.
+                  </p>
+                ) : (
+                  <div className={styles.coefTableBody}>
+                    {result.coefRows.map((row) => (
+                      <div key={row.k} className={styles.coefTableRow}>
+                        <span className={styles.coefTableLabel}>{row.label}</span>
+                        <span className={styles.coefTableVal}>
+                          <FlashValue value={`${formatMoney(row.value)} ₺`} />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.fields} style={{ marginTop: "0.75rem" }}>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="ia-brut-net-ops">
+                    Brüt tutar (opsiyonel)
+                  </label>
+                  <DraftTextInput
+                    id="ia-brut-net-ops"
+                    className={styles.input}
+                    inputMode="decimal"
+                    placeholder={
+                      result.coefRows.length
+                        ? `Varsayılan: ${formatMoney(defaultBrutPlaceholder)}`
+                        : "Varsayılan: 8 aylık"
+                    }
+                    value={form.brutInputForNet}
+                    onCommit={(value) => patch("brutInputForNet", value)}
+                  />
+                  <p className={styles.helper}>
+                    Boş bırakılırsa tablonun son satırı (8 aylık) kullanılır.
+                  </p>
+                </div>
+              </div>
+
+              <Button type="submit" variant="primary" size="md" className={styles.calcSubmit}>
+                <Calculator size={16} /> Hesapla
+              </Button>
+            </section>
+          </form>
+
+          {NOTE_BLOCKS.length > 0 ? (
+            <section className={styles.card}>
+              <div className={styles.cardHead}>
+                <h2 className={styles.cardTitle}>Hukuki notlar</h2>
+              </div>
+              <div className={styles.notes}>
+                {NOTE_BLOCKS.map((n, i) => (
+                  <p
+                    key={i}
+                    className={`${styles.note} ${n.emphasis === "warning" ? styles.noteWarn : ""}`}
+                  >
+                    {n.text}
+                  </p>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
 
         <aside className={styles.aside} style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
