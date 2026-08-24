@@ -791,11 +791,63 @@
   animation: status-blink 2s ease-in-out infinite;
 }
 
-/* ── Mobile hero teaser ── */
+/* ── Mobile: freeze layout, drop GPU-heavy motion ── */
 @media (max-width: 959px) {
+  .page {
+    min-height: 100vh;
+    min-height: 100svh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: none;
+  }
+
+  .layout {
+    min-height: 100vh;
+    min-height: 100svh;
+  }
+
   .main {
     align-items: flex-start;
     padding-top: max(1.5rem, env(safe-area-inset-top));
+    padding-bottom: max(2rem, env(safe-area-inset-bottom));
+  }
+
+  .lightBeams,
+  .bokeh,
+  .network,
+  .cardGlow,
+  .submitShine,
+  .submitRing,
+  .inputGlow {
+    display: none;
+  }
+
+  .aurora,
+  .orb,
+  .bgNoise,
+  .cardBorder,
+  .logo,
+  .logoFallback,
+  .subIcon,
+  .versionBadge,
+  .statusDot,
+  .field,
+  .remember,
+  .submit {
+    animation: none !important;
+  }
+
+  .orbA,
+  .orbB,
+  .orbC {
+    transform: none !important;
+    will-change: auto;
+  }
+
+  .cardShell {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 
   .cardShell::before {
@@ -808,7 +860,41 @@
     letter-spacing: 0.2em;
     text-transform: uppercase;
     color: rgba(140, 200, 215, 0.55);
-    animation: badge-glow 3s ease-in-out infinite;
+  }
+
+  .card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(8, 18, 32, 0.94);
+  }
+
+  .input {
+    font-size: 16px;
+    transform: none;
+    transition:
+      border-color 0.2s ease,
+      background 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .input:focus {
+    transform: none;
+  }
+
+  .submit,
+  .submit:hover:not(:disabled),
+  .submit:active:not(:disabled),
+  .togglePassword,
+  .togglePassword:hover {
+    transform: none;
+  }
+
+  .togglePassword {
+    transform: translateY(-50%);
+  }
+
+  .togglePassword:hover {
+    transform: translateY(-50%);
   }
 }
 

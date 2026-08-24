@@ -37,10 +37,24 @@ function useRotatingWord(words: string[], intervalMs = 2800) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      setIndex((prev) => (prev + 1) % words.length);
-    }, intervalMs);
-    return () => window.clearInterval(id);
+    const desktop = window.matchMedia("(min-width: 960px)");
+    let id: number | undefined;
+
+    const sync = () => {
+      if (id !== undefined) window.clearInterval(id);
+      id = undefined;
+      if (!desktop.matches) return;
+      id = window.setInterval(() => {
+        setIndex((prev) => (prev + 1) % words.length);
+      }, intervalMs);
+    };
+
+    sync();
+    desktop.addEventListener("change", sync);
+    return () => {
+      if (id !== undefined) window.clearInterval(id);
+      desktop.removeEventListener("change", sync);
+    };
   }, [words.length, intervalMs]);
 
   return words[index];
@@ -98,6 +112,7 @@ export default function LoginPage() {
   useEffect(() => {
     const page = pageRef.current;
     if (!page) return;
+    if (window.matchMedia("(pointer: coarse)").matches) return undefined;
 
     const onMove = (event: MouseEvent) => {
       const x = event.clientX / window.innerWidth - 0.5;
