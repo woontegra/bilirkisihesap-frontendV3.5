@@ -698,6 +698,7 @@ export default function Gemi724FmPage() {
           exclusions={form.exclusions}
           onChange={(next: ExclusionItem[]) => setField("exclusions", next)}
           onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
         />
 
         <p className={styles.noteInfo}>
@@ -976,6 +977,7 @@ export default function Gemi724FmPage() {
         exclusions={form.exclusions}
         onApply={(next) => setField("exclusions", next)}
         onClose={() => setShowUbgtPicker(false)}
+        visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
       />
 
       <CalculationPreviewModal

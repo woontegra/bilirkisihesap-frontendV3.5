@@ -9,6 +9,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { groupUbgtCatalogByYear, getUbgtCatalogForRange, UBGT_RELIGIOUS_DATA_MAX_YEAR } from "./ubgtCatalog";
 import { newLocalId, type ExclusionItem } from "./model";
+import { UbgtYearTabs } from "../shared/UbgtYearTabs";
+import { addDatesToSet, removeDatesFromSet, useUbgtYearView } from "../shared/useUbgtYearView";
 import styles from "./GemiGunlukFmPage.module.css";
 
 function formatTrDate(iso: string): string {
@@ -24,6 +26,7 @@ export function UbgtPickerModal({
   exclusions,
   onApply,
   onClose,
+  visibleAfterIso = null,
 }: {
   open: boolean;
   rangeStart: string;
@@ -31,6 +34,7 @@ export function UbgtPickerModal({
   exclusions: ExclusionItem[];
   onApply: (next: ExclusionItem[]) => void;
   onClose: () => void;
+  visibleAfterIso?: string | null;
 }) {
   const catalog = useMemo(() => getUbgtCatalogForRange(rangeStart, rangeEnd), [rangeStart, rangeEnd]);
   const groups = useMemo(() => groupUbgtCatalogByYear(catalog), [catalog]);
@@ -45,6 +49,7 @@ export function UbgtPickerModal({
   }, [exclusions]);
 
   const [selected, setSelected] = useState<Set<string>>(initialSelected);
+  const yearView = useUbgtYearView(groups, visibleAfterIso, open, selected);
 
   useEffect(() => {
     if (open) setSelected(initialSelected);
@@ -62,8 +67,8 @@ export function UbgtPickerModal({
     });
   };
 
-  const selectAll = () => setSelected(new Set(catalog.map((c) => c.date)));
-  const clearAll = () => setSelected(new Set());
+  const selectAll = () => setSelected((prev) => addDatesToSet(prev, yearView.activeDates));
+  const clearAll = () => setSelected((prev) => removeDatesFromSet(prev, yearView.activeDates));
 
   const apply = () => {
     const meta = new Map(catalog.map((c) => [c.date, c]));
@@ -100,7 +105,7 @@ export function UbgtPickerModal({
             UBGT gün seçimi için hesap döneminin başlangıç ve bitiş tarihlerini girin (sayfada tanımlanan aralık
             kullanılır).
           </p>
-        ) : groups.length === 0 ? (
+        ) : yearView.visibleGroups.length === 0 ? (
           <p className={styles.emptyText}>Bu dönem için listelenecek UBGT günü bulunamadı.</p>
         ) : (
           <>
@@ -112,8 +117,14 @@ export function UbgtPickerModal({
                 Seçimi temizle
               </Button>
             </div>
+            <UbgtYearTabs
+              years={yearView.years}
+              activeYear={yearView.activeYear}
+              selectedCounts={yearView.selectedCounts}
+              onChange={yearView.setActiveYear}
+            />
             <div className={styles.ubgtYearScroll}>
-              {groups.map((group) => (
+              {yearView.activeGroup ? ([yearView.activeGroup] as typeof yearView.visibleGroups).map((group) => (
                 <div key={group.year} className={styles.ubgtYearGroup}>
                   <div className={styles.ubgtYearLabel}>
                     {group.year}
@@ -140,7 +151,7 @@ export function UbgtPickerModal({
                     ))}
                   </ul>
                 </div>
-              ))}
+              )) : null}
             </div>
           </>
         )}

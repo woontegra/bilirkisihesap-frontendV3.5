@@ -7,6 +7,7 @@ import { CalendarDays, Download, Plus, Save, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { daysBetweenIsoInclusive, isValidIsoDate } from "./engine";
 import { EXCLUSION_TYPES, newLocalId, type ExclusionItem } from "./model";
+import { exclusionRangeVisible } from "../shared/exclusionDisplayFilter";
 import {
   deleteExclusionSet,
   getAllExclusionSets,
@@ -25,11 +26,14 @@ export function ExclusionsPanel({
   exclusions,
   onChange,
   onOpenUbgtPicker,
+  visibleAfterIso = null,
 }: {
   exclusions: ExclusionItem[];
   onChange: (next: ExclusionItem[]) => void;
   onOpenUbgtPicker: () => void;
+  visibleAfterIso?: string | null;
 }) {
+  const visibleRows = exclusions.filter((row) => exclusionRangeVisible(row.start, row.end, visibleAfterIso));
   const [isOpen, setIsOpen] = useState(true);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -98,7 +102,7 @@ export function ExclusionsPanel({
         {exclusions.length === 0 ? (
           <p className={styles.emptyText} />
         ) : (
-          exclusions.map((item) => (
+          visibleRows.map((item) => (
             <div key={item.id} className={styles.exclusionRow}>
               <select
                 className={styles.extraName}

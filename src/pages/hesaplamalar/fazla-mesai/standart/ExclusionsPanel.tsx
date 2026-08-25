@@ -8,6 +8,7 @@ import { CalendarDays, Download, Plus, Save, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { daysBetweenIsoInclusive, isValidIsoDate } from "./engine";
 import { EXCLUSION_TYPES, newLocalId, type ExclusionItem } from "./model";
+import { exclusionRangeVisible } from "../shared/exclusionDisplayFilter";
 import { deleteExclusionSet, getAllExclusionSets, saveExclusionSet, type SavedExclusionSet } from "./exclusionSets";
 import accordionStyles from "../shared/ExclusionsAccordion.module.css";
 import styles from "./StandartFmPage.module.css";
@@ -34,11 +35,14 @@ export function ExclusionsPanel({
   exclusions,
   onChange,
   onOpenUbgtPicker,
+  visibleAfterIso = null,
 }: {
   exclusions: ExclusionItem[];
   onChange: (next: ExclusionItem[]) => void;
   onOpenUbgtPicker: () => void;
+  visibleAfterIso?: string | null;
 }) {
+  const visibleRows = exclusions.filter((row) => exclusionRangeVisible(row.start, row.end, visibleAfterIso));
   const [isOpen, setIsOpen] = useState(true);
   const [draftStart, setDraftStart] = useState("");
   const [draftEnd, setDraftEnd] = useState("");
@@ -214,7 +218,7 @@ export function ExclusionsPanel({
                 <span>Gün</span>
                 <span />
               </div>
-              {exclusions.map((item) => (
+              {visibleRows.map((item) => (
                 <div key={item.id} className={styles.exclusionRow}>
                   <select
                     className={styles.extraName}

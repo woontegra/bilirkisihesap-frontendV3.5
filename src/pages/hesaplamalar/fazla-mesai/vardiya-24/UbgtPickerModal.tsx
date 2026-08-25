@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { groupUbgtCatalogByYear, getUbgtCatalogForRange, UBGT_RELIGIOUS_DATA_MAX_YEAR } from "./ubgtCatalog";
 import { newLocalId, type ExclusionItem } from "./model";
+import { UbgtYearTabs } from "../shared/UbgtYearTabs";
+import { addDatesToSet, removeDatesFromSet, useUbgtYearView } from "../shared/useUbgtYearView";
 import styles from "./Vardiya24FmPage.module.css";
 
 function formatTrDate(iso: string): string {
@@ -21,6 +23,7 @@ export function UbgtPickerModal({
   exclusions,
   onApply,
   onClose,
+  visibleAfterIso = null,
 }: {
   open: boolean;
   rangeStart: string;
@@ -28,6 +31,7 @@ export function UbgtPickerModal({
   exclusions: ExclusionItem[];
   onApply: (next: ExclusionItem[]) => void;
   onClose: () => void;
+  visibleAfterIso?: string | null;
 }) {
   const catalog = useMemo(() => getUbgtCatalogForRange(rangeStart, rangeEnd), [rangeStart, rangeEnd]);
   const groups = useMemo(() => groupUbgtCatalogByYear(catalog), [catalog]);
@@ -42,6 +46,7 @@ export function UbgtPickerModal({
   }, [exclusions]);
 
   const [selected, setSelected] = useState<Set<string>>(initialSelected);
+  const yearView = useUbgtYearView(groups, visibleAfterIso, open, selected);
 
   useEffect(() => {
     if (open) setSelected(initialSelected);
@@ -59,8 +64,8 @@ export function UbgtPickerModal({
     });
   };
 
-  const selectAll = () => setSelected(new Set(catalog.map((c) => c.date)));
-  const clearAll = () => setSelected(new Set());
+  const selectAll = () => setSelected((prev) => addDatesToSet(prev, yearView.activeDates));
+  const clearAll = () => setSelected((prev) => removeDatesFromSet(prev, yearView.activeDates));
 
   const apply = () => {
     const meta = new Map(catalog.map((c) => [c.date, c]));
@@ -102,37 +107,45 @@ export function UbgtPickerModal({
             Seçimi temizle
           </Button>
         </div>
-        {groups.length === 0 ? (
+        {yearView.visibleGroups.length === 0 ? (
           <p className={styles.emptyText}>Bu aralıkta UBGT günü yok.</p>
         ) : (
-          groups.map((g) => (
-            <div key={g.year} style={{ marginBottom: "0.85rem" }}>
-              <strong style={{ fontSize: "0.85rem" }}>{g.year}</strong>
-              <ul className={styles.setList}>
-                {g.entries.map((item) => (
-                  <li key={item.date} className={styles.setRow}>
-                    <label style={{ display: "flex", gap: "0.5rem", alignItems: "center", flex: 1 }}>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(item.date)}
-                        onChange={() => toggle(item.date)}
-                      />
-                      <span>
-                        {formatTrDate(item.date)} — {item.label}
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
+          <>
+            <UbgtYearTabs
+              years={yearView.years}
+              activeYear={yearView.activeYear}
+              selectedCounts={yearView.selectedCounts}
+              onChange={yearView.setActiveYear}
+            />
+            {yearView.activeGroup ? (
+              <div key={yearView.activeGroup.year} style={{ marginBottom: "0.85rem" }}>
+                <strong style={{ fontSize: "0.85rem" }}>{yearView.activeGroup.year}</strong>
+                <ul className={styles.setList}>
+                  {yearView.activeGroup.entries.map((item) => (
+                    <li key={item.date} className={styles.setRow}>
+                      <label style={{ display: "flex", gap: "0.5rem", alignItems: "center", flex: 1 }}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(item.date)}
+                          onChange={() => toggle(item.date)}
+                        />
+                        <span>
+                          {formatTrDate(item.date)} — {item.label}
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
         )}
         <div className={styles.modalActions}>
           <Button variant="soft" onClick={onClose}>
             İptal
           </Button>
           <Button variant="primary" onClick={apply}>
-            Uygula
+            Uygula ({selected.size} gün)
           </Button>
         </div>
       </div>

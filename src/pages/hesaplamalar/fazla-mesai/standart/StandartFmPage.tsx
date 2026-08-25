@@ -803,6 +803,7 @@ export default function StandartFmPage() {
           exclusions={form.exclusions}
           onChange={setExclusions}
           onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
         />
 
         <section className={styles.card} style={{ animationDelay: "150ms" }}>
@@ -1069,6 +1070,7 @@ export default function StandartFmPage() {
         exclusions={form.exclusions}
         onApply={setExclusions}
         onClose={() => setShowUbgtPicker(false)}
+        visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
       />
 
       <ZamanasimiPickerModal

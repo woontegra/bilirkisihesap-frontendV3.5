@@ -879,6 +879,7 @@ export default function TanikliStandartFmPage() {
             exclusions={form.exclusions}
             onChange={(next) => setField("exclusions", next)}
             onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+            visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
           />
 
           <section className={styles.card} style={{ animationDelay: "160ms" }}>
@@ -1180,6 +1181,7 @@ export default function TanikliStandartFmPage() {
         exclusions={form.exclusions}
         onApply={(next) => setField("exclusions", next)}
         onClose={() => setShowUbgtPicker(false)}
+        visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
       />
 
       <ZamanasimiPickerModal

@@ -833,6 +833,7 @@ export default function YeraltiFmPage() {
           exclusions={form.exclusions}
           onChange={setExclusions}
           onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
         />
 
         <p className={styles.redNote}>
@@ -1080,6 +1081,7 @@ export default function YeraltiFmPage() {
         exclusions={form.exclusions}
         onApply={setExclusions}
         onClose={() => setShowUbgtPicker(false)}
+        visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
       />
 
       <ZamanasimiPickerModal

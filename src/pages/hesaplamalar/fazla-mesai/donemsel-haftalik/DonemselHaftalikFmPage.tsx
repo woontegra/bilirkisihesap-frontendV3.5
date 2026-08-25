@@ -1173,6 +1173,7 @@ export default function DonemselHaftalikFmPage() {
           exclusions={form.exclusions}
           onChange={(next) => setField("exclusions", next)}
           onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
         />
         <p className={styles.noteInfo}>
           Son haftaya isabet eden izin/UBGT düşümlerinde, tabloda görülen tarih aralığı 7 günden kısa olsa dahi
@@ -1456,6 +1457,7 @@ export default function DonemselHaftalikFmPage() {
           setShowUbgtPicker(false);
         }}
         onClose={() => setShowUbgtPicker(false)}
+        visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
       />
 
       <CalculationPreviewModal
