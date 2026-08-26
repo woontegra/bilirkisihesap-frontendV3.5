@@ -4,6 +4,7 @@
 
 import { formatMoney } from "./engine";
 import type { PeriodRow, RowOverride } from "./model";
+import { CetvelBrutInput } from "../shared/CetvelBrutInput";
 import styles from "./GemiGunlukFmPage.module.css";
 
 export function CetvelTable({
@@ -100,16 +101,10 @@ export function CetvelTable({
                       />
                     </td>
                     <td>
-                      <input
-                        type="number"
+                      <CetvelBrutInput
                         className={styles.cellInput}
-                        min={0}
-                        step={0.01}
                         value={r.brut}
-                        onChange={(e) =>
-                          onOverrideChange(r.id, { ...ov, brut: Number(e.target.value) || 0 })
-                        }
-                        aria-label="Ücret"
+                        onCommitBrut={(brut) => onOverrideChange(r.id, { ...ov, brut })}
                       />
                     </td>
                     <td>

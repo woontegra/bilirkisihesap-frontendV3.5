@@ -6,6 +6,7 @@
 import { formatMoney } from "./engine";
 import type { PeriodRow, RowOverride } from "./model";
 import { isCetvelRowVisible } from "../cetvelDisplay";
+import { CetvelBrutInput } from "../shared/CetvelBrutInput";
 import styles from "./TanikliStandartFmPage.module.css";
 
 export function CetvelTable({
@@ -99,16 +100,10 @@ export function CetvelTable({
                       />
                     </td>
                     <td>
-                      <input
-                        type="number"
+                      <CetvelBrutInput
                         className={styles.cellInput}
-                        min={0}
-                        step={0.01}
                         value={r.brut}
-                        onChange={(e) =>
-                          onOverrideChange(r.id, { ...ov, brut: Number(e.target.value) || 0 })
-                        }
-                        aria-label="Ücret"
+                        onCommitBrut={(brut) => onOverrideChange(r.id, { ...ov, brut })}
                       />
                     </td>
                     <td>{r.katsayi}</td>
