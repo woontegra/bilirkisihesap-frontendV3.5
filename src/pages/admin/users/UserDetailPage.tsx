@@ -45,7 +45,26 @@ type UserDeletePreview = {
   canWipeTenant: boolean;
   blockReasons: string[];
   ambiguousShared: Array<{ table: string; count: number; reason: string }>;
-  counts: Record<string, number | Record<string, number>>;
+  counts: {
+    professionalLicenses?: number;
+    renewalSessions?: number;
+    subscriptionGrants?: number;
+    subscriptionPendingByEmail?: number;
+    passwordResets?: number;
+    savedCases?: number;
+    reports?: number;
+    tickets?: number;
+    loginLogs?: number;
+    aiSessions?: number;
+    aiPayments?: number;
+    barCampaignAttributions?: number;
+    chatConversations?: number;
+    billingProfiles?: number;
+    credits?: number;
+    tenantCalcTotal?: number;
+    tenantCalcCounts?: Record<string, number>;
+    [key: string]: number | Record<string, number> | undefined;
+  };
   warning: string;
 };
 
@@ -1093,25 +1112,27 @@ export default function UserDetailPage() {
                 ) : null}
 
                 <div className={styles.deleteCountGrid}>
-                  {[
-                    ["Lisans", deletePreview.counts.professionalLicenses],
-                    ["Yenileme oturumu", deletePreview.counts.renewalSessions],
-                    ["Abonelik grant", deletePreview.counts.subscriptionGrants],
-                    ["Demo/pending ödeme", deletePreview.counts.subscriptionPendingByEmail],
-                    ["Password reset", deletePreview.counts.passwordResets],
-                    ["Kayıtlı hesaplama", deletePreview.counts.savedCases],
-                    ["Rapor", deletePreview.counts.reports],
-                    ["Destek talebi", deletePreview.counts.tickets],
-                    ["Cihaz/giriş kaydı", deletePreview.counts.loginLogs],
-                    ["AI oturum", deletePreview.counts.aiSessions],
-                    ["AI ödeme (detach)", deletePreview.counts.aiPayments],
-                    ["Baro attribution", deletePreview.counts.barCampaignAttributions],
-                    ["Chat", deletePreview.counts.chatConversations],
-                    ["Billing profil", deletePreview.counts.billingProfiles],
-                    ["Credit (tenant)", deletePreview.counts.credits],
-                    ["Tenant hesaplama", deletePreview.counts.tenantCalcTotal],
-                  ].map(([label, value]) => (
-                    <div key={String(label)} className={styles.deleteCountItem}>
+                  {(
+                    [
+                      ["Lisans", deletePreview.counts.professionalLicenses],
+                      ["Yenileme oturumu", deletePreview.counts.renewalSessions],
+                      ["Abonelik grant", deletePreview.counts.subscriptionGrants],
+                      ["Demo/pending ödeme", deletePreview.counts.subscriptionPendingByEmail],
+                      ["Password reset", deletePreview.counts.passwordResets],
+                      ["Kayıtlı hesaplama", deletePreview.counts.savedCases],
+                      ["Rapor", deletePreview.counts.reports],
+                      ["Destek talebi", deletePreview.counts.tickets],
+                      ["Cihaz/giriş kaydı", deletePreview.counts.loginLogs],
+                      ["AI oturum", deletePreview.counts.aiSessions],
+                      ["AI ödeme (detach)", deletePreview.counts.aiPayments],
+                      ["Baro attribution", deletePreview.counts.barCampaignAttributions],
+                      ["Chat", deletePreview.counts.chatConversations],
+                      ["Billing profil", deletePreview.counts.billingProfiles],
+                      ["Credit (tenant)", deletePreview.counts.credits],
+                      ["Tenant hesaplama", deletePreview.counts.tenantCalcTotal],
+                    ] as Array<[string, number | undefined]>
+                  ).map(([label, value]) => (
+                    <div key={label} className={styles.deleteCountItem}>
                       <span>{label}</span>
                       <strong>{typeof value === "number" ? value : 0}</strong>
                     </div>
