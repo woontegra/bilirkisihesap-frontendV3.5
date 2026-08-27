@@ -4,6 +4,7 @@ import { IZIN_KOD_LABELS } from "../model";
 import type { ControlStatus, IzinKodKey, StandardRow } from "../model";
 import { ensureDurumKodlari } from "../codes";
 import { isOffConflictRow } from "../transform";
+import { formatIsoDateTR } from "@/utils/dateDisplay";
 import PuantajPortalModal from "./PuantajPortalModal";
 import styles from "../PuantajFmPage.module.css";
 
@@ -195,8 +196,12 @@ export default function ReviewStep(props: Props) {
                   style={{ animationDelay: `${Math.min(index, 20) * 25}ms` }}
                 >
                   <td>
-                    <input className={styles.cellInput} value={r.tarih}
-                      onChange={(e) => props.onEditCell(r.id, "tarih", e.target.value)} />
+                    <input
+                      type="date"
+                      className={styles.cellInput}
+                      value={/^\d{4}-\d{2}-\d{2}$/.test(r.tarih) ? r.tarih : ""}
+                      onChange={(e) => props.onEditCell(r.id, "tarih", e.target.value)}
+                    />
                   </td>
                   <td>
                     <input className={styles.cellInput} value={r.kartGiris}
@@ -313,7 +318,7 @@ export default function ReviewStep(props: Props) {
         <ul className={styles.modalList}>
           {offConflictRows.slice(0, 8).map((r) => (
             <li key={r.id}>
-              {r.personelAdSoyad || "—"} · {r.tarih || "—"} · {r.izinTatilRaw || "OFF"}
+              {r.personelAdSoyad || "—"} · {formatIsoDateTR(r.tarih)} · {r.izinTatilRaw || "OFF"}
             </li>
           ))}
           {offConflictRows.length > 8 && (

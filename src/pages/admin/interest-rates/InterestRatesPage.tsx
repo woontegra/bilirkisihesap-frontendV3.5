@@ -15,6 +15,7 @@ import { StatCard } from "@/components/admin/StatCard";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/context/ToastContext";
 import { formatNumberTr } from "@/utils/adminLabels";
+import { formatIsoDateRangeTR } from "@/utils/dateDisplay";
 import shared from "../adminShared.module.css";
 import styles from "./InterestRatesPage.module.css";
 
@@ -191,7 +192,7 @@ export default function InterestRatesPage() {
             <div>
               <dt>Sorgu aralığı</dt>
               <dd>
-                {startDate} — {endDate}
+                {formatIsoDateRangeTR(startDate, endDate, " — ")}
               </dd>
             </div>
           </dl>

@@ -68,6 +68,7 @@ import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
 import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
+import { formatIsoDateRangeTR, formatIsoDateTR } from "@/utils/dateDisplay";
 import styles from "./DonemselHaftalikFmPage.module.css";
 
 const PAGE_TITLE = "Dönemsel Haftalık Fazla Mesai Hesaplama";
@@ -898,14 +899,14 @@ export default function DonemselHaftalikFmPage() {
         id: "ust",
         title: "Genel Bilgiler",
         headers: ["İşe Giriş", "İşten Çıkış"],
-        rows: [[form.dateIn || "-", form.dateOut || "-"]],
+        rows: [[formatIsoDateTR(form.dateIn, "-"), formatIsoDateTR(form.dateOut, "-")]],
       },
       {
         id: "cetvel",
         title: "Fazla Mesai Hesaplama Cetveli",
         headers: ["Tarih Aralığı", "Hafta", "Ücret", "Kat Sayı", "FM Saat", "225", "1,5", "Fazla Mesai"],
         rows: result.rows.map((r) => [
-          `${r.startISO} – ${r.endISO}${r.yillikIzinAciklama ? ` ${r.yillikIzinAciklama}` : ""}`,
+          `${formatIsoDateRangeTR(r.startISO, r.endISO)}${r.yillikIzinAciklama ? ` ${r.yillikIzinAciklama}` : ""}`,
           String(r.weeks),
           money(r.brut),
           String(r.katsayi),

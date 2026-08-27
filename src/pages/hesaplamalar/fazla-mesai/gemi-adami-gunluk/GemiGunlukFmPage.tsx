@@ -48,6 +48,7 @@ import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
 import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
+import { formatIsoDateRangeTR, formatIsoDateTR } from "@/utils/dateDisplay";
 import {
   computeGemiGunlukResult,
   createManualPeriodRow,
@@ -506,8 +507,8 @@ export default function GemiGunlukFmPage() {
         headers: ["İşe Giriş", "İşten Çıkış", "Mod", "Haftalık FM saat"],
         rows: [
           [
-            form.iseGiris || "—",
-            form.istenCikis || "—",
+            formatIsoDateTR(form.iseGiris),
+            formatIsoDateTR(form.istenCikis),
             "Günlük",
             result.baselineWeeklyFmHours.toFixed(2),
           ],
@@ -518,7 +519,7 @@ export default function GemiGunlukFmPage() {
         title: "Fazla Mesai Cetveli (Gemi)",
         headers: ["Dönem", "Hafta", "Ücret", "Kat", "FM Saat", "240", "1,25", "FM"],
         rows: result.rows.map((r) => [
-          `${r.startISO} – ${r.endISO}${r.yillikIzinAciklama || r.note ? ` ${r.yillikIzinAciklama || r.note}` : ""}`,
+          `${formatIsoDateRangeTR(r.startISO, r.endISO)}${r.yillikIzinAciklama || r.note ? ` ${r.yillikIzinAciklama || r.note}` : ""}`,
           String(r.weeks),
           money(r.brut),
           String(r.katsayi),

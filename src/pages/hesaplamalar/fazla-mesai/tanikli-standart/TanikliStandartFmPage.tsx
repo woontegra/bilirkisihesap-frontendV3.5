@@ -63,6 +63,7 @@ import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
 import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
+import { formatIsoDateRangeTR, formatIsoDateTR } from "@/utils/dateDisplay";
 import styles from "./TanikliStandartFmPage.module.css";
 
 const PAGE_TITLE = "Tanıklı Standart Fazla Mesai Hesaplama";
@@ -557,7 +558,12 @@ export default function TanikliStandartFmPage() {
       id: "temel",
       title: "Temel Bilgiler",
       headers: ["İşe Giriş", "İşten Çıkış", "Varsayılan Haftalık Gün", "Tanık Sayısı"],
-      rows: [[form.iseGiris || "—", form.istenCikis || "—", `${form.weeklyDays} gün`, String(form.taniklar.length)]],
+      rows: [[
+        formatIsoDateTR(form.iseGiris),
+        formatIsoDateTR(form.istenCikis),
+        `${form.weeklyDays} gün`,
+        String(form.taniklar.length),
+      ]],
     });
 
     sections.push({
@@ -565,7 +571,7 @@ export default function TanikliStandartFmPage() {
       title: "Tanık Dilimleri (birleştirilmiş)",
       headers: ["Dönem", "FM Saati", "Günlük Net", "Haftalık Gün"],
       rows: result.segments.map((s) => [
-        `${s.startISO} – ${s.endISO}`,
+        formatIsoDateRangeTR(s.startISO, s.endISO),
         s.fmHours.toFixed(2).replace(".", ","),
         s.dailyNet != null ? s.dailyNet.toFixed(2).replace(".", ",") : "—",
         s.weeklyDays != null ? String(s.weeklyDays) : "—",
@@ -577,7 +583,7 @@ export default function TanikliStandartFmPage() {
       title: "Fazla Mesai Hesaplama Cetveli",
       headers: ["Tarih Aralığı", "Hafta", "Ücret", "Kat Sayı", "FM Saati", "225", "1,5", "Fazla Mesai"],
       rows: result.rows.map((r) => [
-        `${r.startISO} – ${r.endISO}${r.note ? ` ${r.note}` : ""}`,
+        `${formatIsoDateRangeTR(r.startISO, r.endISO)}${r.note ? ` ${r.note}` : ""}`,
         String(r.weeks),
         money(r.brut),
         String(r.katsayi),
@@ -965,7 +971,7 @@ export default function TanikliStandartFmPage() {
                   result.segments.map((s, idx) => (
                     <tr key={`${s.startISO}-${idx}`}>
                       <td>
-                        {s.startISO} – {s.endISO}
+                        {formatIsoDateRangeTR(s.startISO, s.endISO)}
                       </td>
                       <td>{s.fmHours.toFixed(2).replace(".", ",")}</td>
                       <td>{s.dailyNet != null ? s.dailyNet.toFixed(2).replace(".", ",") : "—"}</td>

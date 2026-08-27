@@ -27,6 +27,7 @@ import { useToast } from "@/context/ToastContext";
 import { mapBasinFormFromBackend, resolveSavedCaseDisplayName, basinCaseCrud, buildBasinSaveResult, mapBasinRecordToSavedCase, KIDEM_BASIN_TYPE } from "./backendCase";
 import { listKidemSavedCases } from "../shared/listKidemCases";
 import { formatKidemMoneyFields } from "../shared/formatKidemMoneyFields";
+import { formatIsoDateTR } from "@/utils/dateDisplay";
 import {
   adjustedTenure,
   calculateTotalBrut,
@@ -657,9 +658,9 @@ export default function BasinKidemPage() {
       title: "Tarih Bilgileri",
       headers: ["Alan", "Değer"],
       rows: [
-        ["Mesleğe başlangıç", form.meslegeBaslangic || "—"],
-        ["İşe giriş", form.iseGiris || "—"],
-        ["İşten çıkış", form.istenCikis || "—"],
+        ["Mesleğe başlangıç", formatIsoDateTR(form.meslegeBaslangic)],
+        ["İşe giriş", formatIsoDateTR(form.iseGiris)],
+        ["İşten çıkış", formatIsoDateTR(form.istenCikis)],
         ["Kıdem süresi (hesap)", formatYilAyGun(kidemSuresi)],
         ["Çalışma süresi", formatYilAyGun(calismaSuresi)],
       ],

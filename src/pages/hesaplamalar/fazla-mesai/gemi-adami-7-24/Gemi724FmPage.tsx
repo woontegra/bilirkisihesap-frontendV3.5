@@ -66,6 +66,7 @@ import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
 import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
+import { formatIsoDateRangeTR, formatIsoDateTR } from "@/utils/dateDisplay";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
 import styles from "./Gemi724FmPage.module.css";
 
@@ -494,7 +495,7 @@ export default function Gemi724FmPage() {
       id: "genel",
       title: "Genel Bilgiler",
       headers: ["İşe Giriş", "İşten Çıkış", "Mod", "Haftalık FM saat"],
-      rows: [[form.iseGiris || "—", form.istenCikis || "—", "7×24", `${formatHours(FIXED_FM_HOURS)}`]],
+      rows: [[formatIsoDateTR(form.iseGiris), formatIsoDateTR(form.istenCikis), "7×24", `${formatHours(FIXED_FM_HOURS)}`]],
     });
 
     sections.push({
@@ -504,7 +505,7 @@ export default function Gemi724FmPage() {
       rows: result.rows.map((r) => {
         const note = r.yillikIzinAciklama ? ` ${r.yillikIzinAciklama}` : "";
         return [
-          `${r.startISO} – ${r.endISO}${note}`,
+          `${formatIsoDateRangeTR(r.startISO, r.endISO)}${note}`,
           String(r.weeks),
           money(r.brut),
           String(r.katsayi),

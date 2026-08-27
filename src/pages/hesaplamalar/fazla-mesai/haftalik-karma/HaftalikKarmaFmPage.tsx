@@ -73,6 +73,7 @@ import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
 import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
+import { formatIsoDateRangeTR, formatIsoDateTR } from "@/utils/dateDisplay";
 import styles from "./HaftalikKarmaFmPage.module.css";
 
 const PAGE_TITLE = "Haftalık Karma Fazla Mesai Hesaplama";
@@ -669,8 +670,8 @@ export default function HaftalikKarmaFmPage() {
         headers: ["İşe Giriş", "İşten Çıkış", "Haftalık FM Saat"],
         rows: [
           [
-            form.iseGiris || "-",
-            form.istenCikis || "-",
+            formatIsoDateTR(form.iseGiris, "-"),
+            formatIsoDateTR(form.istenCikis, "-"),
             result.davaciWeeklyFmHours.toFixed(2),
           ],
         ],
@@ -680,7 +681,7 @@ export default function HaftalikKarmaFmPage() {
         title: "Fazla Mesai Hesaplama Cetveli",
         headers: ["Tarih Aralığı", "Hafta", "Ücret", "Kat Sayı", "FM Saat", "225", "1,5", "Fazla Mesai"],
         rows: result.rows.map((r) => [
-          `${r.startISO} – ${r.endISO}${r.yillikIzinAciklama || r.note ? ` ${r.yillikIzinAciklama || r.note}` : ""}`,
+          `${formatIsoDateRangeTR(r.startISO, r.endISO)}${r.yillikIzinAciklama || r.note ? ` ${r.yillikIzinAciklama || r.note}` : ""}`,
           String(r.weeks),
           money(r.brut),
           String(r.katsayi),

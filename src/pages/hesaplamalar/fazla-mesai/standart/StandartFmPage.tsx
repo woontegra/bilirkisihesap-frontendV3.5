@@ -44,7 +44,7 @@ import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
 import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
-import { isoToTR } from "./v3-engine/lib/dateUtils";
+import { formatIsoDateRangeTR, formatIsoDateTR } from "@/utils/dateDisplay";
 import {
   computeBaselineWeeklyFmHours,
   formatMoney,
@@ -540,7 +540,6 @@ export default function StandartFmPage() {
   /* önizleme bölümleri */
   const previewSections = useMemo((): PreviewSection[] => {
     const money = (v: number) => `${formatMoney(v)} ₺`;
-    const dateTR = (iso?: string) => (iso ? isoToTR(iso) : "—");
     const sections: PreviewSection[] = [];
     const visibleRows = result.rows.filter(isCetvelRowVisible);
 
@@ -549,8 +548,8 @@ export default function StandartFmPage() {
       title: "Genel Bilgiler",
       headers: ["İşe Giriş", "İşten Çıkış", "Çalışma Süresi", "Haftalık FM Saat"],
       rows: [[
-        dateTR(form.iseGiris),
-        dateTR(form.istenCikis),
+        formatIsoDateTR(form.iseGiris),
+        formatIsoDateTR(form.istenCikis),
         `${form.weeklyDays} gün${form.weeklyDays === 7 ? ` (${form.sevenDayMode})` : ""}`,
         `${weeklyFmSummaryHours.toFixed(2).replace(".", ",")} sa`,
       ]],
@@ -562,7 +561,7 @@ export default function StandartFmPage() {
       headers: ["Dönem", "Hafta", "Ücret", "Katsayı", "FM Saat", "225", "1,5", "Fazla Mesai"],
       rows: [
         ...visibleRows.map((r) => [
-          `${dateTR(r.startISO)} – ${dateTR(r.endISO)}${r.note ? ` ${r.note}` : ""}`,
+          `${formatIsoDateRangeTR(r.startISO, r.endISO)}${r.note ? ` ${r.note}` : ""}`,
           String(r.weeks),
           money(r.brut),
           String(r.katsayi),
@@ -607,14 +606,7 @@ export default function StandartFmPage() {
       lastRowTone: "green",
     });
 
-    return insertExclusionsPreviewSection(
-      sections,
-      form.exclusions.map((e) => ({
-        ...e,
-        start: e.start ? isoToTR(e.start) : e.start,
-        end: e.end ? isoToTR(e.end) : e.end,
-      })),
-    );
+    return insertExclusionsPreviewSection(sections, form.exclusions);
   }, [form, result, weeklyFmSummaryHours]);
 
   return (

@@ -23,6 +23,7 @@ import { useToast } from "@/context/ToastContext";
 import { mapIsKanunuFormFromBackend, resolveSavedCaseDisplayName, isKanunuCaseCrud, buildIsKanunuSaveResult, mapIsKanunuRecordToSavedCase, KIDEM_30ISCI_TYPE } from "./backendCase";
 import { listKidemSavedCases } from "../shared/listKidemCases";
 import { formatKidemMoneyFields } from "../shared/formatKidemMoneyFields";
+import { formatIsoDateTR } from "@/utils/dateDisplay";
 import {
   computeEklentiResult,
   computeIsKanunuResult,
@@ -735,7 +736,7 @@ export default function IsKanunuKidemPage() {
       id: "sure",
       title: "Tarih Bilgileri",
       headers: ["İşe Giriş", "İşten Çıkış", "Çalışma Süresi"],
-      rows: [[iseGirisTarihi || "—", istenCikisTarihi || "—", result.durationLabel]],
+      rows: [[formatIsoDateTR(iseGirisTarihi), formatIsoDateTR(istenCikisTarihi), result.durationLabel]],
     });
 
     const wageRows: string[][] = [

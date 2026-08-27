@@ -67,6 +67,7 @@ import { MetinHesaplamasi } from "./MetinHesaplamasi";
 import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
+import { formatIsoDateRangeTR, formatIsoDateTR } from "@/utils/dateDisplay";
 import styles from "./DonemselFmPage.module.css";
 
 const PAGE_TITLE = "Dönemsel Fazla Mesai Hesaplama";
@@ -690,14 +691,14 @@ export default function DonemselFmPage() {
         id: "ust",
         title: "Genel Bilgiler",
         headers: ["İşe Giriş", "İşten Çıkış"],
-        rows: [[form.dateIn || "-", form.dateOut || "-"]],
+        rows: [[formatIsoDateTR(form.dateIn, "-"), formatIsoDateTR(form.dateOut, "-")]],
       },
       {
         id: "cetvel",
         title: "Fazla Mesai Hesaplama Cetveli",
         headers: ["Dönem", "Hafta", "Ücret", "Katsayı", "FM Saat", "225", "1,5", "Fazla Mesai"],
         rows: result.rows.map((r) => [
-          `${r.startISO} – ${r.endISO}${r.yillikIzinAciklama ? ` ${r.yillikIzinAciklama}` : ""}`,
+          `${formatIsoDateRangeTR(r.startISO, r.endISO)}${r.yillikIzinAciklama ? ` ${r.yillikIzinAciklama}` : ""}`,
           String(r.weeks),
           money(r.brut),
           String(r.katsayi),
@@ -714,7 +715,12 @@ export default function DonemselFmPage() {
         id: "exclusions",
         title: "Yıllık İzin Düşümü / Dışlanan Günler",
         headers: ["Tür", "Başlangıç", "Bitiş", "Gün"],
-        rows: form.exclusions.map((e) => [e.type, e.start, e.end, String(e.days)]),
+        rows: form.exclusions.map((e) => [
+          e.type,
+          formatIsoDateTR(e.start),
+          formatIsoDateTR(e.end),
+          String(e.days),
+        ]),
       });
     }
     sections.push(

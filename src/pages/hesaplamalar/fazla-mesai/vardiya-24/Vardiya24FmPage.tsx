@@ -62,6 +62,7 @@ import { UbgtPickerModal } from "./UbgtPickerModal";
 import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
 import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
+import { formatIsoDateRangeTR, formatIsoDateTR } from "@/utils/dateDisplay";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
 import styles from "./Vardiya24FmPage.module.css";
 
@@ -548,14 +549,14 @@ export default function Vardiya24FmPage() {
         id: "ust",
         title: "Genel Bilgiler",
         headers: ["İşe Giriş", "İşten Çıkış", "Çalışma Süresi", "Mod"],
-        rows: [[form.iseGiris || "-", form.istenCikis || "-", "-", "24 saat"]],
+        rows: [[formatIsoDateTR(form.iseGiris, "-"), formatIsoDateTR(form.istenCikis, "-"), "-", "24 saat"]],
       },
       {
         id: "cetvel",
         title: "Fazla Mesai Cetveli",
         headers: ["Dönem", "Hafta Tipi", "Toplam Hafta", "Haftalık FM Saat", "Brüt Ücret", "225", "1,5", "Ücret"],
         rows: displayRows.map((r) => {
-          const period = `${r.startISO}–${r.endISO}`;
+          const period = formatIsoDateRangeTR(r.startISO, r.endISO, "–");
           const note = r.yillikIzinAciklama || r.note;
           return [
             note ? `${period} ${note}` : period,

@@ -46,6 +46,7 @@ import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
 import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
+import { formatIsoDateRangeTR, formatIsoDateTR } from "@/utils/dateDisplay";
 import {
   createManualRow,
   formatMoney,
@@ -531,8 +532,8 @@ export default function YeraltiFmPage() {
       title: "Genel Bilgiler",
       headers: ["İşe Giriş", "İşten Çıkış", "Çalışma Süresi", "Haftalık FM Saat"],
       rows: [[
-        form.davaciDateIn || "—",
-        form.davaciDateOut || "—",
+        formatIsoDateTR(form.davaciDateIn),
+        formatIsoDateTR(form.davaciDateOut),
         `${form.weeklyDays} gün${form.weeklyDays === 7 ? ` (${form.sevenDayMode})` : ""}`,
         `${result.fmHoursWeekly.toFixed(2).replace(".", ",")} sa`,
       ]],
@@ -543,7 +544,7 @@ export default function YeraltiFmPage() {
       title: "Fazla Mesai Hesaplama Cetveli (Yeraltı)",
       headers: ["Dönem", "Hafta", "Ücret (2×AU)", "Katsayı", "FM Saat", "187,5", "2", "Fazla Mesai"],
       rows: visibleRows.map((r) => [
-        `${r.startISO} – ${r.endISO}${r.note ? ` ${r.note}` : ""}`,
+        `${formatIsoDateRangeTR(r.startISO, r.endISO)}${r.note ? ` ${r.note}` : ""}`,
         String(r.weeks),
         money(r.brut),
         String(r.katsayi),

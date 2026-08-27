@@ -64,6 +64,7 @@ import { ZamanasimiPickerModal } from "./ZamanasimiPickerModal";
 import { ZamanasimiCetvelBanner } from "../shared/ZamanasimiCetvelBanner";
 import { insertExclusionsPreviewSection } from "../shared/exclusionsPreview";
 import { NotlarAccordion } from "../standart/NotlarAccordion";
+import { formatIsoDateRangeTR, formatIsoDateTR } from "@/utils/dateDisplay";
 import styles from "./Vardiya48FmPage.module.css";
 
 const PAGE_TITLE = "48 Saat Çalışma Hesaplama";
@@ -489,18 +490,13 @@ export default function Vardiya48FmPage() {
   };
 
   const previewSections = useMemo((): PreviewSection[] => {
-    const fmtTr = (iso: string) => {
-      const s = String(iso || "").slice(0, 10);
-      const [y, m, d] = s.split("-");
-      return d && m && y ? `${d}.${m}.${y}` : s;
-    };
     return insertExclusionsPreviewSection(
       [
       {
         id: "ust",
         title: "Genel Bilgiler",
         headers: ["İşe Giriş", "İşten Çıkış", "Mod"],
-        rows: [[fmtTr(form.iseGiris), fmtTr(form.istenCikis), "48 saat (24/48)"]],
+        rows: [[formatIsoDateTR(form.iseGiris), formatIsoDateTR(form.istenCikis), "48 saat (24/48)"]],
       },
       {
         id: "cetvel",
@@ -508,7 +504,7 @@ export default function Vardiya48FmPage() {
         headers: ["Dönem", "Hafta Tipi", "Toplam Hafta", "Ücret (BRÜT)", "Katsayı", "Fazla Mesai Saati", "225", "1,5", "Fazla Mesai"],
         rows: [
           ...displayRows.map((r) => {
-            const period = `${fmtTr(r.startISO)}–${fmtTr(r.endISO)}`;
+            const period = formatIsoDateRangeTR(r.startISO, r.endISO, "–");
             const withNote = r.yillikIzinAciklama ? `${period} ${r.yillikIzinAciklama}` : period;
             return [
               withNote,
