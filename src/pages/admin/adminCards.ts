@@ -86,7 +86,7 @@ export const ADMIN_TOOL_CARDS: AdminToolCardConfig[] = [
   {
     id: "tickets",
     title: "Destek Talepleri",
-    description: "Ticket’ları incele ve yanıtla",
+    description: "Destek taleplerini incele ve yanıtla",
     icon: MessageSquare,
     route: "/admin/tickets",
     category: "support",

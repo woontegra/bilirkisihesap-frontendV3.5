@@ -59,13 +59,13 @@ function subscriptionExpiryWarningThreshold(productType: string | null) {
 function getSubscriptionTypeLabel(type: string | null) {
   if (!type) return "Abonelik Yok";
   const labels: Record<string, string> = {
-    starter: "Starter",
-    professional: "Professional",
+    starter: "Başlangıç",
+    professional: "Profesyonel",
     demo: "Demo",
     annual: "Yıllık Standart",
     monthly: "Aylık Standart",
     trial: "Deneme",
-    premium: "Professional",
+    premium: "Profesyonel",
   };
   return labels[type] || type;
 }

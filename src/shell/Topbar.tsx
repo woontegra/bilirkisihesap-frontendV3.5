@@ -385,7 +385,7 @@ export function Topbar({
 
         <Link to="/profile?tab=tickets" className={styles.ticketLink} title="Destek Talebi Aç">
 
-          <span className={styles.hideSm}>Ticket Aç</span>
+          <span className={styles.hideSm}>Destek Talebi Aç</span>
 
           <Ticket size={15} aria-hidden />
 

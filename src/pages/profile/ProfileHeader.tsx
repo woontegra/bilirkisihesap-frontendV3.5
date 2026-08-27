@@ -28,8 +28,8 @@ function getSubscriptionTypeLabel(type: string | null | undefined): string {
     annual: "Yıllık Standart Abonelik",
     monthly: "Aylık Standart Abonelik",
     trial: "Deneme Aboneliği",
-    starter: "Starter",
-    professional: "Professional",
+    starter: "Başlangıç",
+    professional: "Profesyonel",
     demo: "Demo",
   };
   return labels[type] || type;

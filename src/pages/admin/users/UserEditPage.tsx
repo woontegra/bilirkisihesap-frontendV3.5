@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save, Trash2 } from "lucide-react";
 import { apiClient, ApiError } from "@/api/client";
 import { AdminSkeleton } from "@/components/admin/AdminSkeleton";
-import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { FormField } from "@/components/admin/FormField";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge, statusToneFromRaw } from "@/components/admin/StatusBadge";
@@ -11,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { StatePanel } from "@/components/ui/StatePanel";
 import { useToast } from "@/context/ToastContext";
 import { formatDateTr, getStatusLabel } from "@/utils/adminLabels";
+import { formatUserRoleLabel } from "@/utils/userRole";
 import styles from "./UserEditPage.module.css";
 
 type AdminUser = {
@@ -50,8 +50,6 @@ export default function UserEditPage() {
   const [saving, setSaving] = useState(false);
   const [trialDays, setTrialDays] = useState("");
   const [suspended, setSuspended] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState<EditForm>({
     subscriptionType: "annual",
     subscriptionStartsAt: "",
@@ -146,21 +144,6 @@ export default function UserEditPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!id) return;
-    setDeleting(true);
-    try {
-      await apiClient(`/api/admin/users/${id}`, { method: "DELETE", adminRole: true });
-      toast.success("Kullanıcı silindi");
-      navigate("/admin/users");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Kullanıcı silinemedi");
-    } finally {
-      setDeleting(false);
-      setDeleteOpen(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className={styles.page}>
@@ -216,7 +199,7 @@ export default function UserEditPage() {
           </div>
           <div className={styles.readonlyItem}>
             <label>Rol</label>
-            <p>{user.role === "admin" ? "Admin" : "Kullanıcı"}</p>
+            <p>{formatUserRoleLabel(user.role) || "Kullanıcı"}</p>
           </div>
           <div className={styles.readonlyItem}>
             <label>Oluşturulma</label>
@@ -340,29 +323,22 @@ export default function UserEditPage() {
       <section className={`${styles.card} ${styles.cardDanger}`}>
         <div className={styles.cardHead}>
           <h2 className={`${styles.cardTitle} ${styles.cardTitleDanger}`}>Kullanıcıyı Sil</h2>
-          <p className={styles.cardDesc}>Bu işlem geri alınamaz.</p>
+          <p className={styles.cardDesc}>
+            Kalıcı silme, ilişkili kayıt önizlemesi ve e-posta onayı ile kullanıcı detay sayfasından yapılır.
+          </p>
         </div>
         <div className={styles.cardBody}>
           <div className={styles.actionRow}>
-            <p className={styles.cardDesc}>Kullanıcıyı silmek istediğinize emin misiniz?</p>
-            <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)}>
+            <p className={styles.cardDesc}>Detay sayfasındaki silme önizlemesini açın.</p>
+            <Button type="button" variant="danger" onClick={() => id && navigate(`/admin/users/${id}`)}>
               <Trash2 size={15} />
-              Sil
+              Detaya git
             </Button>
           </div>
         </div>
       </section>
 
-      <ConfirmDialog
-        open={deleteOpen}
-        title="Kullanıcıyı Sil"
-        description={`${user.name} (${user.email}) silinsin mi? Bu işlem geri alınamaz.`}
-        confirmLabel="Evet, Sil"
-        danger
-        loading={deleting}
-        onCancel={() => setDeleteOpen(false)}
-        onConfirm={() => void handleDelete()}
-      />
+      {/* Silme: UserDetailPage önizlemeli akış */}
     </div>
   );
 }

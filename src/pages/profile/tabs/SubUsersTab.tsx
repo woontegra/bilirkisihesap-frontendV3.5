@@ -13,9 +13,9 @@ import { useToast } from "@/context/ToastContext";
 import styles from "./profileTabShared.module.css";
 
 const roleLabels: Record<SubUser["role"], string> = {
-  admin: "Admin",
+  admin: "Yönetici",
   user: "Kullanıcı",
-  viewer: "Görüntüleyici",
+  viewer: "İzleyici",
 };
 
 export default function SubUsersTab() {
@@ -134,9 +134,9 @@ export default function SubUsersTab() {
                     setFormData({ ...formData, role: e.target.value as SubUser["role"] })
                   }
                 >
-                  <option value="admin">Admin</option>
+                  <option value="admin">Yönetici</option>
                   <option value="user">Kullanıcı</option>
-                  <option value="viewer">Görüntüleyici</option>
+                  <option value="viewer">İzleyici</option>
                 </select>
               </FormField>
             </div>

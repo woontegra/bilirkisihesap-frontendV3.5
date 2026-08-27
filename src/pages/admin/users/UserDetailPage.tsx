@@ -31,7 +31,23 @@ import { formatDateTr, getStatusLabel, getSubscriptionTypeLabel } from "@/utils/
 import styles from "./UserDetailPage.module.css";
 
 type TabKey = "genel" | "abonelik" | "gecmis" | "cihaz" | "demo" | "islem" | "destek";
-type ConfirmKey = "demo3" | "status" | "trial" | "subscription" | "convertPro" | "delete" | null;
+type ConfirmKey = "demo3" | "status" | "trial" | "subscription" | "convertPro" | null;
+
+type UserDeletePreview = {
+  userId: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  tenantId: number;
+  soleTenantUser: boolean;
+  canDelete: boolean;
+  canWipeTenant: boolean;
+  blockReasons: string[];
+  ambiguousShared: Array<{ table: string; count: number; reason: string }>;
+  counts: Record<string, number | Record<string, number>>;
+  warning: string;
+};
 
 type AuditLogItem = {
   id: number;
@@ -208,6 +224,12 @@ export default function UserDetailPage() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePreview, setDeletePreview] = useState<UserDeletePreview | null>(null);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const selectedUserId = useMemo(() => {
     const parsed = Number(id);
@@ -452,18 +474,76 @@ export default function UserDetailPage() {
     }
   };
 
-  const runDeleteUser = async () => {
+  const openDeleteModal = async () => {
     if (!id) return;
-    setActionBusy("delete");
+    setDeleteOpen(true);
+    setDeletePreview(null);
+    setDeleteConfirmEmail("");
+    setDeleteError(null);
+    setDeletePreviewLoading(true);
     try {
-      await apiClient(`/api/admin/users/${id}`, { method: "DELETE", adminRole: true });
-      toast.success("Kullanıcı silindi");
+      const json = await apiClient<{ success?: boolean; data?: UserDeletePreview; error?: string }>(
+        `/api/admin/users/${id}/delete-preview`,
+        { adminRole: true },
+      );
+      if (!json?.data) throw new Error(json?.error || "Silme önizlemesi yüklenemedi");
+      setDeletePreview(json.data);
+    } catch (err) {
+      setDeleteOpen(false);
+      toast.error(err instanceof ApiError ? err.message : "Silme önizlemesi yüklenemedi");
+    } finally {
+      setDeletePreviewLoading(false);
+    }
+  };
+
+  const closeDeleteModal = () => {
+    if (actionBusy === "delete") return;
+    setDeleteOpen(false);
+    setDeletePreview(null);
+    setDeleteConfirmEmail("");
+    setDeleteError(null);
+  };
+
+  const runDeleteUser = async () => {
+    if (!id || !deletePreview?.canDelete) return;
+    const expected = String(deletePreview.email || "").trim().toLowerCase();
+    if (deleteConfirmEmail.trim().toLowerCase() !== expected) {
+      setDeleteError("E-posta adresi eşleşmiyor");
+      return;
+    }
+    setActionBusy("delete");
+    setDeleteError(null);
+    try {
+      const res = await apiClient<{
+        success?: boolean;
+        message?: string;
+        error?: string;
+        data?: { deleted?: Record<string, number>; tenantDeleted?: boolean };
+      }>(`/api/admin/users/${id}`, {
+        method: "DELETE",
+        adminRole: true,
+        body: { confirmEmail: deleteConfirmEmail.trim() },
+      });
+      if (res && res.success === false) {
+        throw new Error(res.error || "Kullanıcı silinemedi");
+      }
+      const deleted = res?.data?.deleted || {};
+      const summaryParts = Object.entries(deleted)
+        .filter(([, n]) => typeof n === "number" && n > 0)
+        .slice(0, 6)
+        .map(([k, n]) => `${k}: ${n}`);
+      toast.success(
+        summaryParts.length
+          ? `${res?.message || "Kullanıcı silindi"} (${summaryParts.join(", ")})`
+          : res?.message || "Kullanıcı silindi",
+      );
       navigate("/admin/users");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Kullanıcı silinemedi");
+      const msg = err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Kullanıcı silinemedi";
+      setDeleteError(msg);
+      toast.error(msg);
     } finally {
       setActionBusy(null);
-      setConfirmType(null);
     }
   };
 
@@ -711,7 +791,7 @@ export default function UserDetailPage() {
           <Button variant="soft" size="sm" disabled={actionBusy != null} onClick={() => setConfirmType("status")}>
             {user.status === "suspended" ? "Aktife Al" : "Pasife Al"}
           </Button>
-          <Button variant="danger" size="sm" disabled={actionBusy != null} onClick={() => setConfirmType("delete")}>
+          <Button variant="danger" size="sm" disabled={actionBusy != null} onClick={() => void openDeleteModal()}>
             <Trash2 size={14} />
             Kullanıcıyı Sil
           </Button>
@@ -866,7 +946,7 @@ export default function UserDetailPage() {
                     <tr>
                       <th>Tarih</th>
                       <th>İşlem</th>
-                      <th>Admin</th>
+                      <th>Yönetici</th>
                       <th>Detay</th>
                     </tr>
                   </thead>
@@ -946,16 +1026,136 @@ export default function UserDetailPage() {
         onConfirm={() => void runStatusToggle()}
       />
 
-      <ConfirmDialog
-        open={confirmType === "delete"}
-        title="Kullanıcıyı Sil"
-        description={`${user.name} (${user.email}) silinsin mi? Bu işlem geri alınamaz.`}
-        confirmLabel="Evet, Sil"
-        danger
-        loading={actionBusy === "delete"}
-        onCancel={() => setConfirmType(null)}
-        onConfirm={() => void runDeleteUser()}
-      />
+      {deleteOpen ? (
+        <div className={styles.modalOverlay} onClick={closeDeleteModal} role="presentation">
+          <div
+            className={`${styles.modal} ${styles.deleteModal}`}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="user-delete-title"
+          >
+            <h3 id="user-delete-title" className={styles.modalTitle}>
+              Kullanıcıyı Sil
+            </h3>
+            <p className={styles.deleteWarning}>
+              Bu işlem geri alınamaz ve kullanıcının tüm verilerini kalıcı olarak siler.
+            </p>
+
+            {deletePreviewLoading ? (
+              <p className={styles.cardDesc}>İlişkili kayıtlar sayılıyor…</p>
+            ) : null}
+
+            {deletePreview ? (
+              <div className={styles.deletePreviewBody}>
+                <div className={styles.infoGrid}>
+                  <div className={styles.infoItem}>
+                    <p className={styles.infoLabel}>Kullanıcı</p>
+                    <p className={styles.infoValue}>{deletePreview.name}</p>
+                  </div>
+                  <div className={styles.infoItem}>
+                    <p className={styles.infoLabel}>E-posta</p>
+                    <p className={styles.infoValue}>{deletePreview.email}</p>
+                  </div>
+                  <div className={styles.infoItem}>
+                    <p className={styles.infoLabel}>Telefon</p>
+                    <p className={styles.infoValue}>{deletePreview.phone || "—"}</p>
+                  </div>
+                  <div className={styles.infoItem}>
+                    <p className={styles.infoLabel}>Tenant</p>
+                    <p className={styles.infoValue}>
+                      #{deletePreview.tenantId}
+                      {deletePreview.soleTenantUser ? " (tek kullanıcı — tenant silinecek)" : " (paylaşımlı — tenant korunur)"}
+                    </p>
+                  </div>
+                </div>
+
+                {!deletePreview.canDelete ? (
+                  <div className={styles.deleteBlockBox}>
+                    Bu kullanıcı silinemez
+                    {deletePreview.blockReasons?.length
+                      ? `: ${deletePreview.blockReasons.join(", ")}`
+                      : "."}
+                  </div>
+                ) : null}
+
+                {deletePreview.ambiguousShared?.length ? (
+                  <div className={styles.deleteWarnBox}>
+                    Paylaşımlı tenantta sahipliği ayırt edilemeyen kayıtlar korunacak (silinmeyecek):
+                    <ul>
+                      {deletePreview.ambiguousShared.map((row) => (
+                        <li key={`${row.table}-${row.reason}`}>
+                          {row.table}: {row.count}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                <div className={styles.deleteCountGrid}>
+                  {[
+                    ["Lisans", deletePreview.counts.professionalLicenses],
+                    ["Yenileme oturumu", deletePreview.counts.renewalSessions],
+                    ["Abonelik grant", deletePreview.counts.subscriptionGrants],
+                    ["Demo/pending ödeme", deletePreview.counts.subscriptionPendingByEmail],
+                    ["Password reset", deletePreview.counts.passwordResets],
+                    ["Kayıtlı hesaplama", deletePreview.counts.savedCases],
+                    ["Rapor", deletePreview.counts.reports],
+                    ["Destek talebi", deletePreview.counts.tickets],
+                    ["Cihaz/giriş kaydı", deletePreview.counts.loginLogs],
+                    ["AI oturum", deletePreview.counts.aiSessions],
+                    ["AI ödeme (detach)", deletePreview.counts.aiPayments],
+                    ["Baro attribution", deletePreview.counts.barCampaignAttributions],
+                    ["Chat", deletePreview.counts.chatConversations],
+                    ["Billing profil", deletePreview.counts.billingProfiles],
+                    ["Credit (tenant)", deletePreview.counts.credits],
+                    ["Tenant hesaplama", deletePreview.counts.tenantCalcTotal],
+                  ].map(([label, value]) => (
+                    <div key={String(label)} className={styles.deleteCountItem}>
+                      <span>{label}</span>
+                      <strong>{typeof value === "number" ? value : 0}</strong>
+                    </div>
+                  ))}
+                </div>
+
+                {deletePreview.canDelete ? (
+                  <FormField label={`Onay için e-postayı yazın: ${deletePreview.email}`}>
+                    <input
+                      type="email"
+                      value={deleteConfirmEmail}
+                      onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                      placeholder={deletePreview.email}
+                      autoComplete="off"
+                      disabled={actionBusy === "delete"}
+                    />
+                  </FormField>
+                ) : null}
+
+                {deleteError ? <p className={styles.deleteError}>{deleteError}</p> : null}
+              </div>
+            ) : null}
+
+            <div className={styles.modalActions}>
+              <Button variant="soft" onClick={closeDeleteModal} disabled={actionBusy === "delete"}>
+                Vazgeç
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => void runDeleteUser()}
+                disabled={
+                  actionBusy === "delete" ||
+                  deletePreviewLoading ||
+                  !deletePreview?.canDelete ||
+                  deleteConfirmEmail.trim().toLowerCase() !==
+                    String(deletePreview?.email || "").trim().toLowerCase()
+                }
+              >
+                {actionBusy === "delete" ? "Siliniyor…" : "Kalıcı sil"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {confirmType === "convertPro" ? (
         <div className={styles.modalOverlay} onClick={() => setConfirmType(null)} role="presentation">

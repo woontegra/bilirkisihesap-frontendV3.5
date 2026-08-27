@@ -287,9 +287,9 @@ const priceFields = (source: UnknownRecord) => {
 
 export function formatProductType(productType: string): string {
   const labels: Record<string, string> = {
-    starter: "Starter",
-    professional: "Professional",
-    premium: "Professional",
+    starter: "Başlangıç",
+    professional: "Profesyonel",
+    premium: "Profesyonel",
     annual: "Yıllık Standart",
     monthly: "Aylık Standart",
     trial: "Deneme",

@@ -268,6 +268,74 @@
   margin-top: 0.85rem;
 }
 
+.deleteModal {
+  width: min(100%, 40rem);
+}
+
+.deleteWarning {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.deletePreviewBody {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.deleteCountGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.deleteCountItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-muted);
+  font-size: var(--fs-sm);
+}
+
+.deleteBlockBox,
+.deleteWarnBox {
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+}
+
+.deleteBlockBox {
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.deleteWarnBox {
+  border: 1px solid color-mix(in srgb, #b45309 40%, transparent);
+  background: color-mix(in srgb, #b45309 10%, transparent);
+  color: #92400e;
+}
+
+.deleteWarnBox ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.deleteError {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
 .deviceList {
   display: grid;
   gap: 0.55rem;

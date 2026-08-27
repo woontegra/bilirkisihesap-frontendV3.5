@@ -39,7 +39,7 @@ export function getSubscriptionTypeLabel(raw?: string | null): string {
     return "Aylık";
   }
   if (v.includes("demo") || v.includes("trial")) return "Deneme";
-  if (v.includes("starter")) return "Starter";
+  if (v.includes("starter")) return "Başlangıç";
   if (v.includes("professional")) return "Profesyonel";
   return raw;
 }

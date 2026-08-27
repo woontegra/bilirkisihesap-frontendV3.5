@@ -24,9 +24,9 @@ type FormState = {
 };
 
 const SUBSCRIPTION_OPTIONS = [
-  { value: "starter_monthly", label: "Starter Aylık" },
-  { value: "professional_monthly", label: "Professional Aylık" },
-  { value: "professional_annual", label: "Professional Yıllık" },
+  { value: "starter_monthly", label: "Başlangıç Aylık" },
+  { value: "professional_monthly", label: "Profesyonel Aylık" },
+  { value: "professional_annual", label: "Profesyonel Yıllık" },
   { value: "demo_1day", label: "1 Günlük Demo" },
   { value: "demo_3days", label: "3 Günlük Demo" },
   { value: "demo_7days", label: "7 Günlük Demo" },
@@ -302,7 +302,7 @@ export default function CreateUserPage() {
               <FormField label="Rol *">
                 <select value={form.role} onChange={(e) => updateField("role", e.target.value)}>
                   <option value="user">Kullanıcı</option>
-                  <option value="admin">Admin</option>
+                  <option value="admin">Yönetici</option>
                 </select>
               </FormField>
               <FormField

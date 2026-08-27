@@ -45,7 +45,7 @@ export type LicenseRow = {
 const PACKAGE_FILTER_OPTIONS = [
   { value: "all", label: "Tüm paketler" },
   { value: "demo", label: "Demo" },
-  { value: "starter", label: "Starter" },
+  { value: "starter", label: "Başlangıç" },
   { value: "professional_monthly", label: "Aylık" },
   { value: "professional_yearly", label: "Yıllık" },
 ];
@@ -59,7 +59,7 @@ const STATUS_FILTER_OPTIONS = [
 
 const PACKAGE_OPTIONS = [
   { value: "demo", label: "Demo" },
-  { value: "starter", label: "Starter" },
+  { value: "starter", label: "Başlangıç" },
   { value: "professional_monthly", label: "Aylık" },
   { value: "professional_yearly", label: "Yıllık" },
 ];

@@ -159,7 +159,7 @@ export default function AuditLogsPage() {
               },
               {
                 key: "admin",
-                header: "Admin",
+                header: "Yönetici",
                 render: (log) =>
                   log.admin ? `${log.admin.name} (${log.admin.email})` : `ID: ${log.adminId}`,
               },

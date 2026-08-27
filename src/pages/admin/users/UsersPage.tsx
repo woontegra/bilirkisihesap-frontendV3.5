@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/Button";
 import { StatePanel } from "@/components/ui/StatePanel";
 import { useToast } from "@/context/ToastContext";
 import { formatDateTr, getStatusLabel, getSubscriptionTypeLabel } from "@/utils/adminLabels";
+import { formatUserRoleLabel } from "@/utils/userRole";
 import styles from "./UsersPage.module.css";
 
 type AdminUser = {
@@ -37,7 +38,7 @@ type AdminUser = {
 };
 
 function roleLabel(role: string): string {
-  return role === "admin" ? "Admin" : "Kullanıcı";
+  return formatUserRoleLabel(role) || "Kullanıcı";
 }
 
 export default function UsersPage() {
