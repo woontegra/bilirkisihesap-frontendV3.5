@@ -6,8 +6,13 @@ export type LegalInterestRatePeriod = {
 
 export const legalInterestRates: LegalInterestRatePeriod[] = [
   {
-    startDate: "2024-06-01",
+    startDate: "2026-07-31",
     endDate: null,
+    rate: 31,
+  },
+  {
+    startDate: "2024-06-01",
+    endDate: "2026-07-30",
     rate: 24,
   },
   {

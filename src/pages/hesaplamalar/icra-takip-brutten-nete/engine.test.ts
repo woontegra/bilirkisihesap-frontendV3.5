@@ -39,6 +39,26 @@ function runEngineSelfTests(): { passed: number; failures: Failure[] } {
   });
   check("yasal faiz ok", legal.ok, true);
 
+  const legal2026 = calculateInterest({
+    principal: 10000,
+    startDate: "2026-08-01",
+    endDate: "2026-08-31",
+    interestType: "LEGAL_INTEREST",
+  });
+  check("yasal faiz 2026-08 oran 31", legal2026.ok === true && legal2026.periods[0]?.rate === 31, true);
+
+  const legalSplit = calculateInterest({
+    principal: 10000,
+    startDate: "2026-07-15",
+    endDate: "2026-08-15",
+    interestType: "LEGAL_INTEREST",
+  });
+  check(
+    "yasal faiz 2026-07/08 dönem ayrımı",
+    legalSplit.ok === true && legalSplit.periods.length === 2 && legalSplit.periods[1]?.rate === 31,
+    true,
+  );
+
   const deposit = calculateInterest({
     principal: 1000,
     startDate: "2024-06-01",
