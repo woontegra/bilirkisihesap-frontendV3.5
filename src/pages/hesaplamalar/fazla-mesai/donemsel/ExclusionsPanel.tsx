@@ -1,6 +1,6 @@
 /**
- * Tan�kl� Standart � istisna paneli (V3 start/end/days; izolasyon kopyas�).
- * Yaln�zca UBGT ve Y�ll�k �zin hesab� etkiler; di�erleri kay�t/g�sterim.
+ * Dönemsel — istisna paneli (V3 start/end/days; izolasyon kopyası).
+ * Yalnızca UBGT ve Yıllık İzin hesabı etkiler; diğerleri kayıt/gösterim.
  */
 
 import { useState } from "react";
@@ -37,7 +37,7 @@ export function ExclusionsPanel({
   const [savedSets, setSavedSets] = useState<SavedExclusionSet[]>([]);
 
   const addRow = () => {
-    const item: ExclusionItem = { id: newLocalId(), type: EXCLUSION_TYPES[0], start: "", end: "", days: 1 };
+    const item: ExclusionItem = { id: newLocalId(), type: "Yıllık İzin", start: "", end: "", days: 1 };
     onChange([...exclusions, item]);
   };
 
@@ -94,15 +94,15 @@ export function ExclusionsPanel({
         onClick={() => setIsOpen((o) => !o)}
         aria-expanded={isOpen}
       >
-        <span>Y�ll�k izin / �al���lmayan raporlu g�nler d��lanabilir.</span>
+        <span>Yıllık izin / Çalışılmayan raporlu günler dışlanabilir.</span>
         <span className={accordionStyles.exclusionAccordionChevron} aria-hidden>
-          {isOpen ? "�" : "?"}
+          {isOpen ? "▼" : "▶"}
         </span>
       </button>
 
       {isOpen ? (
         <div className={accordionStyles.exclusionAccordionBody}>
-      <p className={styles.panelHint}>D��lama ekleyin; d���m, girdi�iniz g�n say�s�na g�re yap�l�r.</p>
+      <p className={styles.panelHint}>Dışlama ekleyin; düşüm, girdiğiniz gün sayısına göre yapılır.</p>
 
       <div className={styles.exclusionList}>
         {exclusions.length === 0 ? null : (
@@ -112,7 +112,7 @@ export function ExclusionsPanel({
                 className={styles.extraName}
                 value={item.type}
                 onChange={(e) => updateRow(item.id, { type: e.target.value as ExclusionItem["type"] })}
-                aria-label="T�r"
+                aria-label="Tür"
               >
                 {EXCLUSION_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -130,7 +130,7 @@ export function ExclusionsPanel({
                     days: suggestedDays(e.target.value, item.end && item.end >= e.target.value ? item.end : e.target.value),
                   })
                 }
-                aria-label="Ba�lang��"
+                aria-label="Başlangıç"
               />
               <input
                 type="date"
@@ -138,7 +138,7 @@ export function ExclusionsPanel({
                 value={item.end}
                 min={item.start || undefined}
                 onChange={(e) => updateRow(item.id, { end: e.target.value, days: suggestedDays(item.start, e.target.value) })}
-                aria-label="Biti�"
+                aria-label="Bitiş"
               />
               <input
                 type="number"
@@ -147,7 +147,7 @@ export function ExclusionsPanel({
                 step={0.5}
                 value={item.days}
                 onChange={(e) => updateRow(item.id, { days: Number(e.target.value) || 0 })}
-                aria-label="G�n"
+                aria-label="Gün"
               />
               <button
                 type="button"
@@ -169,7 +169,7 @@ export function ExclusionsPanel({
         </button>
         <button type="button" className={styles.addRowBtn} onClick={onOpenUbgtPicker}>
           <CalendarDays size={14} />
-          UBGT g�nleri (FM d���m�)
+          UBGT günleri (FM düşümü)
         </button>
         <button type="button" className={styles.addRowBtn} onClick={openSaveModal} disabled={exclusions.length === 0}>
           <Save size={14} />
@@ -177,7 +177,7 @@ export function ExclusionsPanel({
         </button>
         <button type="button" className={styles.addRowBtn} onClick={openImportModal}>
           <Download size={14} />
-          ��e Aktar
+          İçe Aktar
         </button>
         <button
           type="button"
@@ -186,23 +186,23 @@ export function ExclusionsPanel({
           disabled={exclusions.length === 0}
         >
           <Trash2 size={14} />
-          T�m�n� Sil
+          Tümünü Sil
         </button>
       </div>
 
-      <p className={styles.panelHint}>D���m, girdi�iniz g�n say�s�na g�re yap�l�r.</p>
+      <p className={styles.panelHint}>Düşüm, girdiğiniz gün sayısına göre yapılır.</p>
         </div>
       ) : null}
 
       {showSaveModal ? (
         <div className={styles.modalOverlay} role="presentation" onClick={() => setShowSaveModal(false)}>
           <div className={styles.modalCard} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className={styles.modalTitle}>D��lanabilir G�nleri Kaydet</h2>
+            <h2 className={styles.modalTitle}>Dışlanabilir Günleri Kaydet</h2>
             <input
               className={styles.modalInput}
               value={setName}
               onChange={(e) => setSetName(e.target.value)}
-              placeholder="Kay�t ad�"
+              placeholder="Kayıt adı"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter" && setName.trim()) confirmSave();
@@ -211,7 +211,7 @@ export function ExclusionsPanel({
             />
             <div className={styles.modalActions}>
               <Button variant="soft" onClick={() => setShowSaveModal(false)}>
-                �ptal
+                İptal
               </Button>
               <Button variant="primary" disabled={!setName.trim()} onClick={confirmSave}>
                 Kaydet
@@ -224,21 +224,21 @@ export function ExclusionsPanel({
       {showImportModal ? (
         <div className={styles.modalOverlay} role="presentation" onClick={() => setShowImportModal(false)}>
           <div className={styles.modalCard} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className={styles.modalTitle}>Kay�tl� D��lanabilir G�nler</h2>
+            <h2 className={styles.modalTitle}>Kayıtlı Dışlanabilir Günler</h2>
             {savedSets.length === 0 ? (
-              <p className={styles.emptyText}>Hen�z kay�tl� liste yok.</p>
+              <p className={styles.emptyText}>Henüz kayıtlı liste yok.</p>
             ) : (
               <ul className={styles.setList}>
                 {savedSets.map((set) => (
                   <li key={set.id} className={styles.setRow}>
                     <div className={styles.setInfo}>
                       <strong>
-                        {set.name} ({set.data.length} kay�t)
+                        {set.name} ({set.data.length} kayıt)
                       </strong>
                     </div>
                     <div className={styles.inlineActions}>
                       <Button variant="soft" size="sm" onClick={() => importSet(set)}>
-                        Y�kle
+                        Yükle
                       </Button>
                       <Button variant="danger" size="sm" onClick={() => removeSet(set.id)} title="Sil">
                         <Trash2 size={13} />
