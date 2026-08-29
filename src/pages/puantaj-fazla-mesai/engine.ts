@@ -162,6 +162,8 @@ export function computePuantajFm(
   katsayi = 1,
 ): PuantajFmResult {
   const personelAdSoyad = rows.find((r) => r.personelAdSoyad)?.personelAdSoyad ?? "Belirtilmemiş";
+  const birim = rows.find((r) => r.birim?.trim())?.birim?.trim() ?? "";
+  const pozisyon = rows.find((r) => r.pozisyon?.trim())?.pozisyon?.trim() ?? "";
   const dailyRows = rows.map((r) => buildDailyRow(r, settings));
 
   const { weeks, datesizNotu } = bucketByWeek(dailyRows);
@@ -223,6 +225,8 @@ export function computePuantajFm(
 
   return {
     personelAdSoyad,
+    birim,
+    pozisyon,
     dailyRows,
     weeklyRows,
     hesaplananToplamFmSaat,

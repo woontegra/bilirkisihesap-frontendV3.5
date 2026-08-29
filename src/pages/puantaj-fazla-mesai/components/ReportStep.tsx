@@ -67,10 +67,12 @@ export default function ReportStep({ results, fileName, templateName, settings, 
                       {result.personelAdSoyad}
                     </td>
                     <td>
-                      <b>Bölüm</b>—
+                      <b>Bölüm</b>
+                      {result.birim || "—"}
                     </td>
                     <td>
-                      <b>Pozisyon</b>—
+                      <b>Pozisyon</b>
+                      {result.pozisyon || "—"}
                     </td>
                     <td>
                       <b>Hesaplama Tarih Aralığı</b>

@@ -2,6 +2,11 @@ import { useState } from "react";
 import { Sparkles, Eye, List, Save, Trash2 } from "lucide-react";
 import type { SmartImportAnalysis } from "../smart-import-v2/types";
 import type { SmartImportMappingTemplate } from "../smart-import-v2/smartTemplateStore";
+import {
+  LAYOUT_SECTION_COLUMN_LABEL,
+  LAYOUT_SECTION_COUNT_LABEL,
+  layoutSectionOrdinal,
+} from "../smart-import-v2/userLabels";
 import styles from "../PuantajFmPage.module.css";
 
 type Props = {
@@ -102,7 +107,7 @@ export default function SmartImportPanel(props: Props) {
             <span>Örnek</span>
             <span>Standart alan</span>
             <span>Kaynak</span>
-            <span>Segment</span>
+            <span>{LAYOUT_SECTION_COLUMN_LABEL}</span>
             <span>Güven</span>
             <span>Gerekçe</span>
           </div>
@@ -116,7 +121,7 @@ export default function SmartImportPanel(props: Props) {
                   <small className={styles.smartHeaderHint}>{p.headerText}</small>
                 </span>
                 <span>{p.physicalColumns}</span>
-                <span>{p.segmentIndex + 1}</span>
+                <span>{layoutSectionOrdinal(p.segmentIndex)}</span>
                 <span className={tierClass(p.tier)}>
                   {p.confidence}% · {tierLabel(p.tier)}
                 </span>
@@ -151,7 +156,7 @@ export default function SmartImportPanel(props: Props) {
           <span className={styles.smartStatValue}>{analysis.headerRowIndex + 1}</span>
         </div>
         <div className={styles.smartStat}>
-          <span className={styles.smartStatLabel}>Segment</span>
+          <span className={styles.smartStatLabel}>{LAYOUT_SECTION_COUNT_LABEL}</span>
           <span className={styles.smartStatValue}>{analysis.segmentCount}</span>
         </div>
         <div className={styles.smartStat}>

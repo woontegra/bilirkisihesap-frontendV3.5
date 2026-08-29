@@ -26,6 +26,8 @@ import {
   parseTimeRange,
   parseTimeToMinutes,
 } from "./utils";
+import { readLogicalCell } from "./smart-import-v2/groupLogicalColumns";
+import { logicalGroupsFromHeaders } from "./detect";
 
 /**
  * Ayrıştırılmış tablo + alan eşleştirmesinden STANDART puantaj satırlarını üretir.
@@ -38,6 +40,8 @@ export type TransformConfig = {
   constants: Partial<Record<MappableFieldKey, string>>;
   codeMap: CodeMap;
   pageNumber?: number;
+  /** Mantıksal sütun birleştirme (Adı Soyadı vb.) için tablo başlıkları. */
+  headers?: string[];
 };
 
 type FieldBag = Partial<Record<MappableFieldKey, string>> & {
@@ -56,6 +60,15 @@ function readCell(row: string[], index: number): string {
   return (row[index] ?? "").toString().trim();
 }
 
+function readMappedCell(row: string[], map: ColumnMapping, headers?: string[]): string {
+  const indices = map.physicalIndices;
+  if (indices && indices.length > 1 && headers?.length) {
+    const group = logicalGroupsFromHeaders(headers).find((g) => g.physicalIndices[0] === indices[0]);
+    if (group) return readLogicalCell(row, group);
+  }
+  return readCell(row, map.columnIndex);
+}
+
 function collectFields(row: string[], config: TransformConfig): FieldBag {
   const bag: FieldBag = {};
 
@@ -65,13 +78,13 @@ function collectFields(row: string[], config: TransformConfig): FieldBag {
 
   for (const map of config.mappings) {
     if (map.mode === "field" && map.field) {
-      const val = readCell(row, map.columnIndex);
+      const val = readMappedCell(row, map, config.headers);
       if (!val) continue;
       applyMappedValue(bag, map.field, val, config.codeMap);
     } else if (map.mode === "constant" && map.field) {
       if (map.constantValue) bag[map.field] = map.constantValue;
     } else if (map.mode === "derive" && map.field) {
-      const src = readCell(row, map.deriveFromColumn ?? map.columnIndex);
+      const src = readMappedCell(row, { ...map, columnIndex: map.deriveFromColumn ?? map.columnIndex }, config.headers);
       if (!src) continue;
       if (isTimeRangeFieldKey(map.field) || map.deriveRule === "rangeStart") {
         applyTimeRangeField(bag, map.field === "kartSaatAraligi" ? "kart" : "esas", src, config.codeMap);
@@ -81,6 +94,7 @@ function collectFields(row: string[], config: TransformConfig): FieldBag {
       }
     }
   }
+
   return bag;
 }
 

@@ -96,8 +96,8 @@ function headerBlock(result: PuantajFmResult, meta: ReportMeta): string {
   <table class="info">
     <tr>
       <td><b>Personel</b><br/>${esc(result.personelAdSoyad)}</td>
-      <td><b>Bölüm</b><br/>${esc(meta.birim || "—")}</td>
-      <td><b>Pozisyon</b><br/>${esc(meta.pozisyon || "—")}</td>
+      <td><b>Bölüm</b><br/>${esc(result.birim || "—")}</td>
+      <td><b>Pozisyon</b><br/>${esc(result.pozisyon || "—")}</td>
       <td><b>Hesaplama Tarih Aralığı</b><br/>${esc(dateRangeLabel(result, meta.settings))}</td>
     </tr>
     <tr>

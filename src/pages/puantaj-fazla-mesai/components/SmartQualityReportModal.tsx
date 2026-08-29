@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import type { SmartImportQualityReport } from "../smart-import-v2/qualityReport";
+import { LAYOUT_SECTION_COUNT_LABEL } from "../smart-import-v2/userLabels";
 import PuantajPortalModal from "./PuantajPortalModal";
 import styles from "../PuantajFmPage.module.css";
 
@@ -19,7 +20,7 @@ export default function SmartQualityReportModal(props: Props) {
       <div className={styles.qualityReportGrid}>
         <Stat label="Kaynak satır" value={r.totalSourceRows} />
         <Stat label="Normalize satır" value={r.normalizedRows} />
-        <Stat label="Segment" value={r.segmentCount} />
+        <Stat label={LAYOUT_SECTION_COUNT_LABEL} value={r.segmentCount} />
         <Stat label="Geçerli tarih" value={r.validDateCount} />
         <Stat label="Giriş+çıkış" value={r.rowsWithEntryAndExit} />
         <Stat label="Yalnız giriş" value={r.rowsWithEntryOnly} />

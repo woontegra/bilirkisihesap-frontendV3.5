@@ -80,6 +80,13 @@ export function mergeTextPartsValue(parts: string[], isTextIdentity: boolean): s
 }
 
 export function readLogicalCell(row: string[], group: LogicalColumnGroup): string {
-  const parts = group.physicalIndices.map((ci) => (row[ci] ?? "").toString());
-  return mergeTextPartsCore(parts, group.isTextIdentity).value;
+  const parts = group.physicalIndices
+    .map((ci) => (row[ci] ?? "").toString().trim())
+    .filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  if (!group.isTextIdentity) {
+    return parts.join(" ").replace(/\s+/g, " ").trim();
+  }
+  return mergeTextPartsCore(parts, true).value;
 }

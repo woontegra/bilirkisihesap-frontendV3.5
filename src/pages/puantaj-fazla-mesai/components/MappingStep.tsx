@@ -4,6 +4,8 @@ import { MAPPABLE_FIELDS } from "../fieldCatalog";
 import type { ColumnMapping, MappableFieldKey, MappingMode, PuantajTemplate, TableView } from "../model";
 import type { SmartImportAnalysis } from "../smart-import-v2/types";
 import type { SmartImportMappingTemplate } from "../smart-import-v2/smartTemplateStore";
+import { logicalGroupsFromHeaders } from "../detect";
+import { readLogicalCell } from "../smart-import-v2/groupLogicalColumns";
 import SmartImportPanel from "./SmartImportPanel";
 import styles from "../PuantajFmPage.module.css";
 
@@ -30,6 +32,7 @@ type Props = {
   onSaveSmartTemplate?: (name: string) => void;
   onApplySmartTemplate?: (id: string) => void;
   onDeleteSmartTemplate?: (id: string) => void;
+  mappingCoverageMissing?: string[];
 };
 
 const MODE_OPTIONS: { value: string; label: string }[] = [
@@ -50,11 +53,17 @@ export default function MappingStep(props: Props) {
   const [tplName, setTplName] = useState("");
 
   const samples = useMemo(() => {
-    return table.headers.map((_, ci) => {
-      const found = table.rows.find((r) => (r[ci] ?? "").trim() !== "");
-      return found ? found[ci] : "";
+    const groups = logicalGroupsFromHeaders(table.headers);
+    return mappings.map((m) => {
+      const group = groups.find((g) => g.physicalIndices[0] === m.columnIndex);
+      const found = table.rows.find((r) =>
+        (group?.physicalIndices ?? [m.columnIndex]).some((ci) => (r[ci] ?? "").trim() !== ""),
+      );
+      if (!found) return "";
+      if (group && group.physicalIndices.length > 1) return readLogicalCell(found, group);
+      return found[m.columnIndex] ?? "";
     });
-  }, [table]);
+  }, [table, mappings]);
 
   const handleSelect = (m: ColumnMapping, raw: string) => {
     if (raw.startsWith("field:")) {
@@ -76,6 +85,12 @@ export default function MappingStep(props: Props) {
       <p className={styles.cardHint}>
         Solda belgedeki sütun, sağda standart alan. Sistem tahmin eder; hesaplamaya geçmeden önce onaylayın.
       </p>
+
+      {props.mappingCoverageMissing && props.mappingCoverageMissing.length > 0 && (
+        <p className={styles.warnBox} role="status">
+          Eşleşme için yetersiz veri: {props.mappingCoverageMissing.join(", ")} alan(ları) eşlenmedi.
+        </p>
+      )}
 
       {props.smartWarning && (
         <p className={styles.smartImportWarning} role="status">
@@ -157,8 +172,8 @@ export default function MappingStep(props: Props) {
             style={{ animationDelay: `${index * 45}ms` }}
           >
             <div className={styles.mapHeader}>
-              <span className={styles.mapHeaderName}>{table.headers[m.columnIndex]}</span>
-              <span className={styles.mapSample}>Örnek: {samples[m.columnIndex] || "—"}</span>
+              <span className={styles.mapHeaderName}>{m.header}</span>
+              <span className={styles.mapSample}>Örnek: {samples[index] || "—"}</span>
             </div>
             <ArrowRight size={16} className={styles.mapArrow} aria-hidden />
             <div className={styles.mapControls}>
@@ -201,9 +216,9 @@ export default function MappingStep(props: Props) {
                     value={m.deriveFromColumn ?? m.columnIndex}
                     onChange={(e) => props.onMappingChange(m.columnIndex, { deriveFromColumn: Number(e.target.value) })}
                   >
-                    {table.headers.map((h, i) => (
-                      <option key={i} value={i}>
-                        {h}
+                    {mappings.map((col) => (
+                      <option key={col.columnIndex} value={col.columnIndex}>
+                        {col.header}
                       </option>
                     ))}
                   </select>

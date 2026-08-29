@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, RefreshCw, ShieldCheck } from "lucide-react";
 import { collectUnknownDescriptions, extractIzinKodlari, matchIzinKod, mergeDurumKodlari, primaryIzinKod, rowHasOff } from "./codes";
-import { autoDetectMappings, guessHeaderRowIndex, toTableView } from "./detect";
+import { autoDetectMappings, applyTemplateToLogicalMappings, guessHeaderRowIndex, toTableView, validateMappingCoverage } from "./detect";
 import { computePuantajFm, DEFAULT_CALC_SETTINGS, inferCalcDateRange } from "./engine";
 import { buildOffAuditReport } from "./offAudit";
 import { parseFile } from "./parsing";
@@ -241,10 +241,7 @@ export default function PuantajFmPage() {
       if (!table) return;
       const tpl = templates.find((t) => t.id === templateId);
       if (!tpl) return;
-      const mapped: ColumnMapping[] = table.headers.map((h, i) => {
-        const found = tpl.mappings.find((m) => m.columnIndex === i);
-        return found ? { ...found, header: h } : { columnIndex: i, header: h, mode: "review" };
-      });
+      const mapped = applyTemplateToLogicalMappings(autoDetectMappings(table.headers), tpl.mappings);
       setMappings(mapped);
       setConstants(tpl.constants ?? {});
       setCodeMap(tpl.codeMap ?? {});
@@ -302,7 +299,7 @@ export default function PuantajFmPage() {
       return;
     }
     if (!table) return;
-    const built = buildStandardRows(table, { mappings, constants, codeMap }).map(migrateStandardRow);
+    const built = buildStandardRows(table, { mappings, constants, codeMap, headers: table.headers }).map(migrateStandardRow);
     setRows(built);
     const groups = groupByPersonel(built);
     setSelectedKeys(groups.map((g) => g.key));
@@ -630,13 +627,18 @@ export default function PuantajFmPage() {
     }
   }, [step]);
 
+  const mappingCoverage = useMemo(
+    () => (smartImportApplied ? { sufficient: true, missingLabels: [] } : validateMappingCoverage(mappings)),
+    [mappings, smartImportApplied],
+  );
+
   const canNext = useMemo(() => {
     if (step === "upload") return !!table;
-    if (step === "mapping") return smartImportApplied || mappings.some((m) => m.mode === "field");
+    if (step === "mapping") return smartImportApplied || (mappings.some((m) => m.mode === "field") && mappingCoverage.sufficient);
     if (step === "review") return visibleRows.length > 0 && reviewBlockCount === 0;
     if (step === "calculate") return selectedKeys.length > 0;
     return false;
-  }, [step, table, mappings, visibleRows, reviewBlockCount, selectedKeys, smartImportApplied]);
+  }, [step, table, mappings, visibleRows, reviewBlockCount, selectedKeys, smartImportApplied, mappingCoverage.sufficient]);
 
   const stickyStatus = useMemo(() => {
     if (step === "review") {
@@ -707,6 +709,7 @@ export default function PuantajFmPage() {
           onSaveSmartTemplate={handleSaveSmartTemplate}
           onApplySmartTemplate={handleApplySmartTemplate}
           onDeleteSmartTemplate={handleDeleteSmartTemplate}
+          mappingCoverageMissing={mappingCoverage.sufficient ? [] : mappingCoverage.missingLabels}
         />
       )}
 

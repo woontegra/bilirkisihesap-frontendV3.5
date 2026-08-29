@@ -167,6 +167,10 @@ export type ColumnMapping = {
   /** mode === "derive": kaynak sütun indeksi ve türetme kuralı. */
   deriveFromColumn?: number;
   deriveRule?: DeriveRule;
+  /** Birleştirilmiş başlık grubunun kapsadığı fiziksel sütun indeksleri. */
+  physicalIndices?: number[];
+  /** Mantıksal sütun sırası (eşleştirme ekranı). */
+  logicalIndex?: number;
   /** Otomatik tahmin edildi mi (kısa vurgu animasyonu için). */
   autoGuessed?: boolean;
   /** Tahmin güveni 0..1. */
@@ -403,6 +407,8 @@ export type OffAuditReport = {
 
 export type PuantajFmResult = {
   personelAdSoyad: string;
+  birim: string;
+  pozisyon: string;
   dailyRows: DailyWorkRow[];
   weeklyRows: WeeklyCetvelRow[];
   /** Haftalık cetvel toplamı (OFF mahsubu öncesi). */
