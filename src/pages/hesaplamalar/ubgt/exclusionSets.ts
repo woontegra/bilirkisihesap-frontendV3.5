@@ -1,11 +1,16 @@
 /**
- * UBGT dışlanabilir gün aralıkları — lokal set deposu (API yok).
- * Fazla mesai `exclusionSets` / localExtraSetsStore deseni.
+ * UBGT dışlanabilir gün aralıkları — paylaşılan izin/dışlama havuzu.
  */
 
-import { newLocalId, type UbgtExcludedDayRow } from "./model";
-
-const KEY = "bilirkisi-hesap-v35:ubgt:exclusion-sets:v1" as const;
+import { deleteLocalExclusionSet, upsertLocalExclusionSet } from "@/lib/localExclusionSetsStore";
+import {
+  SHARED_LEAVE_EXCLUSION_POOL_ID,
+  fmItemsToPoolItems,
+  listSharedLeaveExclusionSets,
+  mergeRowsByFingerprint,
+  poolItemsToFmItems,
+} from "@/lib/sharedLeaveExclusionPool";
+import type { UbgtExcludedDayRow } from "./model";
 
 export type SavedUbgtExclusionSet = {
   id: string;
@@ -14,46 +19,63 @@ export type SavedUbgtExclusionSet = {
   createdAt: string;
 };
 
-function readAll(): SavedUbgtExclusionSet[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (s): s is SavedUbgtExclusionSet =>
-        !!s && typeof s.id === "string" && typeof s.name === "string" && Array.isArray(s.data),
-    );
-  } catch {
-    return [];
-  }
+const UBGT_INCOMPATIBLE_TYPES = new Set(["UBGT", "Puantaj/Bordro", "Puantaj-Bordro"]);
+
+function toUbgtRows(items: ReturnType<typeof poolItemsToFmItems>): UbgtExcludedDayRow[] {
+  return items
+    .filter((it) => !UBGT_INCOMPATIBLE_TYPES.has(it.type))
+    .map((it) => ({
+      id: it.id,
+      type: (["Yıllık İzin", "Rapor", "Diğer"].includes(it.type)
+        ? it.type
+        : "Diğer") as UbgtExcludedDayRow["type"],
+      start: it.start,
+      end: it.end,
+      days: it.days,
+    }));
 }
 
-function writeAll(sets: SavedUbgtExclusionSet[]): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(KEY, JSON.stringify(sets));
+/** İçe aktarma: mevcut satırları korur, mükerrer eklemez. */
+export function mergeUbgtExclusionImport(
+  prev: UbgtExcludedDayRow[],
+  loaded: UbgtExcludedDayRow[],
+  createId: () => string,
+): UbgtExcludedDayRow[] {
+  const normalize = (row: UbgtExcludedDayRow): UbgtExcludedDayRow & { id: string; days: number } => ({
+    ...row,
+    id: row.id ?? createId(),
+    days: Number(row.days) || 0,
+  });
+  return mergeRowsByFingerprint(prev.map(normalize), loaded.map(normalize), createId);
 }
 
 export function getAllExclusionSets(): SavedUbgtExclusionSet[] {
-  return readAll().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return listSharedLeaveExclusionSets().map((set) => ({
+    id: set.id,
+    name: set.name,
+    data: toUbgtRows(poolItemsToFmItems(set.data)),
+    createdAt: set.createdAt,
+  }));
 }
 
 export function saveExclusionSet(name: string, data: UbgtExcludedDayRow[]): boolean {
   const trimmed = name.trim();
   if (!trimmed) return false;
-  const sets = readAll();
-  sets.push({
-    id: newLocalId("ubgt-ex"),
-    name: trimmed,
-    data: data.map((d) => ({ ...d, id: d.id || newLocalId("ex") })),
-    createdAt: new Date().toISOString(),
-  });
-  writeAll(sets);
+  const items = fmItemsToPoolItems(
+    data.map((d) => ({
+      id: d.id,
+      type: d.type,
+      start: d.start,
+      end: d.end,
+      days: Number(d.days) || 0,
+    })),
+  );
+  if (!items.length) return false;
+  upsertLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, trimmed, items);
   return true;
 }
 
 export function deleteExclusionSet(id: string): boolean {
-  writeAll(readAll().filter((s) => s.id !== id));
+  deleteLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, id);
   return true;
 }

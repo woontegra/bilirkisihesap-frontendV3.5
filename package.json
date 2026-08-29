@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint src",
+    "test:pool": "vite-node --config vite.config.ts src/lib/sharedLeaveExclusionPool.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

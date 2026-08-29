@@ -8,25 +8,13 @@ import { Button } from "@/components/ui/Button";
 import { daysBetweenIsoInclusive, isValidIsoDate } from "./engine";
 import { EXCLUSION_TYPES, newLocalId, type ExclusionItem } from "./model";
 import { exclusionRangeVisible } from "../shared/exclusionDisplayFilter";
-import { deleteExclusionSet, getAllExclusionSets, saveExclusionSet, type SavedExclusionSet } from "./exclusionSets";
+import { deleteExclusionSet, getAllExclusionSets, mergeFmExclusionImport, saveExclusionSet, type SavedExclusionSet } from "./exclusionSets";
 import accordionStyles from "../shared/ExclusionsAccordion.module.css";
 import styles from "./Gemi724FmPage.module.css";
 
 function suggestedDays(start: string, end: string): number {
   if (!isValidIsoDate(start) || !isValidIsoDate(end) || end < start) return 1;
   return daysBetweenIsoInclusive(start, end);
-}
-
-function isUbgt(e: ExclusionItem): boolean {
-  return String(e.type || "").trim() === "UBGT";
-}
-
-function mergeImported(prev: ExclusionItem[], loaded: ExclusionItem[]): ExclusionItem[] {
-  const prevUbgt = prev.filter(isUbgt);
-  const loadedUbgt = loaded.filter(isUbgt);
-  const loadedOther = loaded.filter((e) => !isUbgt(e));
-  const ubgt = prevUbgt.length > 0 ? prevUbgt : loadedUbgt;
-  return [...ubgt, ...loadedOther];
 }
 
 export function ExclusionsPanel({
@@ -88,8 +76,7 @@ export function ExclusionsPanel({
   };
 
   const importSet = (set: SavedExclusionSet) => {
-    const cloned = set.data.map((item) => ({ ...item, id: newLocalId() }));
-    onChange(mergeImported(exclusions, cloned));
+    onChange(mergeFmExclusionImport(exclusions, set.data as ExclusionItem[], newLocalId));
     setShowImportModal(false);
   };
 

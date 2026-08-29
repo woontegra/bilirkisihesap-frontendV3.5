@@ -11,6 +11,7 @@ import { exclusionRangeVisible } from "../shared/exclusionDisplayFilter";
 import {
   deleteExclusionSet,
   getAllExclusionSets,
+  mergeFmExclusionImport,
   saveExclusionSet,
   type SavedExclusionSet,
 } from "./exclusionSets";
@@ -66,12 +67,7 @@ export function ExclusionsPanel({
   };
 
   const importSet = (set: SavedExclusionSet) => {
-    const loaded = set.data.map((item) => ({ ...item, id: newLocalId() }));
-    const currentUbgt = exclusions.filter((e) => e.type === "UBGT");
-    const loadedUbgt = loaded.filter((e) => e.type === "UBGT");
-    const loadedNonUbgt = loaded.filter((e) => e.type !== "UBGT");
-    const ubgt = currentUbgt.length > 0 ? currentUbgt : loadedUbgt;
-    onChange([...ubgt, ...loadedNonUbgt]);
+    onChange(mergeFmExclusionImport(exclusions, set.data as ExclusionItem[], newLocalId));
     setShowImportModal(false);
   };
 

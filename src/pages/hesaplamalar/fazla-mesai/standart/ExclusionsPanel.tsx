@@ -9,7 +9,13 @@ import { Button } from "@/components/ui/Button";
 import { daysBetweenIsoInclusive, isValidIsoDate } from "./engine";
 import { EXCLUSION_TYPES, newLocalId, type ExclusionItem } from "./model";
 import { exclusionRangeVisible } from "../shared/exclusionDisplayFilter";
-import { deleteExclusionSet, getAllExclusionSets, saveExclusionSet, type SavedExclusionSet } from "./exclusionSets";
+import {
+  deleteExclusionSet,
+  getAllExclusionSets,
+  mergeFmExclusionImport,
+  saveExclusionSet,
+  type SavedExclusionSet,
+} from "../shared/fmExclusionSetsStore";
 import accordionStyles from "../shared/ExclusionsAccordion.module.css";
 import styles from "./StandartFmPage.module.css";
 
@@ -20,15 +26,6 @@ function suggestedDays(start: string, end: string): number {
 
 function isUbgtExclusion(exclusion: ExclusionItem): boolean {
   return String(exclusion.type || "").trim() === "UBGT";
-}
-
-/** İçe aktarmada UBGT seçimleri korunur; diğer türler içe aktarılan kayıtla güncellenir. */
-function mergeImportedExclusions(prev: ExclusionItem[], loaded: ExclusionItem[]): ExclusionItem[] {
-  const prevUbgt = prev.filter(isUbgtExclusion);
-  const loadedUbgt = loaded.filter(isUbgtExclusion);
-  const loadedOther = loaded.filter((e) => !isUbgtExclusion(e));
-  const ubgt = prevUbgt.length > 0 ? prevUbgt : loadedUbgt;
-  return [...ubgt, ...loadedOther.map((item) => ({ ...item, id: newLocalId() }))];
 }
 
 export function ExclusionsPanel({
@@ -111,7 +108,7 @@ export function ExclusionsPanel({
   };
 
   const importSet = (set: SavedExclusionSet) => {
-    onChange(mergeImportedExclusions(exclusions, set.data));
+    onChange(mergeFmExclusionImport(exclusions, set.data as ExclusionItem[], newLocalId));
     showToast(`"${set.name}" yüklendi.`);
     setShowImportModal(false);
   };

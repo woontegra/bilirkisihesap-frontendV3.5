@@ -51,7 +51,13 @@ import {
 } from "./backendCase";
 import { buildStandartUbgtPreviewSections } from "./standart/buildStandartUbgtPreviewSections";
 import { buildBilirkisiUbgtPreviewSections } from "./bilirkisi/buildBilirkisiUbgtPreviewSections";
-import { deleteExclusionSet, getAllExclusionSets, saveExclusionSet, type SavedUbgtExclusionSet } from "./exclusionSets";
+import {
+  deleteExclusionSet,
+  getAllExclusionSets,
+  mergeUbgtExclusionImport,
+  saveExclusionSet,
+  type SavedUbgtExclusionSet,
+} from "./exclusionSets";
 import {
   detectUbgtModeFromType,
   mapLegacyExpertUbgtCase,
@@ -2007,10 +2013,11 @@ export default function UbgtCalcPage({ mode, title }: Props) {
                         onClick={() => {
                           setForm((f) => ({
                             ...f,
-                            ubgtExcludedDays: set.data.map((d) => ({
-                              ...d,
-                              id: newLocalId("ex"),
-                            })),
+                            ubgtExcludedDays: mergeUbgtExclusionImport(
+                              f.ubgtExcludedDays,
+                              set.data,
+                              () => newLocalId("ex"),
+                            ),
                           }));
                           success(`"${set.name}" içe aktarıldı.`);
                           setExclusionLoadOpen(false);

@@ -3,6 +3,7 @@
  */
 
 import type { LocalExclusionSetItem } from "../../../../lib/localExclusionSetsStore";
+import { SHARED_LEAVE_EXCLUSION_POOL_ID } from "@/lib/sharedLeaveExclusionPool";
 import { newLocalId } from "./money";
 import type { ExcludedDay } from "./types";
 
@@ -36,4 +37,4 @@ export function setItemsToExcludedDays(items: LocalExclusionSetItem[]): Excluded
   }));
 }
 
-export const HT_EXCLUSION_SETS_MODULE_ID = "hafta-tatili";
+export const HT_EXCLUSION_SETS_MODULE_ID = SHARED_LEAVE_EXCLUSION_POOL_ID;

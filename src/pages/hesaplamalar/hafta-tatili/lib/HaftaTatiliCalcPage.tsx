@@ -26,11 +26,16 @@ import type { CalcSaveResult } from "../../shared/calcBackendCrud";
 import HaftaTatiliExpiryBox from "./HaftaTatiliExpiryBox";
 import {
   deleteLocalExclusionSet,
-  listLocalExclusionSets,
   upsertLocalExclusionSet,
   type LocalExclusionSet,
 } from "@/lib/localExclusionSetsStore";
 import { tryMergeLegacyExclusionSets } from "@/lib/localExclusionSetsHelpers";
+import {
+  SHARED_LEAVE_EXCLUSION_POOL_ID,
+  listSharedLeaveExclusionSets,
+  mergeRowsByFingerprint,
+  normalizeLeaveTypeForHaftaTatili,
+} from "@/lib/sharedLeaveExclusionPool";
 import { clampYear, formatDateTR, formatMoney, newLocalId, parseNum } from "./money";
 import type { DateRange, ExcludedDay, NetBreakdown, TableRow } from "./types";
 import { ManualBrutWageApplyControls } from "./ManualBrutWageApplyControls";
@@ -38,7 +43,6 @@ import { getMinWageForStartISO, yearsFromTableRows } from "./manualBrutApply";
 import { MahsuplasamaModal } from "./MahsuplasamaModal";
 import {
   excludedDaysToSetItems,
-  HT_EXCLUSION_SETS_MODULE_ID,
   setItemsToExcludedDays,
 } from "./exclusionSets";
 
@@ -197,7 +201,6 @@ function mergeAutoWithManual(auto: TableRow[], prevRows: TableRow[]): TableRow[]
 export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config }: { config: HaftaTatiliPageConfig<TForm> }) {
   const styles = config.styles;
   const backend = config.backend;
-  const exclusionModuleId = config.exclusionSetsModuleId ?? HT_EXCLUSION_SETS_MODULE_ID;
   const { success, error: showError } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
@@ -280,8 +283,8 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
   }, [backend, config.storage]);
 
   const refreshExclusionSets = useCallback(() => {
-    setSavedExclusionSets(listLocalExclusionSets(exclusionModuleId));
-  }, [exclusionModuleId]);
+    setSavedExclusionSets(listSharedLeaveExclusionSets());
+  }, []);
 
   useEffect(() => { void reloadCases(); }, [reloadCases]);
 
@@ -334,7 +337,7 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const merged = await tryMergeLegacyExclusionSets(exclusionModuleId);
+      const merged = await tryMergeLegacyExclusionSets(SHARED_LEAVE_EXCLUSION_POOL_ID);
       if (cancelled) return;
       if (merged && merged.imported > 0) {
         success(`${merged.imported} eski dışlama seti yerel depoya alındı`);
@@ -342,7 +345,7 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
       refreshExclusionSets();
     })();
     return () => { cancelled = true; };
-  }, [exclusionModuleId, refreshExclusionSets, success]);
+  }, [refreshExclusionSets, success]);
 
   useEffect(() => {
     if (!autoSyncRef.current) return;
@@ -395,7 +398,7 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
 
   const persistExclusionSet = (name: string) => {
     try {
-      upsertLocalExclusionSet(exclusionModuleId, name, excludedDaysToSetItems(form.excludedDays));
+      upsertLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, name, excludedDaysToSetItems(form.excludedDays));
       refreshExclusionSets();
       setExclusionSaveOpen(false);
       success("Dışlama seti kaydedildi");
@@ -405,19 +408,24 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
   };
 
   const importExclusionSet = (set: LocalExclusionSet) => {
-    patch("excludedDays", setItemsToExcludedDays(set.data) as TForm["excludedDays"]);
+    const imported = setItemsToExcludedDays(set.data);
+    const merged = mergeRowsByFingerprint(form.excludedDays, imported, () => newLocalId("ex"), (row) => ({
+      ...row,
+      type: normalizeLeaveTypeForHaftaTatili(row.type) as ExcludedDay["type"],
+    }));
+    patch("excludedDays", merged as TForm["excludedDays"]);
     setExclusionImportOpen(false);
     success(`"${set.name}" içe aktarıldı`);
   };
 
   const removeExclusionSet = (id: string) => {
-    deleteLocalExclusionSet(exclusionModuleId, id);
+    deleteLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, id);
     refreshExclusionSets();
     success("Set silindi");
   };
 
   const rescanLegacyExclusions = async () => {
-    const merged = await tryMergeLegacyExclusionSets(exclusionModuleId, { force: true });
+    const merged = await tryMergeLegacyExclusionSets(SHARED_LEAVE_EXCLUSION_POOL_ID, { force: true });
     refreshExclusionSets();
     if (!merged) {
       success("Yerel setler kullanılıyor (sunucu setleri alınamadı)");

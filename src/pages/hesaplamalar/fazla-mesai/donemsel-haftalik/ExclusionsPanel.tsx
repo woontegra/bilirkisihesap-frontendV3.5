@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { daysBetweenIsoInclusive, isValidIsoDate } from "./engine";
 import { EXCLUSION_TYPES, newLocalId, type ExclusionItem } from "./model";
 import { exclusionRangeVisible } from "../shared/exclusionDisplayFilter";
-import { deleteExclusionSet, getAllExclusionSets, saveExclusionSet, type SavedExclusionSet } from "./exclusionSets";
+import { deleteExclusionSet, getAllExclusionSets, mergeFmExclusionImport, saveExclusionSet, type SavedExclusionSet } from "./exclusionSets";
 import accordionStyles from "../shared/ExclusionsAccordion.module.css";
 import styles from "./DonemselHaftalikFmPage.module.css";
 
@@ -77,8 +77,7 @@ export function ExclusionsPanel({
   };
 
   const importSet = (set: SavedExclusionSet) => {
-    const cloned = set.data.map((item) => ({ ...item, id: newLocalId() }));
-    onChange([...exclusions, ...cloned]);
+    onChange(mergeFmExclusionImport(exclusions, set.data as ExclusionItem[], newLocalId));
     setShowImportModal(false);
   };
 

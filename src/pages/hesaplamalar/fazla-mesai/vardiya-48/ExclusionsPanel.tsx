@@ -1,5 +1,5 @@
-ï»¿/**
- * 48 Saat Vardiya â€” istisna paneli (V3 YillikIzinPanel metinleri).
+/**
+ * 48 Saat Vardiya — istisna paneli (V3 YillikIzinPanel metinleri).
  */
 
 import { useState } from "react";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { daysBetweenIsoInclusive, isValidIsoDate } from "./engine";
 import { EXCLUSION_TYPES, newLocalId, type ExclusionItem } from "./model";
 import { exclusionRangeVisible } from "../shared/exclusionDisplayFilter";
-import { deleteExclusionSet, getAllExclusionSets, saveExclusionSet, type SavedExclusionSet } from "./exclusionSets";
+import { deleteExclusionSet, getAllExclusionSets, mergeFmExclusionImport, saveExclusionSet, type SavedExclusionSet } from "./exclusionSets";
 import accordionStyles from "../shared/ExclusionsAccordion.module.css";
 import styles from "./Vardiya48FmPage.module.css";
 
@@ -36,7 +36,7 @@ export function ExclusionsPanel({
   const [savedSets, setSavedSets] = useState<SavedExclusionSet[]>([]);
 
   const addRow = () => {
-    const item: ExclusionItem = { id: newLocalId(), type: "YÄ±llÄ±k Ä°zin", start: "", end: "", days: 1 };
+    const item: ExclusionItem = { id: newLocalId(), type: EXCLUSION_TYPES[0], start: "", end: "", days: 1 };
     onChange([...exclusions, item]);
   };
 
@@ -76,8 +76,7 @@ export function ExclusionsPanel({
   };
 
   const importSet = (set: SavedExclusionSet) => {
-    const cloned = set.data.map((item) => ({ ...item, id: newLocalId() }));
-    onChange([...exclusions, ...cloned]);
+    onChange(mergeFmExclusionImport(exclusions, set.data as ExclusionItem[], newLocalId));
     setShowImportModal(false);
   };
 
@@ -94,15 +93,15 @@ export function ExclusionsPanel({
         onClick={() => setIsOpen((o) => !o)}
         aria-expanded={isOpen}
       >
-        <span>YÄ±llÄ±k izin / Ã‡alÄ±ÅŸÄ±lmayan raporlu gÃ¼nler dÄ±ÅŸlanabilir.</span>
+        <span>Yýllýk izin / Çalýþýlmayan raporlu günler dýþlanabilir.</span>
         <span className={accordionStyles.exclusionAccordionChevron} aria-hidden>
-          {isOpen ? "â–¼" : "â–¶"}
+          {isOpen ? "¡" : "?"}
         </span>
       </button>
 
       {isOpen ? (
         <div className={accordionStyles.exclusionAccordionBody}>
-      <p className={styles.panelHint}>DÄ±ÅŸlama ekleyin; dÃ¼ÅŸÃ¼m, girdiÄŸiniz gÃ¼n sayÄ±sÄ±na gÃ¶re yapÄ±lÄ±r.</p>
+      <p className={styles.panelHint}>Dýþlama ekleyin; düþüm, girdiðiniz gün sayýsýna göre yapýlýr.</p>
 
       <div className={styles.exclusionList}>
         {exclusions.length === 0 ? null : (
@@ -112,7 +111,7 @@ export function ExclusionsPanel({
                 className={styles.extraName}
                 value={item.type}
                 onChange={(e) => updateRow(item.id, { type: e.target.value as ExclusionItem["type"] })}
-                aria-label="TÃ¼r"
+                aria-label="Tür"
               >
                 {EXCLUSION_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -130,7 +129,7 @@ export function ExclusionsPanel({
                     days: suggestedDays(e.target.value, item.end && item.end >= e.target.value ? item.end : e.target.value),
                   })
                 }
-                aria-label="BaÅŸlangÄ±Ã§"
+                aria-label="Baþlangýç"
               />
               <input
                 type="date"
@@ -138,7 +137,7 @@ export function ExclusionsPanel({
                 value={item.end}
                 min={item.start || undefined}
                 onChange={(e) => updateRow(item.id, { end: e.target.value, days: suggestedDays(item.start, e.target.value) })}
-                aria-label="BitiÅŸ"
+                aria-label="Bitiþ"
               />
               <input
                 type="number"
@@ -147,7 +146,7 @@ export function ExclusionsPanel({
                 step={0.5}
                 value={item.days}
                 onChange={(e) => updateRow(item.id, { days: Number(e.target.value) || 0 })}
-                aria-label="GÃ¼n"
+                aria-label="Gün"
               />
               <button
                 type="button"
@@ -169,7 +168,7 @@ export function ExclusionsPanel({
         </button>
         <button type="button" className={styles.addRowBtn} onClick={onOpenUbgtPicker}>
           <CalendarDays size={14} />
-          UBGT gÃ¼nleri (FM dÃ¼ÅŸÃ¼mÃ¼)
+          UBGT günleri (FM düþümü)
         </button>
         <button type="button" className={styles.addRowBtn} onClick={openSaveModal} disabled={exclusions.length === 0}>
           <Save size={14} />
@@ -177,7 +176,7 @@ export function ExclusionsPanel({
         </button>
         <button type="button" className={styles.addRowBtn} onClick={openImportModal}>
           <Download size={14} />
-          Ä°Ã§e Aktar
+          Ýçe Aktar
         </button>
         <button
           type="button"
@@ -186,23 +185,23 @@ export function ExclusionsPanel({
           disabled={exclusions.length === 0}
         >
           <Trash2 size={14} />
-          TÃ¼mÃ¼nÃ¼ Sil
+          Tümünü Sil
         </button>
       </div>
 
-      <p className={styles.panelHint}>DÃ¼ÅŸÃ¼m, girdiÄŸiniz gÃ¼n sayÄ±sÄ±na gÃ¶re yapÄ±lÄ±r.</p>
+      <p className={styles.panelHint}>Düþüm, girdiðiniz gün sayýsýna göre yapýlýr.</p>
         </div>
       ) : null}
 
       {showSaveModal ? (
         <div className={styles.modalOverlay} role="presentation" onClick={() => setShowSaveModal(false)}>
           <div className={styles.modalCard} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className={styles.modalTitle}>DÄ±ÅŸlanabilir GÃ¼nleri Kaydet</h2>
+            <h2 className={styles.modalTitle}>Dýþlanabilir Günleri Kaydet</h2>
             <input
               className={styles.modalInput}
               value={setName}
               onChange={(e) => setSetName(e.target.value)}
-              placeholder="KayÄ±t adÄ±"
+              placeholder="Kayýt adý"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter" && setName.trim()) confirmSave();
@@ -211,7 +210,7 @@ export function ExclusionsPanel({
             />
             <div className={styles.modalActions}>
               <Button variant="soft" onClick={() => setShowSaveModal(false)}>
-                Ä°ptal
+                Ýptal
               </Button>
               <Button variant="primary" disabled={!setName.trim()} onClick={confirmSave}>
                 Kaydet
@@ -224,21 +223,21 @@ export function ExclusionsPanel({
       {showImportModal ? (
         <div className={styles.modalOverlay} role="presentation" onClick={() => setShowImportModal(false)}>
           <div className={styles.modalCard} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <h2 className={styles.modalTitle}>KayÄ±tlÄ± DÄ±ÅŸlanabilir GÃ¼nler</h2>
+            <h2 className={styles.modalTitle}>Kayýtlý Dýþlanabilir Günler</h2>
             {savedSets.length === 0 ? (
-              <p className={styles.emptyText}>HenÃ¼z kayÄ±tlÄ± liste yok.</p>
+              <p className={styles.emptyText}>Henüz kayýtlý liste yok.</p>
             ) : (
               <ul className={styles.setList}>
                 {savedSets.map((set) => (
                   <li key={set.id} className={styles.setRow}>
                     <div className={styles.setInfo}>
                       <strong>
-                        {set.name} ({set.data.length} kayÄ±t)
+                        {set.name} ({set.data.length} kayýt)
                       </strong>
                     </div>
                     <div className={styles.inlineActions}>
                       <Button variant="soft" size="sm" onClick={() => importSet(set)}>
-                        YÃ¼kle
+                        Yükle
                       </Button>
                       <Button variant="danger" size="sm" onClick={() => removeSet(set.id)} title="Sil">
                         <Trash2 size={13} />

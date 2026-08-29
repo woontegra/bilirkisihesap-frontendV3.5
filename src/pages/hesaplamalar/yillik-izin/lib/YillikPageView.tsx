@@ -29,10 +29,14 @@ import {
 } from "@/lib/localExclusionSetsHelpers";
 import {
   deleteLocalExclusionSet,
-  listLocalExclusionSets,
   upsertLocalExclusionSet,
   type LocalExclusionSet,
 } from "@/lib/localExclusionSetsStore";
+import {
+  SHARED_LEAVE_EXCLUSION_POOL_ID,
+  listSharedLeaveExclusionSets,
+  mergeRowsByFingerprint,
+} from "@/lib/sharedLeaveExclusionPool";
 import { createInitialUsedRows } from "./core";
 import { formatMoney } from "./money";
 import type { CaseListEntry, EntitlementLine, NoteBlock, UsedLeaveRow } from "./types";
@@ -236,21 +240,20 @@ export type YillikPageViewProps = {
 export function YillikPageView(props: YillikPageViewProps) {
   const Icon = props.icon;
   const { success, error: showError } = useToast();
-  const usedLeaveSetsModuleId = props.usedLeaveSetsModuleId ?? "yillik-izin-used-leave";
   const showUsedLeaveTable = props.showUsedLeaveTable !== false;
   const [usedSaveOpen, setUsedSaveOpen] = useState(false);
   const [usedImportOpen, setUsedImportOpen] = useState(false);
   const [savedUsedSets, setSavedUsedSets] = useState<LocalExclusionSet[]>([]);
 
   const refreshUsedSets = useCallback(() => {
-    setSavedUsedSets(listLocalExclusionSets(usedLeaveSetsModuleId));
-  }, [usedLeaveSetsModuleId]);
+    setSavedUsedSets(listSharedLeaveExclusionSets());
+  }, []);
 
   useEffect(() => {
     if (!showUsedLeaveTable || !props.onReplaceUsedRows) return;
     let cancelled = false;
     void (async () => {
-      const merged = await tryMergeLegacyExclusionSets(usedLeaveSetsModuleId);
+      const merged = await tryMergeLegacyExclusionSets(SHARED_LEAVE_EXCLUSION_POOL_ID);
       if (cancelled) return;
       if (merged && merged.imported > 0) {
         success(`${merged.imported} eski kullanılan-izin seti yerel depoya alındı`);
@@ -260,7 +263,7 @@ export function YillikPageView(props: YillikPageViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [showUsedLeaveTable, props.onReplaceUsedRows, usedLeaveSetsModuleId, refreshUsedSets, success]);
+  }, [showUsedLeaveTable, props.onReplaceUsedRows, refreshUsedSets, success]);
 
   const hasUsedLeaveData = props.usedRows.some((r) => r.start && r.end);
   const hasAnyUsedLeaveContent = props.usedRows.some((r) => r.start || r.end || r.days);
@@ -268,7 +271,7 @@ export function YillikPageView(props: YillikPageViewProps) {
   const persistUsedSet = (name: string) => {
     try {
       const items = collectExclusionSetItems(props.usedRows);
-      upsertLocalExclusionSet(usedLeaveSetsModuleId, name, items);
+      upsertLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, name, items);
       refreshUsedSets();
       setUsedSaveOpen(false);
       success("Kullanılan izinler kaydedildi");
@@ -284,19 +287,27 @@ export function YillikPageView(props: YillikPageViewProps) {
 
   const importUsedSet = (set: LocalExclusionSet) => {
     if (!props.onReplaceUsedRows) return;
-    props.onReplaceUsedRows(exclusionItemsToUsedRows(set.data, 7));
+    const imported = exclusionItemsToUsedRows(set.data, 0);
+    const merged = mergeRowsByFingerprint(props.usedRows, imported, () =>
+      Math.random().toString(36).slice(2),
+    );
+    props.onReplaceUsedRows(
+      merged.length >= 2
+        ? merged
+        : [...merged, ...createInitialUsedRows(Math.max(0, 7 - merged.length))].slice(0, 7),
+    );
     setUsedImportOpen(false);
     success(`"${set.name}" içe aktarıldı`);
   };
 
   const removeUsedSet = (id: string) => {
-    deleteLocalExclusionSet(usedLeaveSetsModuleId, id);
+    deleteLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, id);
     refreshUsedSets();
     success("Set silindi");
   };
 
   const rescanLegacyUsed = async () => {
-    const merged = await tryMergeLegacyExclusionSets(usedLeaveSetsModuleId, { force: true });
+    const merged = await tryMergeLegacyExclusionSets(SHARED_LEAVE_EXCLUSION_POOL_ID, { force: true });
     refreshUsedSets();
     if (!merged) {
       success("Yerel setler kullanılıyor (sunucu setleri alınamadı)");
