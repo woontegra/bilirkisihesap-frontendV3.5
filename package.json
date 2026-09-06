@@ -12,6 +12,7 @@
     "lint": "oxlint src",
     "test:pool": "vite-node --config vite.config.ts src/lib/sharedLeaveExclusionPool.test.ts",
     "test:puantaj-detect": "npx vite-node --config vite.config.ts src/pages/puantaj-fazla-mesai/detect.test.ts",
+    "test:guided-tour": "npx vite-node --config vite.config.ts src/components/guided-tour/guidedTour.selftest.ts",
     "preview": "vite preview"
   },
   "dependencies": {

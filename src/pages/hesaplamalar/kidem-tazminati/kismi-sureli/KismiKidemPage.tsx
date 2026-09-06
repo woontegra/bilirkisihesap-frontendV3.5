@@ -10,6 +10,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Calculator,
+  CirclePlay,
   Clock,
   Download,
   FilePlus2,
@@ -24,6 +25,8 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import { trackUsageEvent } from "@/telemetry/trackUsageEvent";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
@@ -64,7 +67,9 @@ import {
 } from "./extraSetsApi";
 import { emptyForm, emptyPeriod, newLocalId, type ExtraItem, type KismiFormSnapshot, type SavedCase, type WorkPeriod } from "./model";
 import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { KIDEM_KISMI_TOUR } from "./guidedTour";
 import styles from "./KismiKidemPage.module.css";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 
 const PAGE_TITLE = "Kıdem Tazminatı — Kısmi Süreli / Part Time";
 const NOTE_INFO =
@@ -176,6 +181,7 @@ export default function KismiKidemPage() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
+  const tour = useGuidedTourController();
 
   const [form, setForm] = useState<KismiFormSnapshot>(emptyForm);
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
@@ -304,6 +310,33 @@ export default function KismiKidemPage() {
   );
 
   const brutNet = useMemo(() => deriveBrutNet(kismiResult.toplamTutar), [kismiResult.toplamTutar]);
+
+  const startedRef = useRef(false);
+  const completedFingerprintRef = useRef<string | null>(null);
+
+  const markKidemStarted = useCallback(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackUsageEvent({
+      eventType: "CALCULATION_STARTED",
+      moduleKey: KIDEM_KISMI_SURELI_TYPE,
+      route: "/kidem-tazminati/kismi-sureli",
+      dedupeKey: "started:kidem_kismi_sureli",
+    });
+  }, []);
+
+  useEffect(() => {
+    const valid = kismiResult.toplamTutar > 0 || brutNet.net > 0;
+    if (!valid) return;
+    const fingerprint = snapshotKey(form);
+    if (completedFingerprintRef.current === fingerprint) return;
+    completedFingerprintRef.current = fingerprint;
+    trackUsageEvent({
+      eventType: "CALCULATION_COMPLETED",
+      moduleKey: KIDEM_KISMI_SURELI_TYPE,
+      route: "/kidem-tazminati/kismi-sureli",
+    });
+  }, [kismiResult.toplamTutar, brutNet.net, form]);
 
   const totalDaysWarning = effectiveTotalDays > 0 && effectiveTotalDays < 360;
 
@@ -804,6 +837,16 @@ export default function KismiKidemPage() {
             </div>
           ) : null}
           <div className={styles.heroActions}>
+            <Button
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -837,7 +880,7 @@ export default function KismiKidemPage() {
       <div className={`${styles.layout} ${formSwap ? styles.formSwap : ""}`}>
         {/* ── Sol: form ── */}
         <div className={styles.formCol}>
-          <section className={styles.card} style={{ animationDelay: "60ms" }}>
+          <section className={styles.card} style={{ animationDelay: "60ms" }} data-tour="kismi-donemler">
             <h2 className={styles.cardTitle}>Çalışma dönemleri</h2>
             <p className={styles.cardHint}>
               Her dönem için başlangıç ve bitiş tarihlerini girin; gün sayısı SSK 360 gün kuralına göre hesaplanır, istenirse elle düzenlenebilir.
@@ -854,7 +897,10 @@ export default function KismiKidemPage() {
                       type="date"
                       max="9999-12-31"
                       value={period.start}
-                      onChange={(e) => updatePeriod(period.id, "start", e.target.value)}
+                      onChange={(e) => {
+                        markKidemStarted();
+                        updatePeriod(period.id, "start", e.target.value);
+                      }}
                       className={styles.dateInput}
                     />
                   </label>
@@ -864,7 +910,10 @@ export default function KismiKidemPage() {
                       type="date"
                       max="9999-12-31"
                       value={period.end}
-                      onChange={(e) => updatePeriod(period.id, "end", e.target.value)}
+                      onChange={(e) => {
+                        markKidemStarted();
+                        updatePeriod(period.id, "end", e.target.value);
+                      }}
                       className={styles.dateInput}
                     />
                   </label>
@@ -875,7 +924,10 @@ export default function KismiKidemPage() {
                       inputMode="numeric"
                       className={styles.periodDaysInput}
                       value={period.days ? String(period.days) : ""}
-                      onChange={(e) => updatePeriod(period.id, "days", e.target.value)}
+                      onChange={(e) => {
+                        markKidemStarted();
+                        updatePeriod(period.id, "days", e.target.value);
+                      }}
                     />
                   </label>
                   <button
@@ -937,14 +989,17 @@ export default function KismiKidemPage() {
             <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
             <p className={styles.cardHint}>Aylık giydirilmiş brüt ve ek ödemeler.</p>
 
-            <label className={styles.field}>
+            <label className={styles.field} data-tour="kismi-ciplak-brut">
               <span className={styles.fieldLabel}>Çıplak Brüt Ücret (₺)</span>
               <div className={`${styles.inputWrap} ${asgariHatasi ? styles.inputWrapError : ""}`}>
                 <input
                   className={styles.input}
                   inputMode="decimal"
                   value={form.ciplakBrut}
-                  onChange={(e) => setForm((p) => ({ ...p, ciplakBrut: sanitizeMoneyTyping(e.target.value) }))}
+                  onChange={(e) => {
+                    markKidemStarted();
+                    setForm((p) => ({ ...p, ciplakBrut: sanitizeMoneyTyping(e.target.value) }));
+                  }}
                   placeholder="Örn: 25.000,00"
                   aria-invalid={asgariHatasi ? true : undefined}
                 />
@@ -954,6 +1009,7 @@ export default function KismiKidemPage() {
             </label>
 
             {/* Ekstra Hesaplamalar — V3 KidemTazminatiForm paritesi */}
+            <div data-tour="kismi-ekstra">
             <div className={styles.cardHead} style={{ marginTop: "0.95rem" }}>
               <h3 className={styles.subTitle}>Ekstra Hesaplamalar</h3>
               <div className={styles.inlineActions}>
@@ -1042,6 +1098,7 @@ export default function KismiKidemPage() {
                 <Plus size={14} />
                 Kalem ekle
               </button>
+            </div>
             </div>
           </section>
 
@@ -1145,7 +1202,10 @@ export default function KismiKidemPage() {
       </div>
 
       {/* ── Sticky işlem çubuğu ── */}
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="kismi-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {isDirty ? "Kaydedilmemiş değişiklikler var" : currentRecordName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1330,11 +1390,46 @@ export default function KismiKidemPage() {
         </div>
       ) : null}
 
+      <GuidedTourHost
+        definition={KIDEM_KISMI_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle="İlk Kısmi Süreli kıdem hesabınızı birlikte yapalım mı?"
+        welcomeBody="Birkaç kısa adımda hesaplamayı tamamlayın."
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        welcomeNeverLabel="Bir daha gösterme"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          trackUsageEvent({
+            eventType: "GUIDE_COMPLETED",
+            moduleKey: KIDEM_KISMI_SURELI_TYPE,
+            route: "/kidem-tazminati/kismi-sureli",
+            guideVersion: KIDEM_KISMI_TOUR.version,
+          });
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        onTourStarted={() => {
+          trackUsageEvent({
+            eventType: "GUIDE_STARTED",
+            moduleKey: KIDEM_KISMI_SURELI_TYPE,
+            route: "/kidem-tazminati/kismi-sureli",
+            guideVersion: KIDEM_KISMI_TOUR.version,
+            dedupeKey: "guide-started:kidem_kismi_sureli",
+          });
+        }}
+        paused={showPreview}
+      />
+
       <CalculationPreviewModal
         open={showPreview}
         title={PAGE_TITLE}
         sections={previewSections}
         contentId="kismi-word-copy"
+        moduleKey={KIDEM_KISMI_SURELI_TYPE}
         onClose={() => setShowPreview(false)}
       />
 

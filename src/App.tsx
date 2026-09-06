@@ -13,6 +13,8 @@ import TicketsPage from "@/pages/admin/tickets/TicketsPage";
 import ChatPage from "@/pages/admin/chat/ChatPage";
 import AnalyticsPage from "@/pages/admin/analytics/AnalyticsPage";
 import DemoConversionPage from "@/pages/admin/demo-conversion/DemoConversionPage";
+import DeviceLoginAnalyticsPage from "@/pages/admin/device-login-analytics/DeviceLoginAnalyticsPage";
+import DemoUsageFunnelPage from "@/pages/admin/demo-usage-funnel/DemoUsageFunnelPage";
 import LogsPage from "@/pages/admin/logs/LogsPage";
 import AuditLogsPage from "@/pages/admin/audit-logs/AuditLogsPage";
 import LicensesPage from "@/pages/admin/licenses/LicensesPage";
@@ -187,6 +189,8 @@ export default function App() {
             <Route path="admin/tickets" element={<TicketsPage />} />
             <Route path="admin/chat" element={<ChatPage />} />
             <Route path="admin/analytics" element={<AnalyticsPage />} />
+            <Route path="admin/device-login-analytics" element={<DeviceLoginAnalyticsPage />} />
+            <Route path="admin/demo-usage-funnel" element={<DemoUsageFunnelPage />} />
             <Route path="admin/demo-conversion" element={<DemoConversionPage />} />
             <Route path="admin/logs" element={<LogsPage />} />
             <Route path="admin/audit-logs" element={<AuditLogsPage />} />

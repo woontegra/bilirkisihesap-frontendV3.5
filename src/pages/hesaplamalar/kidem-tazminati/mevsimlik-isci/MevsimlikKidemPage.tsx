@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Calculator,
+  CirclePlay,
   Download,
   Eye,
   FilePlus2,
@@ -17,6 +18,8 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import { trackUsageEvent } from "@/telemetry/trackUsageEvent";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
@@ -55,7 +58,9 @@ import {
   type WorkPeriod,
 } from "./model";
 import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { KIDEM_MEVSIMLIK_TOUR } from "./guidedTour";
 import styles from "./MevsimlikKidemPage.module.css";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 
 const PAGE_TITLE = "Mevsimlik İşçi Kıdem Tazminatı";
 const NOTE_INFO =
@@ -174,6 +179,7 @@ export default function MevsimlikKidemPage() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
+  const tour = useGuidedTourController();
 
   const [form, setForm] = useState<MevsimlikFormSnapshot>(createEmptyMevsimlikForm);
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
@@ -252,6 +258,33 @@ export default function MevsimlikKidemPage() {
     () => formatYilAyGun({ yil: result.yil, ay: result.ay, gun: result.gun }),
     [result.yil, result.ay, result.gun],
   );
+
+  const startedRef = useRef(false);
+  const completedFingerprintRef = useRef<string | null>(null);
+
+  const markKidemStarted = useCallback(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackUsageEvent({
+      eventType: "CALCULATION_STARTED",
+      moduleKey: KIDEM_MEVSIMLIK_TYPE,
+      route: "/kidem-tazminati/mevsimlik",
+      dedupeKey: "started:kidem_mevsimlik",
+    });
+  }, []);
+
+  useEffect(() => {
+    const valid = result.brutKidem > 0 || result.netKidem > 0;
+    if (!valid) return;
+    const fingerprint = snapshotKey(form);
+    if (completedFingerprintRef.current === fingerprint) return;
+    completedFingerprintRef.current = fingerprint;
+    trackUsageEvent({
+      eventType: "CALCULATION_COMPLETED",
+      moduleKey: KIDEM_MEVSIMLIK_TYPE,
+      route: "/kidem-tazminati/mevsimlik",
+    });
+  }, [result.brutKidem, result.netKidem, form]);
 
   const iseGiris = useMemo(() => earliestPeriodStartISO(form.periods), [form.periods]);
   const istenCikis = useMemo(() => latestPeriodEndISO(form.periods), [form.periods]);
@@ -825,6 +858,16 @@ export default function MevsimlikKidemPage() {
             </div>
           ) : null}
           <div className={styles.heroActions}>
+            <Button
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -858,7 +901,7 @@ export default function MevsimlikKidemPage() {
       <div className={`${styles.layout} ${formSwap ? styles.formSwap : ""}`}>
         <div className={styles.formCol}>
           {/* Çalışma dönemleri */}
-          <section className={styles.card} style={{ animationDelay: "60ms" }}>
+          <section className={styles.card} style={{ animationDelay: "60ms" }} data-tour="mevsimlik-donemler">
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>Çalışma dönemleri</h2>
               <Button variant="soft" size="sm" onClick={addPeriod}>
@@ -883,7 +926,10 @@ export default function MevsimlikKidemPage() {
                       type="date"
                       className={styles.dateInput}
                       value={period.start}
-                      onChange={(e) => updatePeriod(period.id, "start", e.target.value)}
+                      onChange={(e) => {
+                        markKidemStarted();
+                        updatePeriod(period.id, "start", e.target.value);
+                      }}
                     />
                   </label>
                   <label className={styles.periodField}>
@@ -892,7 +938,10 @@ export default function MevsimlikKidemPage() {
                       type="date"
                       className={styles.dateInput}
                       value={period.end}
-                      onChange={(e) => updatePeriod(period.id, "end", e.target.value)}
+                      onChange={(e) => {
+                        markKidemStarted();
+                        updatePeriod(period.id, "end", e.target.value);
+                      }}
                     />
                   </label>
                   <label className={styles.periodDays}>
@@ -902,7 +951,10 @@ export default function MevsimlikKidemPage() {
                       inputMode="numeric"
                       className={styles.periodDaysValue}
                       value={period.days ? String(period.days) : ""}
-                      onChange={(e) => updatePeriod(period.id, "days", e.target.value)}
+                      onChange={(e) => {
+                        markKidemStarted();
+                        updatePeriod(period.id, "days", e.target.value);
+                      }}
                     />
                   </label>
                   <button
@@ -956,14 +1008,17 @@ export default function MevsimlikKidemPage() {
               Aylık giydirilmiş brüt ve ek ödemeler; çalışma süresi yukarıdaki dönemlerden hesaplanır.
             </p>
 
-            <label className={styles.field}>
+            <label className={styles.field} data-tour="mevsimlik-ciplak-brut">
               <span className={styles.fieldLabel}>Çıplak Brüt Ücret</span>
               <div className={`${styles.inputWrap} ${asgariUcretError ? styles.inputWrapError : ""}`}>
                 <input
                   className={styles.input}
                   inputMode="decimal"
                   value={form.ciplakBrut}
-                  onChange={(e) => patch({ ciplakBrut: sanitizeMoneyTyping(e.target.value) })}
+                  onChange={(e) => {
+                    markKidemStarted();
+                    patch({ ciplakBrut: sanitizeMoneyTyping(e.target.value) });
+                  }}
                   placeholder="20.000,00"
                   aria-invalid={asgariUcretError ? true : undefined}
                 />
@@ -975,7 +1030,7 @@ export default function MevsimlikKidemPage() {
             </label>
 
             {/* Ekstra Hesaplamalar */}
-            <div className={styles.extraBlock}>
+            <div className={styles.extraBlock} data-tour="mevsimlik-ekstra">
               <div className={styles.cardTitleRow}>
                 <h3 className={styles.subCardTitle}>Ekstra Hesaplamalar</h3>
                 <div className={styles.inlineActions}>
@@ -1190,7 +1245,10 @@ export default function MevsimlikKidemPage() {
         </div>
       </div>
 
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="mevsimlik-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {isDirty ? "Kaydedilmemiş değişiklikler var" : currentRecordName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1352,11 +1410,46 @@ export default function MevsimlikKidemPage() {
         </div>
       ) : null}
 
+      <GuidedTourHost
+        definition={KIDEM_MEVSIMLIK_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle="İlk Mevsimlik İşçi kıdem hesabınızı birlikte yapalım mı?"
+        welcomeBody="Birkaç kısa adımda hesaplamayı tamamlayın."
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        welcomeNeverLabel="Bir daha gösterme"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          trackUsageEvent({
+            eventType: "GUIDE_COMPLETED",
+            moduleKey: KIDEM_MEVSIMLIK_TYPE,
+            route: "/kidem-tazminati/mevsimlik",
+            guideVersion: KIDEM_MEVSIMLIK_TOUR.version,
+          });
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        onTourStarted={() => {
+          trackUsageEvent({
+            eventType: "GUIDE_STARTED",
+            moduleKey: KIDEM_MEVSIMLIK_TYPE,
+            route: "/kidem-tazminati/mevsimlik",
+            guideVersion: KIDEM_MEVSIMLIK_TOUR.version,
+            dedupeKey: "guide-started:kidem_mevsimlik",
+          });
+        }}
+        paused={showPreview}
+      />
+
       <CalculationPreviewModal
         open={showPreview}
         title={PAGE_TITLE}
         sections={previewSections}
         contentId="mevsimlik-word-copy"
+        moduleKey={KIDEM_MEVSIMLIK_TYPE}
         onClose={() => setShowPreview(false)}
       />
 

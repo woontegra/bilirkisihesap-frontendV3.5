@@ -7,6 +7,7 @@ import { PAGE_TITLES } from "./navConfig";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import ChatWidget from "@/components/chat/ChatWidget";
+import { CalculationPageViewTracker } from "@/telemetry/CalculationPageViewTracker";
 import styles from "./AppShell.module.css";
 
 const COLLAPSE_KEY = "v35_sidebarCollapsed";
@@ -63,6 +64,7 @@ export function AppShell() {
 
   return (
     <div className={styles.shell} data-collapsed={collapsed && isDesktop ? "true" : "false"}>
+      <CalculationPageViewTracker />
       <Sidebar
         collapsed={collapsed}
         mobileOpen={mobileOpen}

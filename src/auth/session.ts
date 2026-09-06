@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/config/apiBase";
+import { trackAppEnteredOnce } from "@/telemetry/trackUsageEvent";
 
 const ACCESS_TOKEN_KEY = "access_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
@@ -292,6 +293,12 @@ export async function loginWithPassword(email: string, password: string): Promis
   };
 
   saveSession(payload.accessToken, payload.refreshToken, userWithMeta);
+
+  try {
+    trackAppEnteredOnce();
+  } catch {
+    /* telemetry must not block login */
+  }
 
   patchCurrentUserProfile({
     licenseType: payload.licenseType ?? null,

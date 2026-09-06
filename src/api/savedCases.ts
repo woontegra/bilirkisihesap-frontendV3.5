@@ -1,4 +1,6 @@
 import { apiClient } from "@/api/client";
+import { normalizeSavedCaseType } from "@/telemetry/moduleRegistry";
+import { trackUsageEvent } from "@/telemetry/trackUsageEvent";
 
 export type SavedCaseRecord = {
   id: number;
@@ -47,10 +49,23 @@ export async function getSavedCase(id: number): Promise<SavedCaseRecord> {
 }
 
 export async function createSavedCase(payload: CreateSavedCasePayload): Promise<SavedCaseRecord> {
-  return apiClient<SavedCaseRecord>("/api/saved-cases", {
+  const created = await apiClient<SavedCaseRecord>("/api/saved-cases", {
     method: "POST",
     body: payload,
   });
+  try {
+    const moduleKey = normalizeSavedCaseType(payload.type);
+    if (moduleKey && moduleKey !== "UNKNOWN") {
+      trackUsageEvent({
+        eventType: "CALCULATION_SAVED",
+        moduleKey,
+        route: typeof window !== "undefined" ? window.location.pathname : undefined,
+      });
+    }
+  } catch {
+    /* telemetry must not affect save */
+  }
+  return created;
 }
 
 export async function updateSavedCase(

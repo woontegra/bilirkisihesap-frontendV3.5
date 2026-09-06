@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Briefcase,
   Calculator,
+  CirclePlay,
   Download,
   Eye,
   FilePlus2,
@@ -17,6 +18,8 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import { trackUsageEvent } from "@/telemetry/trackUsageEvent";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
@@ -43,7 +46,9 @@ import {
 import { getAsgariUcretByDate } from "./asgariUcret";
 import { deleteExtraSet, describeSetsError, listExtraSets, saveExtraSet } from "./extraSetsApi";
 import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { KIDEM_IS_KANUNU_TOUR } from "./guidedTour";
 import styles from "./IsKanunuKidemPage.module.css";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 
 const PAGE_TITLE = "Kıdem Tazminatı — İş Kanununa Göre";
 const NOTE_INFO =
@@ -147,6 +152,7 @@ export default function IsKanunuKidemPage() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
+  const tour = useGuidedTourController();
 
   /* form state */
   const [iseGirisTarihi, setIseGirisTarihi] = useState("");
@@ -256,6 +262,33 @@ export default function IsKanunuKidemPage() {
     }
     return computeIsKanunuResult(snapshot());
   }, [snapshot, dateError]);
+
+  const startedRef = useRef(false);
+  const completedFingerprintRef = useRef<string | null>(null);
+
+  const markKidemStarted = useCallback(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackUsageEvent({
+      eventType: "CALCULATION_STARTED",
+      moduleKey: KIDEM_30ISCI_TYPE,
+      route: "/kidem-tazminati/30isci",
+      dedupeKey: "started:kidem_30isci",
+    });
+  }, []);
+
+  useEffect(() => {
+    const valid = !dateError && (result.brutKidem > 0 || result.netKidem > 0);
+    if (!valid) return;
+    const fingerprint = snapshotKey(snapshot());
+    if (completedFingerprintRef.current === fingerprint) return;
+    completedFingerprintRef.current = fingerprint;
+    trackUsageEvent({
+      eventType: "CALCULATION_COMPLETED",
+      moduleKey: KIDEM_30ISCI_TYPE,
+      route: "/kidem-tazminati/30isci",
+    });
+  }, [dateError, result.brutKidem, result.netKidem, snapshot]);
 
   const asgariUcretError = useMemo(() => {
     const minimum = getAsgariUcretByDate(istenCikisTarihi);
@@ -848,6 +881,16 @@ export default function IsKanunuKidemPage() {
             </div>
           ) : null}
           <div className={styles.heroActions}>
+            <Button
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -881,7 +924,7 @@ export default function IsKanunuKidemPage() {
       <div className={`${styles.layout} ${formSwap ? styles.formSwap : ""}`}>
         {/* ── Sol: form ── */}
         <div className={styles.formCol}>
-          <section className={styles.card} style={{ animationDelay: "60ms" }}>
+          <section className={styles.card} style={{ animationDelay: "60ms" }} data-tour="kidem-tarihler">
             <h2 className={styles.cardTitle}>Tarih Bilgileri</h2>
             <div className={styles.basicGrid}>
               <label className={styles.field}>
@@ -890,7 +933,10 @@ export default function IsKanunuKidemPage() {
                   type="date"
                   className={styles.dateInput}
                   value={iseGirisTarihi}
-                  onChange={(e) => setIseGirisTarihi(e.target.value)}
+                  onChange={(e) => {
+                    markKidemStarted();
+                    setIseGirisTarihi(e.target.value);
+                  }}
                 />
               </label>
               <label className={styles.field}>
@@ -900,7 +946,10 @@ export default function IsKanunuKidemPage() {
                     type="date"
                     className={styles.dateInput}
                     value={istenCikisTarihi}
-                    onChange={(e) => setIstenCikisTarihi(e.target.value)}
+                    onChange={(e) => {
+                      markKidemStarted();
+                      setIstenCikisTarihi(e.target.value);
+                    }}
                     aria-invalid={dateError ? true : undefined}
                   />
                 </div>
@@ -913,7 +962,7 @@ export default function IsKanunuKidemPage() {
             </div>
           </section>
 
-          <section className={styles.card} style={{ animationDelay: "100ms" }}>
+          <section className={styles.card} style={{ animationDelay: "100ms" }} data-tour="kidem-ciplak-brut">
             <h2 className={styles.cardTitle}>Çıplak Brüt (₺)</h2>
               <label className={styles.field}>
                 <div className={styles.inputWrap}>
@@ -921,7 +970,10 @@ export default function IsKanunuKidemPage() {
                     className={styles.input}
                     inputMode="decimal"
                     value={ciplakBrut}
-                    onChange={(e) => setCiplakBrut(sanitizeMoneyTyping(e.target.value))}
+                    onChange={(e) => {
+                      markKidemStarted();
+                      setCiplakBrut(sanitizeMoneyTyping(e.target.value));
+                    }}
                     placeholder="30.000,00"
                   />
                   <span className={styles.currency} aria-hidden>
@@ -932,7 +984,7 @@ export default function IsKanunuKidemPage() {
               </label>
           </section>
 
-          <section className={styles.card} style={{ animationDelay: "120ms" }}>
+          <section className={styles.card} style={{ animationDelay: "120ms" }} data-tour="kidem-ekstra">
             <div className={styles.cardTitleRow}>
               <h2 className={styles.cardTitle}>Ekstra Hesaplamalar</h2>
               <div className={styles.inlineActions}>
@@ -1056,7 +1108,7 @@ export default function IsKanunuKidemPage() {
         </div>
 
         {/* ── Sağ: sonuçlar ── */}
-        <div className={styles.resultCol}>
+        <div className={styles.resultCol} data-tour="kidem-sonuc">
           <div className={`${styles.totalCard} ${saveFlash ? styles.totalCardSaved : ""}`} style={{ animationDelay: "100ms" }}>
             <span className={styles.totalLabel}>Brüt Kıdem Tazminatı</span>
             <FlashValue className={styles.totalValue} value={`${formatMoney(result.brutKidem)} ₺`} />
@@ -1146,7 +1198,10 @@ export default function IsKanunuKidemPage() {
       </div>
 
       {/* ── Sticky işlem çubuğu ── */}
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="kidem-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {isDirty ? "Kaydedilmemiş değişiklikler var" : currentRecordName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1173,6 +1228,40 @@ export default function IsKanunuKidemPage() {
           </div>
         </div>
       </div>
+
+      <GuidedTourHost
+        definition={KIDEM_IS_KANUNU_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle="İlk kıdem hesabınızı birlikte yapalım mı?"
+        welcomeBody="Kısa adımlarla hesaplamayı tamamlayın; ardından önizleyip kaydedebilirsiniz."
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        welcomeNeverLabel="Bir daha gösterme"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          trackUsageEvent({
+            eventType: "GUIDE_COMPLETED",
+            moduleKey: KIDEM_30ISCI_TYPE,
+            route: "/kidem-tazminati/30isci",
+            guideVersion: KIDEM_IS_KANUNU_TOUR.version,
+          });
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        onTourStarted={() => {
+          trackUsageEvent({
+            eventType: "GUIDE_STARTED",
+            moduleKey: KIDEM_30ISCI_TYPE,
+            route: "/kidem-tazminati/30isci",
+            guideVersion: KIDEM_IS_KANUNU_TOUR.version,
+            dedupeKey: "guide-started:kidem_30isci",
+          });
+        }}
+        paused={showPreview}
+      />
 
       <NameModal
         open={showExtraSaveModal}
@@ -1319,6 +1408,7 @@ export default function IsKanunuKidemPage() {
         title={PAGE_TITLE}
         sections={previewSections}
         contentId="is-kanunu-word-copy"
+        moduleKey={KIDEM_30ISCI_TYPE}
         onClose={() => setShowPreview(false)}
       />
 
@@ -1330,9 +1420,7 @@ export default function IsKanunuKidemPage() {
         placeholder="Örn: Hesaplama adı"
         confirmLabel={caseSaving ? "Kaydediliyor…" : "Kaydet"}
         initialValue={currentRecordName ?? ""}
-        onClose={() => {
-          if (!caseSaving) setShowCaseSaveModal(false);
-        }}
+        onClose={() => setShowCaseSaveModal(false)}
         onSave={(name) => {
           void persistCase(name);
         }}

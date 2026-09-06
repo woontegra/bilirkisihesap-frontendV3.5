@@ -4,9 +4,13 @@ import { Link } from "react-router-dom";
 import type { AdminCardCategory, AdminToolCardConfig } from "../adminCards";
 import styles from "./AdminToolCard.module.css";
 
+export type AdminCardPreviewStat = { label: string; value: string };
+
 type Props = {
   card: AdminToolCardConfig;
   index: number;
+  previewStats?: AdminCardPreviewStat[] | null;
+  previewLoading?: boolean;
 };
 
 const CATEGORY_ICON: Record<AdminCardCategory, string> = {
@@ -23,7 +27,7 @@ const CATEGORY_CARD: Record<AdminCardCategory, string> = {
   system: styles.systemCard,
 };
 
-export function AdminToolCard({ card, index }: Props) {
+export function AdminToolCard({ card, index, previewStats, previewLoading }: Props) {
   const Icon = card.icon;
   const comingSoon = card.status === "coming_soon";
   const delayMs = 60 + index * 45;
@@ -51,9 +55,25 @@ export function AdminToolCard({ card, index }: Props) {
       <h2 className={styles.title}>{card.title}</h2>
       <p className={styles.desc}>{card.description}</p>
 
+      {previewLoading ? <p className={styles.previewMuted}>Özet yükleniyor…</p> : null}
+      {!previewLoading && previewStats && previewStats.length > 0 ? (
+        <ul className={styles.previewList}>
+          {previewStats.map((s) => (
+            <li key={s.label}>
+              <span>{s.label}</span>
+              <strong>{s.value}</strong>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       <div className={styles.footer}>
         <span className={styles.status}>
-          {comingSoon ? "Hazırlanıyor" : "Yönetim sayfasına git"}
+          {comingSoon
+            ? "Hazırlanıyor"
+            : card.id === "device-login-analytics" || card.id === "demo-usage-funnel"
+              ? "Analizi aç"
+              : "Yönetim sayfasına git"}
         </span>
         {!comingSoon ? (
           <ArrowUpRight size={14} className={styles.arrowInline} aria-hidden />

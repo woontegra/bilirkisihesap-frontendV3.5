@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
+  CirclePlay,
   Download,
   Eye,
   FilePlus2,
@@ -13,6 +14,8 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import { trackUsageEvent } from "@/telemetry/trackUsageEvent";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
@@ -48,7 +51,9 @@ import {
   type SavedGemiCase,
 } from "./model";
 import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { KIDEM_GEMI_TOUR } from "./guidedTour";
 import styles from "./GemiKidemPage.module.css";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 
 const PAGE_TITLE = "Gemi Adamları Kıdem Tazminatı";
 const NOTE_INFO =
@@ -159,6 +164,7 @@ export default function GemiKidemPage() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
+  const tour = useGuidedTourController();
 
   const [form, setForm] = useState<GemiFormSnapshot>(createEmptyGemiForm);
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
@@ -235,6 +241,33 @@ export default function GemiKidemPage() {
   const tavanWarnings = useMemo(() => deriveWarnings(form), [form]);
   const kidemHakkiYok = useMemo(() => isKidemHakkiYok(duration), [duration]);
   const exitYear = form.endDate ? new Date(form.endDate).getFullYear() : new Date().getFullYear();
+
+  const startedRef = useRef(false);
+  const completedFingerprintRef = useRef<string | null>(null);
+
+  const markKidemStarted = useCallback(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackUsageEvent({
+      eventType: "CALCULATION_STARTED",
+      moduleKey: KIDEM_GEMI_TYPE,
+      route: "/kidem-tazminati/gemi",
+      dedupeKey: "started:kidem_gemi",
+    });
+  }, []);
+
+  useEffect(() => {
+    const valid = !dateError && (result.brutKidem > 0 || result.netKidem > 0);
+    if (!valid) return;
+    const fingerprint = snapshotKey(form);
+    if (completedFingerprintRef.current === fingerprint) return;
+    completedFingerprintRef.current = fingerprint;
+    trackUsageEvent({
+      eventType: "CALCULATION_COMPLETED",
+      moduleKey: KIDEM_GEMI_TYPE,
+      route: "/kidem-tazminati/gemi",
+    });
+  }, [dateError, result.brutKidem, result.netKidem, form]);
 
   const asgariUcretError = useMemo(() => {
     const wage = parseNum(form.ciplakBrut);
@@ -772,6 +805,16 @@ export default function GemiKidemPage() {
             </div>
           ) : null}
           <div className={styles.heroActions}>
+            <Button
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -804,7 +847,7 @@ export default function GemiKidemPage() {
 
       <div className={`${styles.layout} ${formSwap ? styles.formSwap : ""}`}>
         <div className={styles.formCol}>
-          <section className={styles.card} style={{ animationDelay: "60ms" }}>
+          <section className={styles.card} style={{ animationDelay: "60ms" }} data-tour="gemi-tarihler">
             <h2 className={styles.cardTitle}>Tarih Bilgileri</h2>
             <div className={styles.basicGrid}>
               <label className={styles.field}>
@@ -813,7 +856,10 @@ export default function GemiKidemPage() {
                   type="date"
                   className={styles.dateInput}
                   value={form.startDate}
-                  onChange={(e) => patch({ startDate: e.target.value })}
+                  onChange={(e) => {
+                    markKidemStarted();
+                    patch({ startDate: e.target.value });
+                  }}
                 />
               </label>
               <label className={styles.field}>
@@ -822,7 +868,10 @@ export default function GemiKidemPage() {
                   type="date"
                   className={`${styles.dateInput} ${dateError ? styles.inputError : ""}`}
                   value={form.endDate}
-                  onChange={(e) => patch({ endDate: e.target.value })}
+                  onChange={(e) => {
+                    markKidemStarted();
+                    patch({ endDate: e.target.value });
+                  }}
                   aria-invalid={dateError ? true : undefined}
                 />
               </label>
@@ -834,7 +883,7 @@ export default function GemiKidemPage() {
             {dateError ? <p className={styles.errorText}>{dateError}</p> : null}
           </section>
 
-          <section className={styles.card} style={{ animationDelay: "100ms" }}>
+          <section className={styles.card} style={{ animationDelay: "100ms" }} data-tour="gemi-ciplak-brut">
             <h2 className={styles.cardTitle}>Çıplak Brüt (₺)</h2>
             <label className={styles.field}>
               <div className={`${styles.inputWrap} ${asgariUcretError ? styles.inputWrapError : ""}`}>
@@ -842,7 +891,10 @@ export default function GemiKidemPage() {
                   className={styles.input}
                   inputMode="decimal"
                   value={form.ciplakBrut}
-                  onChange={(e) => patch({ ciplakBrut: sanitizeMoneyTyping(e.target.value) })}
+                  onChange={(e) => {
+                    markKidemStarted();
+                    patch({ ciplakBrut: sanitizeMoneyTyping(e.target.value) });
+                  }}
                   placeholder="30.000,00"
                   aria-invalid={asgariUcretError ? true : undefined}
                 />
@@ -854,7 +906,7 @@ export default function GemiKidemPage() {
             </label>
           </section>
 
-          <section className={styles.card} style={{ animationDelay: "140ms" }}>
+          <section className={styles.card} style={{ animationDelay: "140ms" }} data-tour="gemi-ekstra">
             <div className={styles.cardTitleRow}>
               <h2 className={styles.cardTitle}>Ekstra Hesaplamalar</h2>
               <div className={styles.inlineActions}>
@@ -1066,7 +1118,10 @@ export default function GemiKidemPage() {
         </div>
       </div>
 
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="gemi-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {isDirty ? "Kaydedilmemiş değişiklikler var" : currentRecordName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1225,11 +1280,46 @@ export default function GemiKidemPage() {
         </div>
       ) : null}
 
+      <GuidedTourHost
+        definition={KIDEM_GEMI_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle="İlk Gemi Adamları kıdem hesabınızı birlikte yapalım mı?"
+        welcomeBody="Birkaç kısa adımda hesaplamayı tamamlayın."
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        welcomeNeverLabel="Bir daha gösterme"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          trackUsageEvent({
+            eventType: "GUIDE_COMPLETED",
+            moduleKey: KIDEM_GEMI_TYPE,
+            route: "/kidem-tazminati/gemi",
+            guideVersion: KIDEM_GEMI_TOUR.version,
+          });
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        onTourStarted={() => {
+          trackUsageEvent({
+            eventType: "GUIDE_STARTED",
+            moduleKey: KIDEM_GEMI_TYPE,
+            route: "/kidem-tazminati/gemi",
+            guideVersion: KIDEM_GEMI_TOUR.version,
+            dedupeKey: "guide-started:kidem_gemi",
+          });
+        }}
+        paused={showPreview}
+      />
+
       <CalculationPreviewModal
         open={showPreview}
         title={PAGE_TITLE}
         sections={previewSections}
         contentId="gemi-word-copy"
+        moduleKey={KIDEM_GEMI_TYPE}
         onClose={() => setShowPreview(false)}
       />
 

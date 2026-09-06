@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, FileDown, Printer, X } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
+import { trackUsageEvent } from "@/telemetry/trackUsageEvent";
 import { downloadPreviewPdf } from "./pdfExport";
 import {
   buildPrintHtmlFromSections,
@@ -18,16 +19,40 @@ type Props = {
   /** Word kopyalama için benzersiz DOM id (sayfa başına bir) */
   contentId: string;
   onClose: () => void;
+  /** Stable module key — when set, fires PREVIEW_OPENED once per open */
+  moduleKey?: string | null;
 };
 
 /**
  * Tüm hesaplama sayfalarında ortak önizleme kabuğu.
  * İçerik (sections) sayfaya özel; araç çubuğu / tablo görünümü sabittir.
  */
-export function CalculationPreviewModal({ open, title, sections, contentId, onClose }: Props) {
+export function CalculationPreviewModal({
+  open,
+  title,
+  sections,
+  contentId,
+  onClose,
+  moduleKey,
+}: Props) {
   const toast = useToast();
   const previewRef = useRef<HTMLDivElement>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const trackedOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) {
+      trackedOpenRef.current = false;
+      return;
+    }
+    if (trackedOpenRef.current || !moduleKey) return;
+    trackedOpenRef.current = true;
+    trackUsageEvent({
+      eventType: "PREVIEW_OPENED",
+      moduleKey,
+      route: typeof window !== "undefined" ? window.location.pathname : undefined,
+    });
+  }, [open, moduleKey]);
 
   if (!open) return null;
 

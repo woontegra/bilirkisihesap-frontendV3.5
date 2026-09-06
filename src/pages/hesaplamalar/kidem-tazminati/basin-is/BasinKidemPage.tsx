@@ -9,6 +9,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Calculator,
+  CirclePlay,
   Download,
   Eye,
   FilePlus2,
@@ -21,6 +22,8 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import { trackUsageEvent } from "@/telemetry/trackUsageEvent";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
@@ -49,7 +52,9 @@ import { emptyForm, newLocalId, type BasinFormSnapshot, type ExtraItem, type Sav
 import { getAsgariUcretByDate } from "./asgariUcret";
 import { deleteExtraSet, describeSetsError, listExtraSets, saveExtraSet } from "./extraSetsApi";
 import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { KIDEM_BASIN_TOUR } from "./guidedTour";
 import styles from "./BasinKidemPage.module.css";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 
 const PAGE_TITLE = "Kıdem Tazminatı — Basın İş";
 const NOTE_INFO =
@@ -145,6 +150,7 @@ export default function BasinKidemPage() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
+  const tour = useGuidedTourController();
 
   const [form, setForm] = useState<BasinFormSnapshot>(emptyForm);
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
@@ -255,6 +261,33 @@ export default function BasinKidemPage() {
     () => deriveBrutNet(brutKidem, ciplakBrutValue, exitYear),
     [brutKidem, ciplakBrutValue, exitYear],
   );
+
+  const startedRef = useRef(false);
+  const completedFingerprintRef = useRef<string | null>(null);
+
+  const markKidemStarted = useCallback(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackUsageEvent({
+      eventType: "CALCULATION_STARTED",
+      moduleKey: KIDEM_BASIN_TYPE,
+      route: "/kidem-tazminati/basin",
+      dedupeKey: "started:kidem_basin",
+    });
+  }, []);
+
+  useEffect(() => {
+    const valid = brutKidem > 0 || brutNet.net > 0;
+    if (!valid) return;
+    const fingerprint = snapshotKey(form);
+    if (completedFingerprintRef.current === fingerprint) return;
+    completedFingerprintRef.current = fingerprint;
+    trackUsageEvent({
+      eventType: "CALCULATION_COMPLETED",
+      moduleKey: KIDEM_BASIN_TYPE,
+      route: "/kidem-tazminati/basin",
+    });
+  }, [brutKidem, brutNet.net, form]);
 
   const asgariUcretError = useMemo(() => {
     const minimum = getAsgariUcretByDate(form.istenCikis);
@@ -770,6 +803,16 @@ export default function BasinKidemPage() {
             </div>
           ) : null}
           <div className={styles.heroActions}>
+            <Button
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -803,7 +846,7 @@ export default function BasinKidemPage() {
       <div className={`${styles.layout} ${formSwap ? styles.formSwap : ""}`}>
         {/* ── Sol: form ── */}
         <div className={styles.formCol}>
-          <section className={styles.card} style={{ animationDelay: "60ms" }}>
+          <section className={styles.card} style={{ animationDelay: "60ms" }} data-tour="basin-tarihler">
             <h2 className={styles.cardTitle}>Tarihler</h2>
             <p className={styles.cardHint}>
               Kıdem süresi, mesleğe başlangıç (veya işe giriş) ile işten çıkış arasında; deneme günü mesleğe başlangıca
@@ -816,7 +859,10 @@ export default function BasinKidemPage() {
                   type="date"
                   max="9999-12-31"
                   value={form.meslegeBaslangic}
-                  onChange={(e) => setForm((p) => ({ ...p, meslegeBaslangic: e.target.value }))}
+                  onChange={(e) => {
+                    markKidemStarted();
+                    setForm((p) => ({ ...p, meslegeBaslangic: e.target.value }));
+                  }}
                   className={styles.dateInput}
                 />
               </label>
@@ -826,7 +872,10 @@ export default function BasinKidemPage() {
                   type="date"
                   max="9999-12-31"
                   value={form.iseGiris}
-                  onChange={(e) => setForm((p) => ({ ...p, iseGiris: e.target.value }))}
+                  onChange={(e) => {
+                    markKidemStarted();
+                    setForm((p) => ({ ...p, iseGiris: e.target.value }));
+                  }}
                   className={styles.dateInput}
                 />
               </label>
@@ -836,7 +885,10 @@ export default function BasinKidemPage() {
                   type="date"
                   max="9999-12-31"
                   value={form.istenCikis}
-                  onChange={(e) => setForm((p) => ({ ...p, istenCikis: e.target.value }))}
+                  onChange={(e) => {
+                    markKidemStarted();
+                    setForm((p) => ({ ...p, istenCikis: e.target.value }));
+                  }}
                   className={styles.dateInput}
                 />
               </label>
@@ -857,14 +909,17 @@ export default function BasinKidemPage() {
             <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
             <p className={styles.cardHint}>Aylık giydirilmiş brüt ve ek ödemeler (Basın İş).</p>
 
-            <label className={styles.field}>
+            <label className={styles.field} data-tour="basin-ciplak-brut">
               <span className={styles.fieldLabel}>Çıplak Brüt Ücret</span>
               <div className={styles.inputWrap}>
                 <input
                   className={styles.input}
                   inputMode="decimal"
                   value={form.ciplakBrut}
-                  onChange={(e) => setForm((p) => ({ ...p, ciplakBrut: sanitizeMoneyTyping(e.target.value) }))}
+                  onChange={(e) => {
+                    markKidemStarted();
+                    setForm((p) => ({ ...p, ciplakBrut: sanitizeMoneyTyping(e.target.value) }));
+                  }}
                   placeholder="25.000,00"
                   aria-invalid={asgariUcretError ? true : undefined}
                 />
@@ -875,7 +930,7 @@ export default function BasinKidemPage() {
               {asgariUcretError ? <span className={styles.errorText}>{asgariUcretError}</span> : null}
             </label>
 
-            <div className={styles.extraBlock}>
+            <div className={styles.extraBlock} data-tour="basin-ekstra">
               <div className={styles.cardTitleRow}>
                 <h3 className={styles.subCardTitle}>Ekstra Hesaplamalar</h3>
                 <div className={styles.inlineActions}>
@@ -986,7 +1041,7 @@ export default function BasinKidemPage() {
             </div>
           </section>
 
-          <section className={styles.card} style={{ animationDelay: "160ms" }}>
+          <section className={styles.card} style={{ animationDelay: "160ms" }} data-tour="basin-deneme">
             <h2 className={styles.cardTitle}>Deneme süresi düşümü (gün)</h2>
             <p className={styles.cardHint}>İsteğe bağlı; mesleğe başlangıç tarihine eklenir (en fazla 90 gün).</p>
             <label className={styles.field} style={{ maxWidth: "8rem" }}>
@@ -994,7 +1049,10 @@ export default function BasinKidemPage() {
                 type="text"
                 inputMode="numeric"
                 value={form.denemeSuresiGun}
-                onChange={(e) => setForm((p) => ({ ...p, denemeSuresiGun: sanitizeIntTyping(e.target.value) }))}
+                onChange={(e) => {
+                  markKidemStarted();
+                  setForm((p) => ({ ...p, denemeSuresiGun: sanitizeIntTyping(e.target.value) }));
+                }}
                 onBlur={() =>
                   setForm((p) => ({
                     ...p,
@@ -1131,7 +1189,10 @@ export default function BasinKidemPage() {
       </div>
 
       {/* ── Sticky işlem çubuğu ── */}
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="basin-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {isDirty ? "Kaydedilmemiş değişiklikler var" : currentRecordName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1298,11 +1359,46 @@ export default function BasinKidemPage() {
         </div>
       ) : null}
 
+      <GuidedTourHost
+        definition={KIDEM_BASIN_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle="İlk Basın İş kıdem hesabınızı birlikte yapalım mı?"
+        welcomeBody="Birkaç kısa adımda hesaplamayı tamamlayın."
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        welcomeNeverLabel="Bir daha gösterme"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          trackUsageEvent({
+            eventType: "GUIDE_COMPLETED",
+            moduleKey: KIDEM_BASIN_TYPE,
+            route: "/kidem-tazminati/basin",
+            guideVersion: KIDEM_BASIN_TOUR.version,
+          });
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        onTourStarted={() => {
+          trackUsageEvent({
+            eventType: "GUIDE_STARTED",
+            moduleKey: KIDEM_BASIN_TYPE,
+            route: "/kidem-tazminati/basin",
+            guideVersion: KIDEM_BASIN_TOUR.version,
+            dedupeKey: "guide-started:kidem_basin",
+          });
+        }}
+        paused={showPreview}
+      />
+
       <CalculationPreviewModal
         open={showPreview}
         title={PAGE_TITLE}
         sections={previewSections}
         contentId="basin-word-copy"
+        moduleKey={KIDEM_BASIN_TYPE}
         onClose={() => setShowPreview(false)}
       />
 

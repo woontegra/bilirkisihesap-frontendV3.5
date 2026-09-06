@@ -5,6 +5,7 @@ import {
   Building2,
   CreditCard,
   FileText,
+  Filter,
   History,
   Image,
   KeyRound,
@@ -12,6 +13,7 @@ import {
   Mail,
   MessageCircle,
   MessageSquare,
+  MonitorSmartphone,
   Smartphone,
   Star,
   TrendingUp,
@@ -36,6 +38,8 @@ export type AdminToolCardConfig = {
   category: AdminCardCategory;
   status: AdminCardStatus;
   adminOnly: true;
+  /** Optional live stats endpoint loaded by AdminPage */
+  previewEndpoint?: string;
 };
 
 /**
@@ -112,6 +116,29 @@ export const ADMIN_TOOL_CARDS: AdminToolCardConfig[] = [
     category: "analytics",
     status: "ready",
     adminOnly: true,
+  },
+  {
+    id: "device-login-analytics",
+    title: "Cihaz ve Giriş Analizi",
+    description: "Demo kullanıcılarının giriş yaptığı cihazları ve kullanım dağılımını inceleyin.",
+    icon: MonitorSmartphone,
+    route: "/admin/device-login-analytics",
+    category: "analytics",
+    status: "ready",
+    adminOnly: true,
+    previewEndpoint:
+      "/api/admin/device-login-analytics/summary?userType=demo&loginStatus=all&from=2026-02-01",
+  },
+  {
+    id: "demo-usage-funnel",
+    title: "Demo Kullanım Hunisi",
+    description: "Demo kullanıcılarının girişten hesaplama ve önizlemeye kadar hangi aşamada kaldığını inceleyin.",
+    icon: Filter,
+    route: "/admin/demo-usage-funnel",
+    category: "analytics",
+    status: "ready",
+    adminOnly: true,
+    previewEndpoint: "/api/admin/demo-usage-funnel/summary?userType=demo&from=2026-02-01",
   },
   {
     id: "demo-conversion",

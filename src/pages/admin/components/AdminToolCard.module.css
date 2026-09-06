@@ -206,6 +206,35 @@
   transform: translateX(4px);
 }
 
+.previewMuted {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.previewList {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem 0 0;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.previewList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.previewList strong {
+  color: var(--text-strong);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 .soon {
   cursor: default;
 }

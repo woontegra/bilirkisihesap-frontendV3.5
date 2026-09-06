@@ -6,7 +6,7 @@
   width: 100%;
   max-width: var(--ik-max);
   margin: 0 auto;
-  padding-bottom: calc(var(--shell-footer-height) + 1.25rem);
+  padding-bottom: calc(var(--shell-footer-height) + 2rem);
 }
 
 /* ── Hero ── */
