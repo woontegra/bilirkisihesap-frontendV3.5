@@ -137,6 +137,39 @@ export function mapDavaciRecordToSavedCase(record: SavedCaseRecord, fallbackYear
 }
 
 export async function listDavaciCasesFromBackend(fallbackYear: number): Promise<SavedCase[]> {
+  const { migrateLocalSavedCasesOnce } = await import("../shared/localCasesMigration");
+  const { DAVACI_CASES_KEY } = await import("./storage");
+  await migrateLocalSavedCasesOnce({
+    storageKey: DAVACI_CASES_KEY,
+    recordType: DAVACI_UCRETI_TYPE,
+    buildData: (local) => {
+      if (!local.form || typeof local.form !== "object") return null;
+      const form = local.form as DavaciFormSnapshot;
+      const results =
+        local.results && typeof local.results === "object"
+          ? (local.results as { totalBrut?: number; net?: number })
+          : {};
+      const totalBrut = Number(results.totalBrut ?? 0) || 0;
+      const net = Number(results.net ?? 0) || 0;
+      try {
+        return buildDavaciSavePayload(form, totalBrut, {
+          gross: totalBrut,
+          sgk: 0,
+          issizlik: 0,
+          gelirVergisi: 0,
+          gelirVergisiDilimleri: "",
+          damgaVergisi: 0,
+          net,
+          gelirVergisiBrut: 0,
+          gelirVergisiIstisna: 0,
+          damgaVergisiBrut: 0,
+          damgaVergisiIstisna: 0,
+        });
+      } catch {
+        return null;
+      }
+    },
+  });
   const all = await listSavedCases();
   return all
     .filter((r) => isDavaciRecordType(r.type ?? r.hesaplama_tipi))

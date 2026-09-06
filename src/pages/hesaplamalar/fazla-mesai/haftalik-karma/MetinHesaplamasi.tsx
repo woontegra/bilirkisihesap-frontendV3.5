@@ -58,10 +58,7 @@ export function MetinHesaplamasi({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
         >
-          <span>
-            <span>Metin Hesaplaması</span>
-            <span className={styles.panelHint}>Metin üzerinden hesaplama yapmak için tıklayın</span>
-          </span>
+          <span>Metin Hesaplaması</span>
           {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {open ? (

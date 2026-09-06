@@ -37,7 +37,13 @@ export function clearBoundCaseId(pathname: string): void {
 
 export function readDraftNotes(draftId: string): Note[] {
   try {
-    const raw = localStorage.getItem(draftNotesKey(draftId));
+    // Eski localStorage taslakları bir kez session'a taşı
+    const legacy = localStorage.getItem(draftNotesKey(draftId));
+    if (legacy) {
+      sessionStorage.setItem(draftNotesKey(draftId), legacy);
+      localStorage.removeItem(draftNotesKey(draftId));
+    }
+    const raw = sessionStorage.getItem(draftNotesKey(draftId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? (parsed as Note[]) : [];
@@ -48,7 +54,8 @@ export function readDraftNotes(draftId: string): Note[] {
 
 export function writeDraftNotes(draftId: string, notes: Note[]): void {
   try {
-    localStorage.setItem(draftNotesKey(draftId), JSON.stringify(notes));
+    sessionStorage.setItem(draftNotesKey(draftId), JSON.stringify(notes));
+    localStorage.removeItem(draftNotesKey(draftId));
   } catch {
     /* ignore */
   }
@@ -56,7 +63,12 @@ export function writeDraftNotes(draftId: string, notes: Note[]): void {
 
 export function readDraftTags(draftId: string): Tag[] {
   try {
-    const raw = localStorage.getItem(draftTagsKey(draftId));
+    const legacy = localStorage.getItem(draftTagsKey(draftId));
+    if (legacy) {
+      sessionStorage.setItem(draftTagsKey(draftId), legacy);
+      localStorage.removeItem(draftTagsKey(draftId));
+    }
+    const raw = sessionStorage.getItem(draftTagsKey(draftId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? (parsed as Tag[]) : [];
@@ -67,7 +79,8 @@ export function readDraftTags(draftId: string): Tag[] {
 
 export function writeDraftTags(draftId: string, tags: Tag[]): void {
   try {
-    localStorage.setItem(draftTagsKey(draftId), JSON.stringify(tags));
+    sessionStorage.setItem(draftTagsKey(draftId), JSON.stringify(tags));
+    localStorage.removeItem(draftTagsKey(draftId));
   } catch {
     /* ignore */
   }
@@ -75,6 +88,8 @@ export function writeDraftTags(draftId: string, tags: Tag[]): void {
 
 export function clearDraftData(draftId: string): void {
   try {
+    sessionStorage.removeItem(draftNotesKey(draftId));
+    sessionStorage.removeItem(draftTagsKey(draftId));
     localStorage.removeItem(draftNotesKey(draftId));
     localStorage.removeItem(draftTagsKey(draftId));
   } catch {

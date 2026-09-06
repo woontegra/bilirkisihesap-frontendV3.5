@@ -68,6 +68,30 @@ export function wageReadyIn(root: Element | null): boolean {
   return parseTourMoney(input?.value ?? "") > 0;
 }
 
+const TIME_RE = /^\d{2}:\d{2}$/;
+
+/** Valid HH:MM (00–23 / 00–59). Overnight pairs are allowed — no start≤end check. */
+export function isValidTimeValue(value: string): boolean {
+  if (!TIME_RE.test(value)) return false;
+  const [hs, ms] = value.split(":");
+  const h = Number(hs);
+  const m = Number(ms);
+  return Number.isFinite(h) && Number.isFinite(m) && h >= 0 && h <= 23 && m >= 0 && m <= 59;
+}
+
+/**
+ * First two `input[type=time]` in root must both be complete HH:MM.
+ * Does not invent extra validation beyond native time completeness.
+ */
+export function timesReadyIn(root: Element | null): boolean {
+  if (!root) return false;
+  const times = root.querySelectorAll<HTMLInputElement>('input[type="time"]');
+  if (times.length < 2) return false;
+  const a = (times[0]?.value ?? "").trim();
+  const b = (times[1]?.value ?? "").trim();
+  return isValidTimeValue(a) && isValidTimeValue(b);
+}
+
 /**
  * After a trusted edit, wait `delayMs` then re-check readiness (with a short
  * poll) so controlled/native inputs that commit value slightly after the event

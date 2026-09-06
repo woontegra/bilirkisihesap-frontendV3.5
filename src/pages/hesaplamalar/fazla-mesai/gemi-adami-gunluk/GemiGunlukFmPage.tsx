@@ -7,6 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Calculator,
+  CirclePlay,
   Eye,
   FilePlus2,
   FolderOpen,
@@ -20,10 +21,17 @@ import {
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTimeInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import {
+  FM_GEMI_GUNLUK_TOUR,
+  FM_GEMI_GUNLUK_TOUR_WELCOME_BODY,
+  FM_GEMI_GUNLUK_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   ManualBrutWageApplyControls,
   clearAllManualBrutFromRowOverrides,
@@ -172,6 +180,20 @@ export default function GemiGunlukFmPage() {
   const [saveFlash, setSaveFlash] = useState(false);
   const [formSwap, setFormSwap] = useState(false);
   const [baseline, setBaseline] = useState("");
+  const [exclusionOverlayOpen, setExclusionOverlayOpen] = useState(false);
+  const tour = useGuidedTourController();
+
+  const tourPaused =
+    showRecordsModal ||
+    showCaseSaveModal ||
+    showPreview ||
+    showUbgtPicker ||
+    showZamanasimiModal ||
+    showKatsayiModal ||
+    showMahsupModal ||
+    exclusionOverlayOpen ||
+    deleteCaseTarget !== null ||
+    discardOpen;
 
   const setField = <K extends keyof GemiGunlukFormSnapshot>(key: K, value: GemiGunlukFormSnapshot[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -577,7 +599,7 @@ export default function GemiGunlukFmPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama yalnızca bu cihazda yapılır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -594,6 +616,17 @@ export default function GemiGunlukFmPage() {
             <FlashValue className={styles.quickTotalValue} value={`${formatMoney(result.toplamFm)} ₺`} />
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -625,27 +658,29 @@ export default function GemiGunlukFmPage() {
             <h2 className={styles.cardTitle}>Dava dönemi</h2>
           </div>
           <div className={styles.basicGrid}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>İşe giriş</span>
-              <DraftDateInput
-                className={styles.dateInput}
-                value={form.iseGiris}
-                onCommit={(v) => setField("iseGiris", v)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>İşten çıkış</span>
-              <div className={`${styles.dateWrap} ${dateError ? styles.inputWrapError : ""}`}>
+            <div data-tour="fm-gemi-gunluk-donem" className={styles.basicGrid} style={{ gridColumn: "1 / -1" }}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>İşe giriş</span>
                 <DraftDateInput
                   className={styles.dateInput}
-                  value={form.istenCikis}
-                  onCommit={(v) => setField("istenCikis", v)}
-                  aria-invalid={dateError ? true : undefined}
+                  value={form.iseGiris}
+                  onCommit={(v) => setField("iseGiris", v)}
                 />
-              </div>
-            </label>
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>İşten çıkış</span>
+                <div className={`${styles.dateWrap} ${dateError ? styles.inputWrapError : ""}`}>
+                  <DraftDateInput
+                    className={styles.dateInput}
+                    value={form.istenCikis}
+                    onCommit={(v) => setField("istenCikis", v)}
+                    aria-invalid={dateError ? true : undefined}
+                  />
+                </div>
+              </label>
+            </div>
             {dateError ? <p className={`${styles.errorText} ${styles.gridSpanAll}`}>{dateError}</p> : null}
-            <div className={styles.timePairRow}>
+            <div className={styles.timePairRow} data-tour="fm-gemi-gunluk-saatler">
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Giriş saati</span>
                 <DraftTimeInput
@@ -683,7 +718,7 @@ export default function GemiGunlukFmPage() {
           </p>
         </section>
 
-        <section className={styles.card} style={{ animationDelay: "90ms" }}>
+        <section className={styles.card} style={{ animationDelay: "90ms" }} data-tour="fm-gemi-gunluk-taniklar">
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>Tanık beyanları</h2>
             <Button variant="soft" size="sm" onClick={addWitness}>
@@ -783,60 +818,63 @@ export default function GemiGunlukFmPage() {
           witnesses={form.witnesses}
         />
 
-        <ExclusionsPanel
-          exclusions={form.exclusions}
-          onChange={setExclusions}
-          onOpenUbgtPicker={() => setShowUbgtPicker(true)}
-          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
-        />
+        <div data-tour="fm-gemi-gunluk-ayarlar" style={{ display: "grid", gap: "1rem", minWidth: 0 }}>
+          <ExclusionsPanel
+            exclusions={form.exclusions}
+            onChange={setExclusions}
+            onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+            visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
+            onOverlayOpenChange={setExclusionOverlayOpen}
+          />
 
-        <p className={styles.deductionNotice}>
-          Son haftaya isabet eden izin/UBGT düşümlerinde, tabloda görülen tarih aralığı 7 günden kısa olsa dahi hesaplama bu süre üzerinden yapılmaz. İlgili düşüm, üst satırdaki toplam haftadan 1 hafta eksiltilerek ayrı bir satırda 1 hafta olarak dikkate alınmıştır.
-        </p>
-
-        <section className={styles.card} style={{ animationDelay: "150ms" }}>
-          <div className={styles.basicGrid}>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Kat Sayı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() => setShowKatsayiModal(true)}
-              >
-                <Calculator size={13} />
-                {hasCustomKatsayi ? `Katsayı ${form.katSayi}` : "Kat Sayı"}
-              </button>
-            </div>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>270 Saat</span>
-              <select
-                className={styles.selectInput}
-                value={form.mode270}
-                onChange={(e) => setField("mode270", e.target.value as GemiGunlukFormSnapshot["mode270"])}
-              >
-                <option value="none">Kapalı</option>
-                <option value="simple">Yargıtay Uygulaması</option>
-                <option value="detailed">Şirket Uygulaması</option>
-              </select>
-            </label>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Zamanaşımı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() =>
-                  form.zamanasimi ? setField("zamanasimi", null) : setShowZamanasimiModal(true)
-                }
-              >
-                <History size={13} />
-                {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
-              </button>
-            </div>
-          </div>
-          <p className={styles.toolbarHint}>
-            270 ve zamanaşımı sunucuda uygulanır: Yargıtay seçeneğinde hafta değişmez, FM saatinden 5 saat 12 dakika düşülür; Şirket seçeneğinde hafta düşümü uygulanır.
+          <p className={styles.deductionNotice}>
+            Son haftaya isabet eden izin/UBGT düşümlerinde, tabloda görülen tarih aralığı 7 günden kısa olsa dahi hesaplama bu süre üzerinden yapılmaz. İlgili düşüm, üst satırdaki toplam haftadan 1 hafta eksiltilerek ayrı bir satırda 1 hafta olarak dikkate alınmıştır.
           </p>
-        </section>
+
+          <section className={styles.card} style={{ animationDelay: "150ms" }}>
+            <div className={styles.basicGrid}>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Kat Sayı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() => setShowKatsayiModal(true)}
+                >
+                  <Calculator size={13} />
+                  {hasCustomKatsayi ? `Katsayı ${form.katSayi}` : "Kat Sayı"}
+                </button>
+              </div>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>270 Saat</span>
+                <select
+                  className={styles.selectInput}
+                  value={form.mode270}
+                  onChange={(e) => setField("mode270", e.target.value as GemiGunlukFormSnapshot["mode270"])}
+                >
+                  <option value="none">Kapalı</option>
+                  <option value="simple">Yargıtay Uygulaması</option>
+                  <option value="detailed">Şirket Uygulaması</option>
+                </select>
+              </label>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Zamanaşımı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() =>
+                    form.zamanasimi ? setField("zamanasimi", null) : setShowZamanasimiModal(true)
+                  }
+                >
+                  <History size={13} />
+                  {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
+                </button>
+              </div>
+            </div>
+            <p className={styles.toolbarHint}>
+              270 ve zamanaşımı sunucuda uygulanır: Yargıtay seçeneğinde hafta değişmez, FM saatinden 5 saat 12 dakika düşülür; Şirket seçeneğinde hafta düşümü uygulanır.
+            </p>
+          </section>
+        </div>
 
         {result.warnings.length > 0 ? (
           <article className={styles.panel} style={{ animationDelay: "155ms" }}>
@@ -960,7 +998,7 @@ export default function GemiGunlukFmPage() {
         </section>
       </div>
 
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""}`}>
+      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""}`} data-tour="fm-gemi-gunluk-kaydet-actions">
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {isDirty ? "Kaydedilmemiş değişiklikler var" : currentRecordName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1104,6 +1142,24 @@ export default function GemiGunlukFmPage() {
           setDiscardOpen(false);
           setPendingAction(null);
         }}
+      />
+
+      <GuidedTourHost
+        definition={FM_GEMI_GUNLUK_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={FM_GEMI_GUNLUK_TOUR_WELCOME_TITLE}
+        welcomeBody={FM_GEMI_GUNLUK_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={tourPaused}
       />
     </div>
   );

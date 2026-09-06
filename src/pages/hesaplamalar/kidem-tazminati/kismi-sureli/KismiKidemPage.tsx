@@ -824,7 +824,7 @@ export default function KismiKidemPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama ve kayıtlar yalnızca bu cihazda</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>

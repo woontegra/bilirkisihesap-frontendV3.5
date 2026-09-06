@@ -1,15 +1,19 @@
 /**
  * Lokal exclusion / kullanılan-izin set yardımcıları —
- * UsedLeaveRow ↔ LocalExclusionSetItem ve salt-okunur legacy GET.
+ * UsedLeaveRow ↔ LocalExclusionSetItem ve legacy GET → hesap havuzu.
  */
 
 import { apiClient } from "@/api/client";
 import {
   clearExclusionLegacyImportedFlag,
-  mergeLegacyExclusionSets,
+  markExclusionLegacyImported,
   type LocalExclusionSetItem,
   wasExclusionLegacyImported,
 } from "@/lib/localExclusionSetsStore";
+import {
+  mergeLegacyIntoSharedLeavePool,
+  SHARED_LEAVE_EXCLUSION_POOL_ID,
+} from "@/lib/sharedLeaveExclusionPool";
 
 export type UsedLeaveLike = {
   id: string;
@@ -53,20 +57,25 @@ export function exclusionItemsToUsedRows(items: LocalExclusionSetItem[], minRows
   }));
 }
 
-/** Salt-okunur legacy GET; backend'e yazmaz. force=true → flag temizleyip yeniden tara. */
+/**
+ * Eski global /api/exclusion-sets listesini hesap havuzuna aktarır.
+ * force=true → flag temizleyip yeniden tara.
+ */
 export async function tryMergeLegacyExclusionSets(
   moduleId: string,
   options?: { force?: boolean },
 ): Promise<{ imported: number; skipped: number } | null> {
-  if (!options?.force && wasExclusionLegacyImported(moduleId)) return null;
-  if (options?.force) clearExclusionLegacyImportedFlag(moduleId);
+  const scope = moduleId || SHARED_LEAVE_EXCLUSION_POOL_ID;
+  if (!options?.force && wasExclusionLegacyImported(scope)) return null;
+  if (options?.force) clearExclusionLegacyImportedFlag(scope);
   try {
     const raw = await apiClient<unknown>("/api/exclusion-sets", { method: "GET" });
     const list = Array.isArray(raw) ? raw : [];
-    return mergeLegacyExclusionSets(
-      moduleId,
+    const result = await mergeLegacyIntoSharedLeavePool(
       list.filter((e): e is { id?: number; name?: string; data?: unknown } => !!e && typeof e === "object"),
     );
+    markExclusionLegacyImported(scope);
+    return result;
   } catch {
     return null;
   }

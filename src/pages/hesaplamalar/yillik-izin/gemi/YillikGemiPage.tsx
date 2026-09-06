@@ -148,6 +148,7 @@ export default function YillikGemiPage() {
 
   return (
     <YillikPageView
+      guidedTourVariant="gemi"
       icon={Ship}
       pageTitle={PAGE_TITLE}
       pageDescription="Deniz İş Kanunu — 30/360 gün kuralı ile gemi adamı yıllık izin alacağı."

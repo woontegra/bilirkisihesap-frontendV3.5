@@ -3,9 +3,10 @@
  * Yalnızca yillik-izin modülü içinde paylaşılır; iş mantığı içermez.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Calculator,
+  CirclePlay,
   Download,
   Eye,
   FilePlus2,
@@ -19,6 +20,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
@@ -28,16 +31,17 @@ import {
   tryMergeLegacyExclusionSets,
 } from "@/lib/localExclusionSetsHelpers";
 import {
-  deleteLocalExclusionSet,
-  upsertLocalExclusionSet,
   type LocalExclusionSet,
 } from "@/lib/localExclusionSetsStore";
 import {
   SHARED_LEAVE_EXCLUSION_POOL_ID,
-  listSharedLeaveExclusionSets,
+  deleteSharedLeaveExclusionSet,
+  listSharedLeaveExclusionSetsAsync,
   mergeRowsByFingerprint,
+  upsertSharedLeaveExclusionSet,
 } from "@/lib/sharedLeaveExclusionPool";
 import { createInitialUsedRows } from "./core";
+import { createYillikGuidedTour, yillikWelcomeCopy, type YillikTourVariant } from "./guidedTour";
 import { formatMoney } from "./money";
 import type { CaseListEntry, EntitlementLine, NoteBlock, UsedLeaveRow } from "./types";
 import styles from "./YillikPageView.module.css";
@@ -235,18 +239,29 @@ export type YillikPageViewProps = {
   onOpenCase: (id: string) => void;
   onConfirmDelete: () => void;
   previewSections: PreviewSection[];
+  /** Etkileşimli kılavuz variant kimliği — yoksa kılavuz host render edilmez. */
+  guidedTourVariant?: YillikTourVariant;
 };
 
 export function YillikPageView(props: YillikPageViewProps) {
   const Icon = props.icon;
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
+  const tour = useGuidedTourController();
+  const tourDefinition = useMemo(
+    () => (props.guidedTourVariant ? createYillikGuidedTour(props.guidedTourVariant) : null),
+    [props.guidedTourVariant],
+  );
+  const welcomeCopy = useMemo(
+    () => (props.guidedTourVariant ? yillikWelcomeCopy(props.guidedTourVariant) : null),
+    [props.guidedTourVariant],
+  );
   const showUsedLeaveTable = props.showUsedLeaveTable !== false;
   const [usedSaveOpen, setUsedSaveOpen] = useState(false);
   const [usedImportOpen, setUsedImportOpen] = useState(false);
   const [savedUsedSets, setSavedUsedSets] = useState<LocalExclusionSet[]>([]);
 
-  const refreshUsedSets = useCallback(() => {
-    setSavedUsedSets(listSharedLeaveExclusionSets());
+  const refreshUsedSets = useCallback(async () => {
+    setSavedUsedSets(await listSharedLeaveExclusionSetsAsync());
   }, []);
 
   useEffect(() => {
@@ -256,9 +271,9 @@ export function YillikPageView(props: YillikPageViewProps) {
       const merged = await tryMergeLegacyExclusionSets(SHARED_LEAVE_EXCLUSION_POOL_ID);
       if (cancelled) return;
       if (merged && merged.imported > 0) {
-        success(`${merged.imported} eski kullanılan-izin seti yerel depoya alındı`);
+        success(`${merged.imported} eski kullanılan-izin seti hesaba aktarıldı`);
       }
-      refreshUsedSets();
+      await refreshUsedSets();
     })();
     return () => {
       cancelled = true;
@@ -269,20 +284,21 @@ export function YillikPageView(props: YillikPageViewProps) {
   const hasAnyUsedLeaveContent = props.usedRows.some((r) => r.start || r.end || r.days);
 
   const persistUsedSet = (name: string) => {
-    try {
-      const items = collectExclusionSetItems(props.usedRows);
-      upsertLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, name, items);
-      refreshUsedSets();
-      setUsedSaveOpen(false);
-      success("Kullanılan izinler kaydedildi");
-    } catch (err) {
-      showError(err instanceof Error ? err.message : "Kaydedilemedi");
-    }
+    void (async () => {
+      try {
+        const items = collectExclusionSetItems(props.usedRows);
+        await upsertSharedLeaveExclusionSet(name, items);
+        await refreshUsedSets();
+        setUsedSaveOpen(false);
+        success("Kullanılan izinler kaydedildi");
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "Kaydedilemedi");
+      }
+    })();
   };
 
   const openUsedImport = () => {
-    refreshUsedSets();
-    setUsedImportOpen(true);
+    void refreshUsedSets().then(() => setUsedImportOpen(true));
   };
 
   const importUsedSet = (set: LocalExclusionSet) => {
@@ -301,16 +317,18 @@ export function YillikPageView(props: YillikPageViewProps) {
   };
 
   const removeUsedSet = (id: string) => {
-    deleteLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, id);
-    refreshUsedSets();
-    success("Set silindi");
+    void (async () => {
+      await deleteSharedLeaveExclusionSet(id);
+      await refreshUsedSets();
+      success("Set silindi");
+    })();
   };
 
   const rescanLegacyUsed = async () => {
     const merged = await tryMergeLegacyExclusionSets(SHARED_LEAVE_EXCLUSION_POOL_ID, { force: true });
-    refreshUsedSets();
+    await refreshUsedSets();
     if (!merged) {
-      success("Yerel setler kullanılıyor (sunucu setleri alınamadı)");
+      success("Hesap setleri kullanılıyor (eski sunucu setleri alınamadı)");
       return;
     }
     success(
@@ -343,7 +361,7 @@ export function YillikPageView(props: YillikPageViewProps) {
             <p className={styles.desc}>{props.pageDescription}</p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama ve kayıtlar yalnızca bu cihazda</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -356,6 +374,19 @@ export function YillikPageView(props: YillikPageViewProps) {
             </div>
           ) : null}
           <div className={styles.heroActions}>
+            {tourDefinition ? (
+              <Button
+                type="button"
+                variant="soft"
+                size="sm"
+                className={tourStyles.howToBtn}
+                onClick={() => tour.openTour(0)}
+                aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+              >
+                <CirclePlay size={14} />
+                Nasıl kullanılır?
+              </Button>
+            ) : null}
             <Button type="button" variant="soft" size="sm" onClick={() => props.setListOpen(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({props.cases.length})
@@ -379,7 +410,7 @@ export function YillikPageView(props: YillikPageViewProps) {
 
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="yillik-donem">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Tarih bilgileri</h2>
@@ -463,7 +494,7 @@ export function YillikPageView(props: YillikPageViewProps) {
             ) : null}
 
             {(props.show18Or50 || props.showUnderground) && (
-              <div className={styles.flagRow} style={{ marginTop: "0.65rem" }}>
+              <div className={styles.flagRow} style={{ marginTop: "0.65rem" }} data-tour="yillik-ozel-bilgiler">
                 {props.show18Or50 ? (
                   <label className={styles.checkLabel}>
                     <input
@@ -488,7 +519,7 @@ export function YillikPageView(props: YillikPageViewProps) {
             )}
           </section>
 
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="yillik-ucret">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Brüt ücret</h2>
@@ -515,7 +546,7 @@ export function YillikPageView(props: YillikPageViewProps) {
           </section>
 
           {showUsedLeaveTable ? (
-            <section className={styles.card}>
+            <section className={styles.card} data-tour="yillik-kullanilan-izin">
               <div className={styles.cardTitleRow}>
                 <div className={styles.cardHead}>
                   <h2 className={styles.cardTitle}>Kullanılan İzinleri Dışla</h2>
@@ -756,7 +787,10 @@ export function YillikPageView(props: YillikPageViewProps) {
         </aside>
       </div>
 
-      <div className={`${styles.stickyBar} ${props.dirty ? styles.stickyBarDirty : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${props.dirty ? styles.stickyBarDirty : ""}`}
+        data-tour="yillik-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {props.dirty
@@ -922,6 +956,34 @@ export function YillikPageView(props: YillikPageViewProps) {
         onConfirm={props.onConfirmDelete}
         onCancel={() => props.setConfirmDeleteId(null)}
       />
+
+      {tourDefinition && welcomeCopy ? (
+        <GuidedTourHost
+          definition={tourDefinition}
+          active={tour.active}
+          onActiveChange={tour.setActive}
+          welcomeOpen={tour.welcomeOpen}
+          onWelcomeOpenChange={tour.setWelcomeOpen}
+          welcomeTitle={welcomeCopy.title}
+          welcomeBody={welcomeCopy.body}
+          welcomeStartLabel="Başlat"
+          welcomeLaterLabel="Kendim devam edeceğim"
+          initialStepIndex={tour.resumeStepIndex}
+          onCollectingComplete={() => {
+            tour.completeTour();
+            toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+          }}
+          paused={
+            props.previewOpen ||
+            props.nameOpen ||
+            props.listOpen ||
+            usedSaveOpen ||
+            usedImportOpen ||
+            props.confirmNew ||
+            !!props.confirmDeleteId
+          }
+        />
+      ) : null}
     </div>
   );
 }

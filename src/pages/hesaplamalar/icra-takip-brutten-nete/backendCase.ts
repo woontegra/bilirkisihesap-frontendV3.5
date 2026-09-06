@@ -1,3 +1,4 @@
+import { storageKeyFor } from "./model";
 /**
  * V3/backend kayıt → İcra Takip Brütten Nete form mapping.
  */
@@ -117,6 +118,7 @@ export function getIcraCaseCrud(variant: IcraVariant): IcraCaseCrud {
             total: result.net,
           },
         }),
+      localStorageKey: storageKeyFor(variant),
     });
     crudByVariant.set(variant, crud);
   }

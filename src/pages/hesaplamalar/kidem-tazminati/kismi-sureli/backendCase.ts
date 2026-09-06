@@ -1,3 +1,4 @@
+import { KISMI_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Kısmi Süreli kıdem form mapping.
  * Yalnızca form alanlarını doldurur; sonuçları backend'den almaz.
@@ -136,7 +137,7 @@ export function mapKismiFormFromBackend(data: unknown): KismiFormSnapshot | null
   }
 }
 
-export const kismiCaseCrud = createKidemCrud(KIDEM_KISMI_SURELI_TYPE, mapKismiFormFromBackend);
+export const kismiCaseCrud = createKidemCrud(KIDEM_KISMI_SURELI_TYPE, mapKismiFormFromBackend, KISMI_CASES_KEY);
 
 export function mapKismiRecordToSavedCase(record: SavedCaseRecord): SavedCase | null {
   const form = mapKismiFormFromBackend(record.data);

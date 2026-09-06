@@ -1,7 +1,6 @@
 /**
- * Lokal dışlama / kullanılan-izin setleri deposu.
- * Hesap motorundan bağımsız; network yok (CRUD lokal).
- * İsteğe bağlı salt-okunur legacy GET import ayrı çağrılır.
+ * Legacy localStorage okuyucu — ortak havuz artık API'de.
+ * Migrate kaynakları ve eski anahtar temizliği için tutulur.
  */
 
 export type LocalExclusionSetItem = {

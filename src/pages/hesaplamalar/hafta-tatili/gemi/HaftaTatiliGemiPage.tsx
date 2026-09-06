@@ -28,6 +28,7 @@ const config: HaftaTatiliPageConfig<GemiForm> = {
   notes: NOTE_BLOCKS,
   showSeasonal: false,
   showGeceCalisan: false,
+  guidedTourVariant: "gemi-adami",
   createEmptyForm,
   snapshotKey,
   compute: computeGemiHaftaTatili,

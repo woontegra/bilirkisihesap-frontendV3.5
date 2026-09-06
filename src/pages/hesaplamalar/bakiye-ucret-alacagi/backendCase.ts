@@ -10,8 +10,7 @@ import {
   unwrapCalcData,
   type CalcSaveResult,
 } from "../shared/calcBackendCrud";
-import type { BakiyeForm, BakiyeResults, ExtraItem, SavedCase } from "./model";
-import { createEmptyForm, newLocalId } from "./model";
+import { STORAGE_KEY, createEmptyForm, newLocalId, type BakiyeForm, type BakiyeResults, type ExtraItem, type SavedCase } from "./model";
 import { parseNum } from "./engine";
 
 export const BAKIYE_UCRET_TYPE = "bakiye_ucret" as const;
@@ -128,6 +127,7 @@ export const bakiyeUcretCaseCrud = createCalcBackendCrud({
       },
     });
   },
+  localStorageKey: STORAGE_KEY,
 });
 
 export function buildBakiyeSaveResult(

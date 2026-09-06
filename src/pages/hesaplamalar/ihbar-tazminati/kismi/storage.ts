@@ -4,7 +4,7 @@ import { createCaseStorage } from "../lib/caseStorage";
 import type { IhbarResultSnapshot } from "../lib/types";
 import { normalizeForm, normalizeResults, type IhbarKismiForm } from "./model";
 
-const STORAGE_KEY = "bilirkisi-hesap-v35:ihbar-kismi:cases:v1";
+export const STORAGE_KEY = "bilirkisi-hesap-v35:ihbar-kismi:cases:v1";
 
 const api = createCaseStorage<IhbarKismiForm, IhbarResultSnapshot>(
   STORAGE_KEY,

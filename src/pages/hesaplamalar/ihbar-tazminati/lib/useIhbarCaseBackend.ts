@@ -92,8 +92,7 @@ export function useIhbarCaseBackend<TForm, TSaved extends { id: string; name: st
             ? error.message
             : "Kayıtlar yüklenemedi";
       setStorageError(message);
-      const local = config.loadCasesSafe();
-      setCases(local.ok ? local.items : []);
+      setCases([]);
     }
   }, [config]);
 

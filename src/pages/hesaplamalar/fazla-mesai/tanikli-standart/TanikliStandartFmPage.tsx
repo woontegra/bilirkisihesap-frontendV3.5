@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Calculator,
+  CirclePlay,
   Eye,
   FilePlus2,
   FolderOpen,
@@ -17,6 +18,8 @@ import {
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTimeInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
@@ -27,6 +30,11 @@ import {
   isManualBrutActiveInOverrides,
   mergeManualWageBrutsIntoRowOverrides,
 } from "@/features/manual-brut-wage";
+import {
+  FM_TANIKLI_STANDART_TOUR,
+  FM_TANIKLI_STANDART_TOUR_WELCOME_BODY,
+  FM_TANIKLI_STANDART_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   listTanikliFmCases,
   loadTanikliFmCase,
@@ -171,8 +179,21 @@ export default function TanikliStandartFmPage() {
   const [saveFlash, setSaveFlash] = useState(false);
   const [formSwap, setFormSwap] = useState(false);
   const [baseline, setBaseline] = useState("");
+  const [exclusionOverlayOpen, setExclusionOverlayOpen] = useState(false);
+  const tour = useGuidedTourController();
 
   const modalReturnFocusRef = useRef<HTMLElement | null>(null);
+  const tourPaused =
+    showRecordsModal ||
+    showCaseSaveModal ||
+    showPreview ||
+    showUbgtPicker ||
+    showZamanasimiModal ||
+    showKatsayiModal ||
+    showMahsupModal ||
+    exclusionOverlayOpen ||
+    deleteCaseTarget !== null ||
+    discardOpen;
 
   const setField = <K extends keyof TanikliFormSnapshot>(key: K, value: TanikliFormSnapshot[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -647,7 +668,7 @@ export default function TanikliStandartFmPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama yalnızca bu cihazda yapılır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -667,6 +688,17 @@ export default function TanikliStandartFmPage() {
             />
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -689,7 +721,7 @@ export default function TanikliStandartFmPage() {
       ) : null}
 
       <div className={`${styles.singleColumn} ${formSwap ? styles.formSwap : ""}`}>
-        <section className={styles.card} style={{ animationDelay: "60ms" }}>
+        <section className={styles.card} style={{ animationDelay: "60ms" }} data-tour="fm-tanikli-standart-donem">
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>Çalışma Dönemi</h2>
           </div>
@@ -763,24 +795,26 @@ export default function TanikliStandartFmPage() {
           </section>
 
           <section className={styles.card} style={{ animationDelay: "100ms" }}>
-            <h2 className={styles.cardTitle}>Davacı Beyanı — Tanık Kapsamayan Günler</h2>
-            <div className={styles.basicGrid}>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Giriş Saati</span>
-                <DraftTimeInput
-                  className={styles.dateInput}
-                  value={form.davaciIn}
-                  onCommit={(v) => setField("davaciIn", v)}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Çıkış Saati</span>
-                <DraftTimeInput
-                  className={styles.dateInput}
-                  value={form.davaciOut}
-                  onCommit={(v) => setField("davaciOut", v)}
-                />
-              </label>
+            <div data-tour="fm-tanikli-standart-davaci-saatleri">
+              <h2 className={styles.cardTitle}>Davacı Beyanı — Tanık Kapsamayan Günler</h2>
+              <div className={styles.basicGrid}>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Giriş Saati</span>
+                  <DraftTimeInput
+                    className={styles.dateInput}
+                    value={form.davaciIn}
+                    onCommit={(v) => setField("davaciIn", v)}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Çıkış Saati</span>
+                  <DraftTimeInput
+                    className={styles.dateInput}
+                    value={form.davaciOut}
+                    onCommit={(v) => setField("davaciOut", v)}
+                  />
+                </label>
+              </div>
             </div>
             <MetinHesaplamasi
               weeklyDays={form.weeklyDays}
@@ -792,7 +826,7 @@ export default function TanikliStandartFmPage() {
             />
           </section>
 
-          <section className={styles.card} style={{ animationDelay: "120ms" }}>
+          <section className={styles.card} style={{ animationDelay: "120ms" }} data-tour="fm-tanikli-standart-taniklar">
             <div className={styles.cardTitleRow}>
               <h2 className={styles.cardTitle}>Tanık Beyanları</h2>
             </div>
@@ -881,54 +915,57 @@ export default function TanikliStandartFmPage() {
             </div>
           </section>
 
-          <ExclusionsPanel
-            exclusions={form.exclusions}
-            onChange={(next) => setField("exclusions", next)}
-            onOpenUbgtPicker={() => setShowUbgtPicker(true)}
-            visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
-          />
+          <div data-tour="fm-tanikli-standart-ayarlar" style={{ display: "grid", gap: "1rem", minWidth: 0 }}>
+            <ExclusionsPanel
+              exclusions={form.exclusions}
+              onChange={(next) => setField("exclusions", next)}
+              onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+              visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
+              onOverlayOpenChange={setExclusionOverlayOpen}
+            />
 
-          <section className={styles.card} style={{ animationDelay: "160ms" }}>
-            <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
-            <div className={styles.basicGrid}>
-              <div className={styles.field}>
-                <span className={styles.fieldLabel}>Kat Sayı</span>
-                <button
-                  type="button"
-                  className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
-                  onClick={() => setShowKatsayiModal(true)}
-                  title={hasCustomKatsayi ? "Katsayıyı değiştir veya sıfırla" : "Katsayı hesapla"}
-                >
-                  <Calculator size={13} />
-                  {hasCustomKatsayi ? `Katsayı: ${form.katSayi}` : "Kat Sayı Hesapla"}
-                </button>
+            <section className={styles.card} style={{ animationDelay: "160ms" }}>
+              <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
+              <div className={styles.basicGrid}>
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>Kat Sayı</span>
+                  <button
+                    type="button"
+                    className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
+                    onClick={() => setShowKatsayiModal(true)}
+                    title={hasCustomKatsayi ? "Katsayıyı değiştir veya sıfırla" : "Katsayı hesapla"}
+                  >
+                    <Calculator size={13} />
+                    {hasCustomKatsayi ? `Katsayı: ${form.katSayi}` : "Kat Sayı Hesapla"}
+                  </button>
+                </div>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>270 Gün Uygulaması</span>
+                  <select
+                    className={styles.selectInput}
+                    value={form.mode270}
+                    onChange={(e) => setField("mode270", e.target.value as TanikliFormSnapshot["mode270"])}
+                  >
+                    <option value="none">Kapalı</option>
+                    <option value="simple">Yargıtay Uygulaması</option>
+                    <option value="detailed">Şirket Uygulaması</option>
+                  </select>
+                </label>
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>Zamanaşımı</span>
+                  <button
+                    type="button"
+                    className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
+                    onClick={() => setShowZamanasimiModal(true)}
+                    title={form.zamanasimi ? "Zamanaşımını değiştir veya kaldır" : "Zamanaşımı hesapla"}
+                  >
+                    <History size={13} />
+                    {form.zamanasimi ? `Zamanaşımı: ${form.zamanasimi.nihaiBaslangic}` : "Zamanaşımı Hesapla"}
+                  </button>
+                </div>
               </div>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>270 Gün Uygulaması</span>
-                <select
-                  className={styles.selectInput}
-                  value={form.mode270}
-                  onChange={(e) => setField("mode270", e.target.value as TanikliFormSnapshot["mode270"])}
-                >
-                  <option value="none">Kapalı</option>
-                  <option value="simple">Yargıtay Uygulaması</option>
-                  <option value="detailed">Şirket Uygulaması</option>
-                </select>
-              </label>
-              <div className={styles.field}>
-                <span className={styles.fieldLabel}>Zamanaşımı</span>
-                <button
-                  type="button"
-                  className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
-                  onClick={() => setShowZamanasimiModal(true)}
-                  title={form.zamanasimi ? "Zamanaşımını değiştir veya kaldır" : "Zamanaşımı hesapla"}
-                >
-                  <History size={13} />
-                  {form.zamanasimi ? `Zamanaşımı: ${form.zamanasimi.nihaiBaslangic}` : "Zamanaşımı Hesapla"}
-                </button>
-              </div>
-            </div>
-          </section>
+            </section>
+          </div>
 
         {result.warnings.length > 0 ? (
           <article className={styles.panel} style={{ animationDelay: "155ms" }}>
@@ -1089,7 +1126,10 @@ export default function TanikliStandartFmPage() {
         </section>
       </div>
 
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="fm-tanikli-standart-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {isDirty ? "Kaydedilmemiş değişiklikler var" : currentRecordName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1239,6 +1279,25 @@ export default function TanikliStandartFmPage() {
           setDiscardOpen(false);
           setPendingAction(null);
         }}
+      />
+
+      <GuidedTourHost
+        definition={FM_TANIKLI_STANDART_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={FM_TANIKLI_STANDART_TOUR_WELCOME_TITLE}
+        welcomeBody={FM_TANIKLI_STANDART_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        welcomeNeverLabel="Bir daha gösterme"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toast.success("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={tourPaused}
       />
     </div>
   );

@@ -1,3 +1,4 @@
+import { GEMI_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Gemi Adamları kıdem form mapping.
  * Yalnızca form alanlarını doldurur; sonuçları backend'den almaz.
@@ -102,7 +103,7 @@ export function mapGemiFormFromBackend(
   }
 }
 
-export const gemiCaseCrud = createKidemCrud(KIDEM_GEMI_TYPE, mapGemiFormFromBackend);
+export const gemiCaseCrud = createKidemCrud(KIDEM_GEMI_TYPE, mapGemiFormFromBackend, GEMI_CASES_KEY);
 
 export function mapGemiRecordToSavedCase(record: SavedCaseRecord): SavedGemiCase | null {
   const form = mapGemiFormFromBackend(record.data, record);

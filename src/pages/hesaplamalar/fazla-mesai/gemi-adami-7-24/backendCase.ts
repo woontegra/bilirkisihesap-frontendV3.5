@@ -1,3 +1,4 @@
+import { GEMI_724_FM_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Gemi Adamı 7/24 form eşlemesi.
  * raw = form || formValues || payload
@@ -357,6 +358,7 @@ const gemi724Crud = createFmBackendCrud({
   isRecordType: isGemi724FmRecordType,
   mapFormFromBackend: mapGemi724FormFromBackend,
   buildSaveData: buildGemi724SaveData,
+  localStorageKey: GEMI_724_FM_CASES_KEY,
 });
 
 export const listGemi724FmCases = gemi724Crud.listCases;

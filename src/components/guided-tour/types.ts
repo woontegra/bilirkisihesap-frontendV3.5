@@ -43,6 +43,18 @@ export type GuidedTourStep = {
   optionalConfirmLabel?: string;
   /** When true, only confirm + back + close are shown (no skip). */
   optionalHideSkip?: boolean;
+  /**
+   * optional mode: if provided and returns false, confirm does not advance.
+   * Used for required optional-like steps (e.g. tanık beyanı).
+   */
+  optionalConfirmReady?: () => boolean;
+  /** Shown in the bubble when optionalConfirmReady fails. */
+  optionalConfirmBlockedHint?: string;
+  /**
+   * manual mode: hint shown when İleri is pressed but autoAdvance.isReady is false.
+   * When autoAdvance is set, İleri uses the same readiness check as auto-advance.
+   */
+  advanceBlockedHint?: string;
 };
 
 export type GuidedTourDefinition = {

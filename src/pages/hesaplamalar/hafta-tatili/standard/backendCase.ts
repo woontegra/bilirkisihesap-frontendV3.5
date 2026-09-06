@@ -14,6 +14,7 @@ import {
   resolveSavedCaseDisplayName,
 } from "./legacyHaftaTatiliCaseAdapter";
 import type { StandardForm } from "./model";
+import { STORAGE_KEY } from "./storage";
 
 export const HT_STANDART_TYPE = "hafta_tatili_standart" as const;
 
@@ -35,6 +36,7 @@ export const htStandartCaseCrud = createCalcBackendCrud<StandardForm>({
   isRecordType: isHtStandartRecordType,
   mapFormFromBackend: mapHtStandartFormFromBackend,
   buildSaveData: (form, result) => buildStandartHtSaveData(form, result),
+  localStorageKey: STORAGE_KEY,
 });
 
 export function buildHtStandartSaveResult(opts: {

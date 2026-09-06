@@ -10,6 +10,7 @@ import {
   updateSavedCase,
   type SavedCaseRecord,
 } from "@/api/savedCases";
+import { migrateLocalSavedCasesOnce } from "../../shared/localCasesMigration";
 
 export type FmSaveResult = {
   toplamFm: number;
@@ -106,10 +107,39 @@ export function createFmBackendCrud<TForm>(opts: {
     record?: Pick<SavedCaseRecord, "ise_giris" | "isten_cikis">,
   ) => TForm | null;
   buildSaveData: (form: TForm, result: FmSaveResult) => Record<string, unknown>;
+  localStorageKey?: string;
 }) {
-  const { recordType, isRecordType, mapFormFromBackend, buildSaveData } = opts;
+  const { recordType, isRecordType, mapFormFromBackend, buildSaveData, localStorageKey } = opts;
+
+  async function ensureLocalMigrated(): Promise<void> {
+    if (!localStorageKey) return;
+    try {
+      await migrateLocalSavedCasesOnce({
+        storageKey: localStorageKey,
+        recordType,
+        buildData: (local) => {
+          if (!local.form) return null;
+          const results =
+            local.results && typeof local.results === "object"
+              ? (local.results as Record<string, unknown>)
+              : {};
+          const toplamFm = Number(results.toplamFm ?? results.brut ?? results.total ?? 0) || 0;
+          const sonNet = Number(results.sonNet ?? results.net ?? results.netTotal ?? 0) || 0;
+          const rowCount = Number(results.rowCount ?? 0) || 0;
+          try {
+            return buildSaveData(local.form as TForm, { toplamFm, sonNet, rowCount });
+          } catch {
+            return null;
+          }
+        },
+      });
+    } catch (err) {
+      console.warn("[fmBackendCrud] local migrate failed", recordType, err);
+    }
+  }
 
   async function listCases(): Promise<FmSavedCaseListItem[]> {
+    await ensureLocalMigrated();
     const all = await listSavedCases();
     return all
       .filter((r) => isRecordType(r.type ?? r.hesaplama_tipi))

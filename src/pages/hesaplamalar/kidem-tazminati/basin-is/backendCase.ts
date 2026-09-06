@@ -1,3 +1,4 @@
+import { BASIN_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Basın İş kıdem form mapping.
  * Yalnızca form alanlarını doldurur; sonuçları backend'den almaz.
@@ -104,7 +105,7 @@ export function mapBasinFormFromBackend(
   }
 }
 
-export const basinCaseCrud = createKidemCrud(KIDEM_BASIN_TYPE, mapBasinFormFromBackend);
+export const basinCaseCrud = createKidemCrud(KIDEM_BASIN_TYPE, mapBasinFormFromBackend, BASIN_CASES_KEY);
 
 export function mapBasinRecordToSavedCase(record: SavedCaseRecord): SavedCase | null {
   const form = mapBasinFormFromBackend(record.data, record);

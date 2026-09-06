@@ -70,7 +70,7 @@ export function WorkPeriodsEditor({
           ? periodDaysDisplay(period as GemiWorkPeriod, calc)
           : calc;
         return (
-          <div key={period.id} className={styles.periodBlock}>
+          <div key={period.id} className={styles.periodBlock} data-tour-period-row>
             <div className={styles.periodHead}>
               <span className={styles.periodTitle}>Dönem {index + 1}</span>
               {periods.length > 1 ? (

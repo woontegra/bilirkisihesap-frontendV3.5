@@ -868,7 +868,7 @@ export default function IsKanunuKidemPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Kıdem hesaplaması yalnızca bu cihazda yapılır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>

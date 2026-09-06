@@ -7,6 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   Anchor,
   Calculator,
+  CirclePlay,
   Eye,
   FilePlus2,
   FolderOpen,
@@ -21,10 +22,17 @@ import {
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import {
+  FM_GEMI_724_TOUR,
+  FM_GEMI_724_TOUR_WELCOME_BODY,
+  FM_GEMI_724_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   ManualBrutWageApplyControls,
   clearAllManualBrutFromRowOverrides,
@@ -172,6 +180,20 @@ export default function Gemi724FmPage() {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [saveFlash, setSaveFlash] = useState(false);
+  const [exclusionOverlayOpen, setExclusionOverlayOpen] = useState(false);
+  const tour = useGuidedTourController();
+
+  const tourPaused =
+    showRecordsModal ||
+    showCaseSaveModal ||
+    showPreview ||
+    showUbgtPicker ||
+    showZamanasimiModal ||
+    showKatsayiModal ||
+    showMahsupModal ||
+    exclusionOverlayOpen ||
+    deleteCaseTarget !== null ||
+    discardOpen;
 
   const clearCaseIdParam = useCallback(() => {
     if (!searchParams.has("caseId")) return;
@@ -565,7 +587,7 @@ export default function Gemi724FmPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama yalnızca bu cihazda yapılır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -585,6 +607,17 @@ export default function Gemi724FmPage() {
             />
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -607,7 +640,7 @@ export default function Gemi724FmPage() {
       ) : null}
 
       <div className={styles.layout}>
-        <section className={styles.card} style={{ animationDelay: "40ms" }}>
+        <section className={styles.card} style={{ animationDelay: "40ms" }} data-tour="fm-gemi-724-donem">
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>Davacı Bilgileri</h2>
           </div>
@@ -640,7 +673,7 @@ export default function Gemi724FmPage() {
 
         <MetinHesaplamasi />
 
-        <section className={styles.card} style={{ animationDelay: "80ms" }}>
+        <section className={styles.card} style={{ animationDelay: "80ms" }} data-tour="fm-gemi-724-taniklar">
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>
               <Users size={15} style={{ marginRight: 6, verticalAlign: -2 }} />
@@ -695,66 +728,69 @@ export default function Gemi724FmPage() {
           )}
         </section>
 
-        <ExclusionsPanel
-          exclusions={form.exclusions}
-          onChange={(next: ExclusionItem[]) => setField("exclusions", next)}
-          onOpenUbgtPicker={() => setShowUbgtPicker(true)}
-          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
-        />
+        <div data-tour="fm-gemi-724-ayarlar" style={{ display: "grid", gap: "1rem", minWidth: 0 }}>
+          <ExclusionsPanel
+            exclusions={form.exclusions}
+            onChange={(next: ExclusionItem[]) => setField("exclusions", next)}
+            onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+            visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
+            onOverlayOpenChange={setExclusionOverlayOpen}
+          />
 
-        <p className={styles.noteInfo}>
-          Son haftaya isabet eden izin/UBGT düşümlerinde, tabloda görülen tarih aralığı 7 günden kısa olsa dahi
-          hesaplama bu süre üzerinden yapılmaz. İlgili düşüm, üst satırdaki toplam haftadan 1 hafta eksiltilerek ayrı
-          bir satırda 1 hafta olarak dikkate alınmıştır.
-        </p>
-
-        <section className={styles.card} style={{ animationDelay: "140ms" }}>
-          <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
-          <div className={styles.basicGrid}>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Kat Sayı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() => (hasCustomKatsayi ? setField("katSayi", "1") : setShowKatsayiModal(true))}
-                title={hasCustomKatsayi ? "Katsayıyı kaldır" : "Katsayı hesapla"}
-              >
-                <Calculator size={13} />
-                {hasCustomKatsayi ? `Katsayı ${katSayiNum.toFixed(2)}` : "Kat Sayı"}
-              </button>
-            </div>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>270 Saat</span>
-              <select
-                className={styles.selectInput}
-                value={form.mode270}
-                onChange={(e) => setField("mode270", e.target.value as Gemi724FormSnapshot["mode270"])}
-              >
-                <option value="none">Kapalı</option>
-                <option value="detailed">Şirket Uygulaması</option>
-                <option value="simple">Yargıtay Uygulaması</option>
-              </select>
-            </label>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Zamanaşımı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() =>
-                  form.zamanasimi ? setField("zamanasimi", null) : setShowZamanasimiModal(true)
-                }
-                title={form.zamanasimi ? "Zamanaşımını kaldır" : "Zamanaşımı hesapla"}
-              >
-                <History size={13} />
-                {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
-              </button>
-            </div>
-          </div>
-          <p className={styles.panelHint}>
-            270 ve zamanaşımı sunucuda uygulanır: Yargıtay seçeneğinde hafta değişmez, FM saatinden 5 saat 12 dakika
-            düşülür; Şirket seçeneğinde hafta düşümü uygulanır.
+          <p className={styles.noteInfo}>
+            Son haftaya isabet eden izin/UBGT düşümlerinde, tabloda görülen tarih aralığı 7 günden kısa olsa dahi
+            hesaplama bu süre üzerinden yapılmaz. İlgili düşüm, üst satırdaki toplam haftadan 1 hafta eksiltilerek ayrı
+            bir satırda 1 hafta olarak dikkate alınmıştır.
           </p>
-        </section>
+
+          <section className={styles.card} style={{ animationDelay: "140ms" }}>
+            <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
+            <div className={styles.basicGrid}>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Kat Sayı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() => (hasCustomKatsayi ? setField("katSayi", "1") : setShowKatsayiModal(true))}
+                  title={hasCustomKatsayi ? "Katsayıyı kaldır" : "Katsayı hesapla"}
+                >
+                  <Calculator size={13} />
+                  {hasCustomKatsayi ? `Katsayı ${katSayiNum.toFixed(2)}` : "Kat Sayı"}
+                </button>
+              </div>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>270 Saat</span>
+                <select
+                  className={styles.selectInput}
+                  value={form.mode270}
+                  onChange={(e) => setField("mode270", e.target.value as Gemi724FormSnapshot["mode270"])}
+                >
+                  <option value="none">Kapalı</option>
+                  <option value="detailed">Şirket Uygulaması</option>
+                  <option value="simple">Yargıtay Uygulaması</option>
+                </select>
+              </label>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Zamanaşımı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() =>
+                    form.zamanasimi ? setField("zamanasimi", null) : setShowZamanasimiModal(true)
+                  }
+                  title={form.zamanasimi ? "Zamanaşımını kaldır" : "Zamanaşımı hesapla"}
+                >
+                  <History size={13} />
+                  {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
+                </button>
+              </div>
+            </div>
+            <p className={styles.panelHint}>
+              270 ve zamanaşımı sunucuda uygulanır: Yargıtay seçeneğinde hafta değişmez, FM saatinden 5 saat 12 dakika
+              düşülür; Şirket seçeneğinde hafta düşümü uygulanır.
+            </p>
+          </section>
+        </div>
 
         <ZamanasimiCetvelBanner nihaiBaslangic={form.zamanasimi?.nihaiBaslangic} />
 
@@ -858,6 +894,7 @@ export default function Gemi724FmPage() {
 
       <div
         className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="fm-gemi-724-kaydet-actions"
       >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
@@ -1017,6 +1054,24 @@ export default function Gemi724FmPage() {
         danger
         onConfirm={confirmDeleteCase}
         onCancel={() => setDeleteCaseTarget(null)}
+      />
+
+      <GuidedTourHost
+        definition={FM_GEMI_724_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={FM_GEMI_724_TOUR_WELCOME_TITLE}
+        welcomeBody={FM_GEMI_724_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={tourPaused}
       />
     </div>
   );

@@ -78,7 +78,7 @@ export default function IhbarSelectionPage() {
           </p>
           <div className={styles.privacyBadge}>
             <ShieldCheck size={14} />
-            <span>Hesaplamalar yalnızca bu cihazda · backend isteği yok</span>
+            <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
           </div>
         </div>
       </header>

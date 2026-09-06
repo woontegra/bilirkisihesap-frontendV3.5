@@ -157,8 +157,9 @@ export function createYillikBackendCase<
   normalizeForm: (raw: Partial<TForm> | null | undefined) => TForm;
   normalizeResults: (raw: Partial<YillikResultSnapshot> | null | undefined) => YillikResultSnapshot;
   toV3Form?: (form: TForm) => Record<string, unknown>;
+  localStorageKey?: string;
 }) {
-  const { recordType, isRecordType, normalizeForm, normalizeResults } = opts;
+  const { recordType, isRecordType, normalizeForm, normalizeResults, localStorageKey } = opts;
   const hesaplamaTipi = opts.hesaplamaTipi ?? "Yıllık Ücretli İzin";
 
   function defaultToV3Form(form: TForm): Record<string, unknown> {
@@ -248,6 +249,7 @@ export function createYillikBackendCase<
     isRecordType,
     mapFormFromBackend,
     buildSaveData,
+    localStorageKey,
   });
 
   function mapRecordToSavedCase(record: SavedCaseRecord): YillikSavedCase<TForm> | null {

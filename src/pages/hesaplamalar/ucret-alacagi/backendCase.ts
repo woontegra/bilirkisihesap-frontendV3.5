@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → Ücret Alacağı form mapping.
  * Yalnızca form alanlarını doldurur; sonucu backend'den almaz (lokal motor yeniden hesaplar).
@@ -118,6 +119,7 @@ export const ucretAlacagiCaseCrud = createCalcBackendCrud({
   isRecordType: isUcretAlacagiRecordType,
   mapFormFromBackend: mapUcretAlacagiFormFromBackend,
   buildSaveData: (form, result) => buildUcretAlacagiSaveData(form, result),
+  localStorageKey: STORAGE_KEY,
 });
 
 export function buildUcretAlacagiSaveResult(totalBrut: number, totalNet: number): CalcSaveResult {

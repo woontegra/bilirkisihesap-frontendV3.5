@@ -52,11 +52,13 @@ export function createKidemCrud<TForm extends Record<string, unknown>>(
     data: unknown,
     record?: Pick<SavedCaseRecord, "ise_giris" | "isten_cikis">,
   ) => TForm | null,
+  localStorageKey?: string,
 ) {
   return createCalcBackendCrud({
     recordType,
     isRecordType: (t) => t === recordType,
     mapFormFromBackend,
     buildSaveData: (form, result) => buildKidemSaveData(form as Record<string, unknown>, result),
+    localStorageKey,
   });
 }

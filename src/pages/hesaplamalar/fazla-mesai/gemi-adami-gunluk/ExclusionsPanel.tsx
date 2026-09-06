@@ -2,7 +2,7 @@
  * Gemi Adamı Günlük — istisna paneli (5 tür; set kaydet / içe aktar; UBGT picker).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarDays, Download, Plus, Save, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { daysBetweenIsoInclusive, isValidIsoDate } from "./engine";
@@ -22,11 +22,14 @@ export function ExclusionsPanel({
   onChange,
   onOpenUbgtPicker,
   visibleAfterIso = null,
+  onOverlayOpenChange,
 }: {
   exclusions: ExclusionItem[];
   onChange: (next: ExclusionItem[]) => void;
   onOpenUbgtPicker: () => void;
   visibleAfterIso?: string | null;
+  /** Kaydet / İçe Aktar overlay açıkken kılavuz pause için. */
+  onOverlayOpenChange?: (open: boolean) => void;
 }) {
   const visibleRows = exclusions.filter((row) => exclusionRangeVisible(row.start, row.end, visibleAfterIso));
   const [isOpen, setIsOpen] = useState(true);
@@ -34,6 +37,11 @@ export function ExclusionsPanel({
   const [showImportModal, setShowImportModal] = useState(false);
   const [setName, setSetName] = useState("");
   const [savedSets, setSavedSets] = useState<SavedExclusionSet[]>([]);
+
+  useEffect(() => {
+    onOverlayOpenChange?.(showSaveModal || showImportModal);
+    return () => onOverlayOpenChange?.(false);
+  }, [showSaveModal, showImportModal, onOverlayOpenChange]);
 
   const addRow = () => {
     const item: ExclusionItem = { id: newLocalId(), type: "Yıllık İzin", start: "", end: "", days: 1 };
@@ -61,14 +69,19 @@ export function ExclusionsPanel({
   };
 
   const openImportModal = () => {
-    setSavedSets(getAllExclusionSets());
-    setShowImportModal(true);
+    void getAllExclusionSets().then((sets) => {
+      setSavedSets(sets);
+      setShowImportModal(true);
+    });
   };
 
   const confirmSave = () => {
     if (!setName.trim()) return;
-    saveExclusionSet(setName, exclusions);
-    setShowSaveModal(false);
+    void (async () => {
+      if (await saveExclusionSet(setName, exclusions)) {
+        setShowSaveModal(false);
+      }
+    })();
   };
 
   const importSet = (set: SavedExclusionSet) => {
@@ -77,8 +90,10 @@ export function ExclusionsPanel({
   };
 
   const removeSet = (id: string) => {
-    deleteExclusionSet(id);
-    setSavedSets(getAllExclusionSets());
+    void (async () => {
+      await deleteExclusionSet(id);
+      setSavedSets(await getAllExclusionSets());
+    })();
   };
 
   return (

@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → Basın İş Hafta Tatili CRUD.
  */
@@ -39,6 +40,7 @@ export const htBasinCaseCrud = createCalcBackendCrud<BasinForm>({
   recordType: HT_BASIN_TYPE,
   isRecordType: isHtBasinRecordType,
   mapFormFromBackend: mapHtBasinFormFromBackend,
+  localStorageKey: STORAGE_KEY,
   buildSaveData: (form, result) => buildBasinHtSaveData(form, result),
 });
 

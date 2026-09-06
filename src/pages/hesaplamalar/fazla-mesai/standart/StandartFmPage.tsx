@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Calculator,
+  CirclePlay,
   Clock3,
   Eye,
   FilePlus2,
@@ -16,10 +17,17 @@ import {
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTimeInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import {
+  FM_STANDART_TOUR,
+  FM_STANDART_TOUR_WELCOME_BODY,
+  FM_STANDART_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   ManualBrutWageApplyControls,
   clearAllManualBrutFromRowOverrides,
@@ -169,8 +177,21 @@ export default function StandartFmPage() {
   const [saveFlash, setSaveFlash] = useState(false);
   const [formSwap, setFormSwap] = useState(false);
   const [baseline, setBaseline] = useState("");
+  const [exclusionOverlayOpen, setExclusionOverlayOpen] = useState(false);
+  const tour = useGuidedTourController();
 
   const modalReturnFocusRef = useRef<HTMLElement | null>(null);
+  const tourPaused =
+    showRecordsModal ||
+    showCaseSaveModal ||
+    showPreview ||
+    showUbgtPicker ||
+    showZamanasimiModal ||
+    showKatsayiModal ||
+    showMahsupModal ||
+    exclusionOverlayOpen ||
+    deleteCaseTarget !== null ||
+    discardOpen;
 
   const setField = <K extends keyof StandartFormSnapshot>(key: K, value: StandartFormSnapshot[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -630,7 +651,7 @@ export default function StandartFmPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama yalnızca bu cihazda yapılır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -647,6 +668,17 @@ export default function StandartFmPage() {
             <FlashValue className={styles.quickTotalValue} value={`${formatMoney(result.toplamFm)} ₺`} />
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -669,7 +701,7 @@ export default function StandartFmPage() {
       ) : null}
 
       <div className={`${styles.singleColumn} ${formSwap ? styles.formSwap : ""}`}>
-        <section className={styles.card} style={{ animationDelay: "60ms" }}>
+        <section className={styles.card} style={{ animationDelay: "60ms" }} data-tour="fm-standart-donem">
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>Tarih ve Çalışma Bilgileri</h2>
           </div>
@@ -743,24 +775,25 @@ export default function StandartFmPage() {
         </section>
 
         <section className={styles.card} style={{ animationDelay: "100ms" }}>
-          <h2 className={styles.cardTitle}></h2>
-          <div className={styles.basicGrid}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Giriş Saati</span>
-              <DraftTimeInput
-                className={styles.dateInput}
-                value={form.davaciIn}
-                onCommit={(v) => setField("davaciIn", v)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Çıkış Saati</span>
-              <DraftTimeInput
-                className={styles.dateInput}
-                value={form.davaciOut}
-                onCommit={(v) => setField("davaciOut", v)}
-              />
-            </label>
+          <div data-tour="fm-standart-saatler">
+            <div className={styles.basicGrid}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Giriş Saati</span>
+                <DraftTimeInput
+                  className={styles.dateInput}
+                  value={form.davaciIn}
+                  onCommit={(v) => setField("davaciIn", v)}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Çıkış Saati</span>
+                <DraftTimeInput
+                  className={styles.dateInput}
+                  value={form.davaciOut}
+                  onCommit={(v) => setField("davaciOut", v)}
+                />
+              </label>
+            </div>
           </div>
           <div className={styles.grossSummary} style={{ marginTop: "0.75rem" }}>
             <span>Haftalık FM Saati</span>
@@ -791,53 +824,56 @@ export default function StandartFmPage() {
           </div>
         </section>
 
-        <ExclusionsPanel
-          exclusions={form.exclusions}
-          onChange={setExclusions}
-          onOpenUbgtPicker={() => setShowUbgtPicker(true)}
-          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
-        />
+        <div data-tour="fm-standart-ayarlar" style={{ display: "grid", gap: "1rem", minWidth: 0 }}>
+          <ExclusionsPanel
+            exclusions={form.exclusions}
+            onChange={setExclusions}
+            onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+            visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
+            onOverlayOpenChange={setExclusionOverlayOpen}
+          />
 
-        <section className={styles.card} style={{ animationDelay: "150ms" }}>
-          <h2 className={styles.cardTitle}></h2>
-          <div className={styles.basicGrid}>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Kat Sayı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() => setShowKatsayiModal(true)}
-                title={hasCustomKatsayi ? "Katsayıyı kaldır" : "Katsayı hesapla"}
-              >
-                <Calculator size={13} />
-                {hasCustomKatsayi ? `Katsayı ${form.katSayi}` : "Kat Sayı"}
-              </button>
+          <section className={styles.card} style={{ animationDelay: "150ms" }}>
+            <h2 className={styles.cardTitle}></h2>
+            <div className={styles.basicGrid}>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Kat Sayı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() => setShowKatsayiModal(true)}
+                  title={hasCustomKatsayi ? "Katsayıyı kaldır" : "Katsayı hesapla"}
+                >
+                  <Calculator size={13} />
+                  {hasCustomKatsayi ? `Katsayı ${form.katSayi}` : "Kat Sayı"}
+                </button>
+              </div>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>270 Saat</span>
+                <select
+                  className={styles.selectInput}
+                  value={form.mode270}
+                  onChange={(e) => setField("mode270", e.target.value as StandartFormSnapshot["mode270"])}
+                >
+                  <option value="none">Kapalı</option>
+                  <option value="simple">Yargıtay Uygulaması</option>
+                  <option value="detailed">Şirket Uygulaması</option>
+                </select>
+              </label>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Zamanaşımı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() => setShowZamanasimiModal(true)}
+                >
+                  <History size={13} />
+                  {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
+                </button>
+              </div>
             </div>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>270 Saat</span>
-              <select
-                className={styles.selectInput}
-                value={form.mode270}
-                onChange={(e) => setField("mode270", e.target.value as StandartFormSnapshot["mode270"])}
-              >
-                <option value="none">Kapalı</option>
-                <option value="simple">Yargıtay Uygulaması</option>
-                <option value="detailed">Şirket Uygulaması</option>
-              </select>
-            </label>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Zamanaşımı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() => setShowZamanasimiModal(true)}
-              >
-                <History size={13} />
-                {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
-              </button>
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
         {result.warnings.length > 0 ? (
           <article className={styles.panel} style={{ animationDelay: "155ms" }}>
@@ -963,7 +999,10 @@ export default function StandartFmPage() {
         </section>
       </div>
 
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="fm-standart-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {isDirty ? "Kaydedilmemiş değişiklikler var" : currentRecordName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1114,6 +1153,25 @@ export default function StandartFmPage() {
           setDiscardOpen(false);
           setPendingAction(null);
         }}
+      />
+
+      <GuidedTourHost
+        definition={FM_STANDART_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={FM_STANDART_TOUR_WELCOME_TITLE}
+        welcomeBody={FM_STANDART_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        welcomeNeverLabel="Bir daha gösterme"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toast.success("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={tourPaused}
       />
     </div>
   );

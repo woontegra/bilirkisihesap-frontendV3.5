@@ -7,6 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Calculator,
+  CirclePlay,
   Eye,
   FilePlus2,
   FolderOpen,
@@ -20,6 +21,8 @@ import {
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
@@ -37,6 +40,11 @@ import {
   resolveSavedCaseDisplayName,
   saveDonemselFmCase,
 } from "./backendCase";
+import {
+  FM_DONEMSEL_TOUR,
+  FM_DONEMSEL_TOUR_WELCOME_BODY,
+  FM_DONEMSEL_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import type { FmSavedCaseListItem } from "../shared/fmBackendCrud";
 import { MONTH_OPTIONS, WEEKDAY_OPTIONS } from "./constants";
 import {
@@ -323,6 +331,20 @@ export default function DonemselFmPage() {
   const [saveFlash, setSaveFlash] = useState(false);
   const [formSwap, setFormSwap] = useState(false);
   const [baseline, setBaseline] = useState("");
+  const [exclusionOverlayOpen, setExclusionOverlayOpen] = useState(false);
+  const tour = useGuidedTourController();
+
+  const tourPaused =
+    showRecordsModal ||
+    showCaseSaveModal ||
+    showPreview ||
+    showUbgtPicker ||
+    showZamanasimiModal ||
+    showKatsayiModal ||
+    showMahsupModal ||
+    exclusionOverlayOpen ||
+    deleteCaseTarget !== null ||
+    discardOpen;
 
   const modalReturnFocusRef = useRef<HTMLElement | null>(null);
 
@@ -775,7 +797,7 @@ export default function DonemselFmPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama yalnızca bu cihazda yapılır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -795,6 +817,17 @@ export default function DonemselFmPage() {
             />
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -830,7 +863,7 @@ export default function DonemselFmPage() {
       <div className={`${styles.formStack} ${formSwap ? styles.formSwap : ""}`.trim()}>
         <section className={styles.card} style={{ animationDelay: "40ms" }}>
           <h2 className={styles.cardTitle}>Dönem ve Yaz/Kış Desen (Davacı)</h2>
-          <div className={styles.grid2}>
+          <div data-tour="fm-donemsel-donem" className={styles.grid2}>
             <label className={styles.field}>
               <span>İşe Giriş Tarihi</span>
               <DraftDateInput className={styles.input} value={form.dateIn} onCommit={(v) => setField("dateIn", v)} />
@@ -842,20 +875,22 @@ export default function DonemselFmPage() {
           </div>
           {dateError ? <p className={styles.fieldError}>{dateError}</p> : null}
 
-          <SeasonPatternEditor
-            title="Yaz Dönemi"
-            season="summer"
-            pattern={form.summerPattern}
-            otherMonths={form.winterPattern.months}
-            onChange={(p) => setField("summerPattern", p)}
-          />
-          <SeasonPatternEditor
-            title="Kış Dönemi"
-            season="winter"
-            pattern={form.winterPattern}
-            otherMonths={form.summerPattern.months}
-            onChange={(p) => setField("winterPattern", p)}
-          />
+          <div data-tour="fm-donemsel-desen">
+            <SeasonPatternEditor
+              title="Yaz Dönemi"
+              season="summer"
+              pattern={form.summerPattern}
+              otherMonths={form.winterPattern.months}
+              onChange={(p) => setField("summerPattern", p)}
+            />
+            <SeasonPatternEditor
+              title="Kış Dönemi"
+              season="winter"
+              pattern={form.winterPattern}
+              otherMonths={form.summerPattern.months}
+              onChange={(p) => setField("winterPattern", p)}
+            />
+          </div>
 
           <p className={styles.infoLine}>
             Haftalık FM Saati — Yaz:{" "}
@@ -864,7 +899,7 @@ export default function DonemselFmPage() {
           </p>
         </section>
 
-        <section className={styles.card} style={{ animationDelay: "70ms" }}>
+        <section className={styles.card} style={{ animationDelay: "70ms" }} data-tour="fm-donemsel-taniklar">
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>Tanık Dönemleri (Yaz/Kış Desen)</h2>
             <Button
@@ -938,62 +973,65 @@ export default function DonemselFmPage() {
 
         <MetinHesaplamasi form={form} />
 
-        <ExclusionsPanel
-          exclusions={form.exclusions}
-          onChange={(next) => setField("exclusions", next)}
-          onOpenUbgtPicker={() => setShowUbgtPicker(true)}
-          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
-        />
+        <div data-tour="fm-donemsel-ayarlar" style={{ display: "grid", gap: "1rem", minWidth: 0 }}>
+          <ExclusionsPanel
+            exclusions={form.exclusions}
+            onChange={(next) => setField("exclusions", next)}
+            onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+            visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
+            onOverlayOpenChange={setExclusionOverlayOpen}
+          />
 
-        <p className={styles.noteInfo}>
-          Son haftaya isabet eden izin/UBGT düşümlerinde, tabloda görülen tarih aralığı 7 günden kısa olsa dahi
-          hesaplama bu süre üzerinden yapılmaz. İlgili düşüm, üst satırdaki toplam haftadan 1 hafta eksiltilerek ayrı
-          bir satırda 1 hafta olarak dikkate alınmıştır.
-        </p>
+          <p className={styles.noteInfo}>
+            Son haftaya isabet eden izin/UBGT düşümlerinde, tabloda görülen tarih aralığı 7 günden kısa olsa dahi
+            hesaplama bu süre üzerinden yapılmaz. İlgili düşüm, üst satırdaki toplam haftadan 1 hafta eksiltilerek ayrı
+            bir satırda 1 hafta olarak dikkate alınmıştır.
+          </p>
 
-        <section className={styles.card} style={{ animationDelay: "140ms" }}>
-          <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
-          <div className={styles.basicGrid}>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Kat Sayı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() => (hasCustomKatsayi ? setField("katSayi", "1") : setShowKatsayiModal(true))}
-                title={hasCustomKatsayi ? "Katsayıyı kaldır" : "Katsayı hesapla"}
-              >
-                <Calculator size={13} />
-                {hasCustomKatsayi ? `Katsayı ${katSayiNum.toFixed(2)}` : "Kat Sayı"}
-              </button>
+          <section className={styles.card} style={{ animationDelay: "140ms" }}>
+            <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
+            <div className={styles.basicGrid}>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Kat Sayı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() => (hasCustomKatsayi ? setField("katSayi", "1") : setShowKatsayiModal(true))}
+                  title={hasCustomKatsayi ? "Katsayıyı kaldır" : "Katsayı hesapla"}
+                >
+                  <Calculator size={13} />
+                  {hasCustomKatsayi ? `Katsayı ${katSayiNum.toFixed(2)}` : "Kat Sayı"}
+                </button>
+              </div>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>270 Saat</span>
+                <select
+                  className={styles.selectInput}
+                  value={form.mode270}
+                  onChange={(e) => setField("mode270", e.target.value as DonemselFormSnapshot["mode270"])}
+                >
+                  <option value="none">Kapalı</option>
+                  <option value="detailed">Şirket Uygulaması</option>
+                  <option value="simple">Yargıtay Uygulaması</option>
+                </select>
+              </label>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Zamanaşımı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() =>
+                    form.zamanasimi ? setField("zamanasimi", null) : setShowZamanasimiModal(true)
+                  }
+                  title={form.zamanasimi ? "Zamanaşımını kaldır" : "Zamanaşımı hesapla"}
+                >
+                  <History size={13} />
+                  {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
+                </button>
+              </div>
             </div>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>270 Saat</span>
-              <select
-                className={styles.selectInput}
-                value={form.mode270}
-                onChange={(e) => setField("mode270", e.target.value as DonemselFormSnapshot["mode270"])}
-              >
-                <option value="none">Kapalı</option>
-                <option value="detailed">Şirket Uygulaması</option>
-                <option value="simple">Yargıtay Uygulaması</option>
-              </select>
-            </label>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Zamanaşımı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() =>
-                  form.zamanasimi ? setField("zamanasimi", null) : setShowZamanasimiModal(true)
-                }
-                title={form.zamanasimi ? "Zamanaşımını kaldır" : "Zamanaşımı hesapla"}
-              >
-                <History size={13} />
-                {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
-              </button>
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
         <ZamanasimiCetvelBanner nihaiBaslangic={form.zamanasimi?.nihaiBaslangic} />
 
@@ -1100,6 +1138,7 @@ export default function DonemselFmPage() {
 
       <div
         className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="fm-donemsel-kaydet-actions"
       >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
@@ -1259,6 +1298,24 @@ export default function DonemselFmPage() {
           setDiscardOpen(false);
           setPendingAction(null);
         }}
+      />
+
+      <GuidedTourHost
+        definition={FM_DONEMSEL_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={FM_DONEMSEL_TOUR_WELCOME_TITLE}
+        welcomeBody={FM_DONEMSEL_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={tourPaused}
       />
     </div>
   );

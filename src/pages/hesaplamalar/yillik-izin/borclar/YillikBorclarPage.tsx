@@ -174,6 +174,7 @@ export default function YillikBorclarPage() {
 
   return (
     <YillikPageView
+      guidedTourVariant="borclar"
       icon={Scale}
       pageTitle={PAGE_TITLE}
       pageDescription="Borçlar Kanunu kapsamında yıllık ücretli izin alacağı — yılda 2 hafta (18-/50+: 3 hafta)."

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Calculator,
+  CirclePlay,
   Download,
   Eye,
   FilePlus2,
@@ -16,9 +17,16 @@ import {
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import {
+  DAVACI_UCRETI_TOUR,
+  DAVACI_UCRETI_TOUR_WELCOME_BODY,
+  DAVACI_UCRETI_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import { mapDavaciFormFromBackend, resolveSavedCaseDisplayName, saveDavaciCaseToBackend, listDavaciCasesFromBackend, deleteDavaciCaseFromBackend, isDavaciRecordType } from "./backendCase";
 import {
   calculateTotalBrut,
@@ -59,8 +67,10 @@ import { YEAR_MIN } from "./taxData";
 import styles from "./DavaciUcretiPage.module.css";
 
 const PAGE_TITLE = "Davacı Ücreti Hesaplama";
-const NOTE_INFO =
-  "Çıplak Brüt Ücret işçinin işi yapmak için aldığı eklentisiz maaşından ibarettir. Prim, İkramiye gibi ücretlerin hesaplanmasında son 12 aylık bordroda yer alan tüm kalemler toplanır, toplam 360'a bölünür, 30 ile çarpılır.";
+const NOTE_INFO_LINES = [
+  "Çıplak brüt ücret, işçinin ücret ekleri hariç brüt temel ücretidir.",
+  "Prim, ikramiye ve benzeri dönemsel ücret eklerinin aylık ortalaması; son 12 aylık dönemde yapılan ödemelerin toplamının 360'a bölünüp 30 ile çarpılması suretiyle hesaplanır.",
+] as const;
 
 /* ── Değer değişince kısa vurgu animasyonu ── */
 function FlashValue({ value, className }: { value: string; className?: string }) {
@@ -220,6 +230,7 @@ type PendingAction = { kind: "new" } | { kind: "open"; caseId: string } | null;
 
 export default function DavaciUcretiPage() {
   const toast = useToast();
+  const tour = useGuidedTourController();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const currentYear = new Date().getFullYear();
@@ -853,7 +864,7 @@ export default function DavaciUcretiPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama ve kayıtlar yalnızca bu cihazda</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -866,6 +877,16 @@ export default function DavaciUcretiPage() {
             </div>
           ) : null}
           <div className={styles.heroActions}>
+            <Button
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button
               variant="soft"
               size="sm"
@@ -909,40 +930,42 @@ export default function DavaciUcretiPage() {
           <section className={styles.card} style={{ animationDelay: "60ms" }}>
             <h2 className={styles.cardTitle}>Temel Bilgiler</h2>
             <div className={styles.basicGrid}>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Yıl</span>
-                <select
-                  className={styles.select}
-                  value={selectedYear}
-                  onChange={(e) => {
-                    const year = Number(e.target.value);
-                    setSelectedYear(year);
-                    if (!hasTwoPeriods(year)) setSelectedPeriod(2);
-                  }}
-                >
-                  {yearOptions.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {twoPeriods ? (
+              <div data-tour="davaci-ucreti-donem" className={styles.basicGrid} style={{ gridColumn: "1 / -1" }}>
                 <label className={styles.field}>
-                  <span className={styles.fieldLabel}>Dönem</span>
+                  <span className={styles.fieldLabel}>Yıl</span>
                   <select
                     className={styles.select}
-                    value={selectedPeriod}
-                    onChange={(e) => setSelectedPeriod(Number(e.target.value) as Period)}
+                    value={selectedYear}
+                    onChange={(e) => {
+                      const year = Number(e.target.value);
+                      setSelectedYear(year);
+                      if (!hasTwoPeriods(year)) setSelectedPeriod(2);
+                    }}
                   >
-                    <option value={1}>Oca–Haz</option>
-                    <option value={2}>Tem–Ara</option>
+                    {yearOptions.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
                   </select>
                 </label>
-              ) : null}
 
-              <label className={`${styles.field} ${styles.fieldWide}`}>
+                {twoPeriods ? (
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Dönem</span>
+                    <select
+                      className={styles.select}
+                      value={selectedPeriod}
+                      onChange={(e) => setSelectedPeriod(Number(e.target.value) as Period)}
+                    >
+                      <option value={1}>Oca–Haz</option>
+                      <option value={2}>Tem–Ara</option>
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+
+              <label className={`${styles.field} ${styles.fieldWide}`} data-tour="davaci-ucreti-ucret">
                 <span className={styles.fieldLabel}>Çıplak Brüt (₺)</span>
                 <div className={`${styles.inputWrap} ${asgariHatasi ? styles.inputWrapError : ""}`}>
                   <input
@@ -962,7 +985,7 @@ export default function DavaciUcretiPage() {
             </div>
           </section>
 
-          <section className={styles.card} style={{ animationDelay: "120ms" }}>
+          <section className={styles.card} style={{ animationDelay: "120ms" }} data-tour="davaci-ucreti-kalemler">
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>Ekstra Hesaplamalar</h2>
               <div className={styles.inlineActions}>
@@ -1036,7 +1059,11 @@ export default function DavaciUcretiPage() {
 
           <section className={styles.card} style={{ animationDelay: "180ms" }}>
             <h2 className={styles.cardTitle}>Notlar</h2>
-            <p className={styles.noteInfo}>{NOTE_INFO}</p>
+            {NOTE_INFO_LINES.map((line) => (
+              <p key={line} className={styles.noteInfo}>
+                {line}
+              </p>
+            ))}
           </section>
         </div>
 
@@ -1123,7 +1150,10 @@ export default function DavaciUcretiPage() {
       </div>
 
       {/* ── Sticky işlem çubuğu ── */}
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="davaci-ucreti-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {isDirty ? "Kaydedilmemiş değişiklikler var" : currentRecordName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1410,6 +1440,31 @@ export default function DavaciUcretiPage() {
           setDiscardOpen(false);
           setPendingAction(null);
         }}
+      />
+
+      <GuidedTourHost
+        definition={DAVACI_UCRETI_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={DAVACI_UCRETI_TOUR_WELCOME_TITLE}
+        welcomeBody={DAVACI_UCRETI_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={
+          showPreview ||
+          showRecordsModal ||
+          showCaseSaveModal ||
+          showSetSaveModal ||
+          showImportModal ||
+          !!eklentiFor
+        }
       />
     </div>
   );

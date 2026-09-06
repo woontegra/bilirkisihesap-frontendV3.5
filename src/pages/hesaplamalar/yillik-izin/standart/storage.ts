@@ -2,7 +2,7 @@ import { createCaseStorage } from "../lib/caseStorage";
 import { normalizeForm, normalizeResults, type YillikStandartForm } from "./model";
 import type { YillikResultSnapshot } from "../lib/types";
 
-const STORAGE_KEY = "bilirkisi-hesap-v35:yillik-izin-standart:cases:v1";
+export const STORAGE_KEY = "bilirkisi-hesap-v35:yillik-izin-standart:cases:v1";
 
 const api = createCaseStorage<YillikStandartForm, YillikResultSnapshot>(
   STORAGE_KEY,

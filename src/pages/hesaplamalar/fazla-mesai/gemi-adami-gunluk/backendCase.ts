@@ -1,3 +1,4 @@
+import { GEMI_GUNLUK_FM_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Gemi Adamı Günlük form eşlemesi.
  */
@@ -302,6 +303,7 @@ const gemiGunlukCrud = createFmBackendCrud({
   isRecordType: isGemiGunlukFmRecordType,
   mapFormFromBackend: mapGemiGunlukFormFromBackend,
   buildSaveData: buildGemiGunlukSaveData,
+  localStorageKey: GEMI_GUNLUK_FM_CASES_KEY,
 });
 
 export const listGemiGunlukFmCases = gemiGunlukCrud.listCases;

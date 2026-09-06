@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Calculator,
+  CirclePlay,
   Coins,
   Eye,
   FilePlus2,
@@ -16,10 +17,17 @@ import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftTextInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import {
+  PRIM_ALACAGI_TOUR,
+  PRIM_ALACAGI_TOUR_WELCOME_BODY,
+  PRIM_ALACAGI_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   buildPrimAlacagiSaveResult,
   listPrimAlacagiCasesFromBackend,
@@ -29,7 +37,7 @@ import {
 } from "./backendCase";
 import { computePrim, formatMoney, validatePrimForm } from "./engine";
 import { createEmptyForm, createEmptyRow, NOTE_TEXT, snapshotKey, type PrimForm, type SavedCase } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { clearCorruptCases, deleteCase } from "./storage";
 import styles from "./PrimAlacagiPage.module.css";
 
 const PAGE_TITLE = "Prim Alacağı";
@@ -135,7 +143,8 @@ function NameModal({
 }
 
 export default function PrimAlacagiPage() {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
+  const tour = useGuidedTourController();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const backendLoadedCaseIdRef = useRef<string | null>(null);
@@ -182,8 +191,7 @@ export default function PrimAlacagiPage() {
             ? error.message
             : "Kayıtlar yüklenemedi";
       setStorageError(message);
-      const local = loadCasesSafe();
-      setCases(local.ok ? local.items : []);
+      setCases([]);
     }
   }, []);
 
@@ -415,10 +423,10 @@ export default function PrimAlacagiPage() {
             <h1 className={styles.title}>{PAGE_TITLE}</h1>
             <p className={styles.desc}>
               Sözleşme/toplu iş sözleşmesi kapsamında hak edilen prim kalemleri ve brütten nete
-              çevrimi (damga vergisi binde 7,59). Hesaplama tamamen lokal çalışır.
+              çevrimi (damga vergisi binde 7,59). Hesaplama cihazınızda yapılır; kayıtlar hesabınıza yazılır.
             </p>
             <div className={styles.privacyBadge}>
-              <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+              <ShieldCheck size={12} /> Veriler hesabınıza güvenli şekilde kaydedilir
             </div>
           </div>
         </div>
@@ -435,6 +443,16 @@ export default function PrimAlacagiPage() {
             </span>
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} /> Nasıl kullanılır?
+            </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
               <FolderOpen size={14} /> Kayıtlar
             </Button>
@@ -465,7 +483,7 @@ export default function PrimAlacagiPage() {
 
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="prim-alacagi-kalemler">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Prim kalemleri</h2>
@@ -474,7 +492,7 @@ export default function PrimAlacagiPage() {
               {form.rows.map((r, idx) => {
                 const rowResult = result.rows[idx];
                 return (
-                  <div key={r.id} className={styles.primRow}>
+                  <div key={r.id} className={styles.primRow} data-tour-prim-row>
                     <div className={styles.field}>
                       <label className={styles.label} htmlFor={`pr-principal-${r.id}`}>
                         Prim Matrahı (Brüt Ücret)
@@ -598,7 +616,10 @@ export default function PrimAlacagiPage() {
         </aside>
       </div>
 
-      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}
+        data-tour="prim-alacagi-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <div className={styles.stickyStatus}>
             {dirty
@@ -702,6 +723,24 @@ export default function PrimAlacagiPage() {
         sections={previewSections}
         contentId="prim-alacagi-preview"
         onClose={() => setPreviewOpen(false)}
+      />
+
+      <GuidedTourHost
+        definition={PRIM_ALACAGI_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={PRIM_ALACAGI_TOUR_WELCOME_TITLE}
+        welcomeBody={PRIM_ALACAGI_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={previewOpen || nameOpen || listOpen}
       />
     </div>
   );

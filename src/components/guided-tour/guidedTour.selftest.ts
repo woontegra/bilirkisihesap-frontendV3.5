@@ -5,11 +5,20 @@ import assert from "node:assert/strict";
 import {
   datesReadyIn,
   isValidDatePair,
+  isValidTimeValue,
   parseTourMoney,
   scheduleReadyCheck,
+  timesReadyIn,
   wageReadyIn,
 } from "./autoAdvance";
-import { loadTourPrefs, saveTourPrefs, shouldOfferWelcome } from "./storage";
+import {
+  AUTO_WELCOME_SEEN_KEY,
+  hasSeenAutoWelcome,
+  loadTourPrefs,
+  markAutoWelcomeSeen,
+  saveTourPrefs,
+  shouldOfferWelcome,
+} from "./storage";
 import { pickPlacement, placeBubble } from "./geometry";
 
 const mem = new Map<string, string>();
@@ -24,9 +33,18 @@ Object.defineProperty(globalThis, "localStorage", {
 
 mem.clear();
 assert.equal(shouldOfferWelcome("__test-tour__", 1), true);
-saveTourPrefs("__test-tour__", { version: 1, neverShowWelcome: true });
+assert.equal(hasSeenAutoWelcome(), false);
+markAutoWelcomeSeen();
+assert.equal(localStorage.getItem(AUTO_WELCOME_SEEN_KEY), "true");
+assert.equal(hasSeenAutoWelcome(), true);
 assert.equal(shouldOfferWelcome("__test-tour__", 1), false);
+assert.equal(shouldOfferWelcome("other-tour", 99), false);
+
+// Per-tour prefs still persist but no longer gate auto welcome.
+mem.clear();
+saveTourPrefs("__test-tour__", { version: 1, neverShowWelcome: true });
 assert.equal(loadTourPrefs("__test-tour__", 1).neverShowWelcome, true);
+assert.equal(shouldOfferWelcome("__test-tour__", 1), true);
 assert.equal(shouldOfferWelcome("__test-tour__", 2), true);
 
 assert.equal(isValidDatePair("2020-01-01", "2021-01-01"), true);
@@ -38,6 +56,11 @@ assert.equal(parseTourMoney(""), 0);
 
 assert.equal(datesReadyIn(null), false);
 assert.equal(wageReadyIn(null), false);
+assert.equal(timesReadyIn(null), false);
+assert.equal(isValidTimeValue("08:30"), true);
+assert.equal(isValidTimeValue("24:00"), false);
+assert.equal(isValidTimeValue("8:30"), false);
+assert.equal(isValidTimeValue(""), false);
 
 const rect = { top: 100, left: 100, width: 200, height: 40 };
 assert.equal(pickPlacement(rect, "auto", 800, 600), "bottom");

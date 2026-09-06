@@ -231,6 +231,7 @@ export default function YillikBasinPage() {
 
   return (
     <YillikPageView
+      guidedTourVariant="basin"
       icon={Newspaper}
       pageTitle={PAGE_TITLE}
       pageDescription="5953 sayılı Basın İş Kanunu — günlük gazete işçisi yıllık izin (4/6 hafta kuralı)."

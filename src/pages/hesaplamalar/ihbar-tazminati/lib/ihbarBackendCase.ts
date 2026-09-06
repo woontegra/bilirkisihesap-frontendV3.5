@@ -124,8 +124,10 @@ export function createIhbarVariantBackendCase<TForm extends IhbarStandardForm>(o
     record?: Pick<SavedCaseRecord, "ise_giris" | "isten_cikis">,
   ) => Partial<TForm>;
   extendV3Form?: (form: TForm) => Record<string, unknown>;
+  localStorageKey?: string;
 }) {
-  const { recordType, normalizeForm, normalizeResults, mapExtraFormFields, extendV3Form } = opts;
+  const { recordType, normalizeForm, normalizeResults, mapExtraFormFields, extendV3Form, localStorageKey } =
+    opts;
 
   function mapFormFromBackend(
     data: unknown,
@@ -154,6 +156,7 @@ export function createIhbarVariantBackendCase<TForm extends IhbarStandardForm>(o
         iseGiris: form.startDate || null,
         istenCikis: form.endDate || null,
       }),
+    localStorageKey,
   });
 
   function mapRecordToSavedCase(record: SavedCaseRecord): IhbarSavedCase<TForm> | null {

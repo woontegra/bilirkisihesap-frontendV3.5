@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → Gemi Adamı Hafta Tatili CRUD.
  */
@@ -39,6 +40,7 @@ export const htGemiCaseCrud = createCalcBackendCrud<GemiForm>({
   recordType: HT_GEMI_TYPE,
   isRecordType: isHtGemiRecordType,
   mapFormFromBackend: mapHtGemiFormFromBackend,
+  localStorageKey: STORAGE_KEY,
   buildSaveData: (form, result) => buildGemiHtSaveData(form, result),
 });
 

@@ -1,3 +1,4 @@
+import { DONEMSEL_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Dönemsel form eşlemesi.
  * raw = form || formValues || payload; d = raw.donemselState || raw
@@ -358,6 +359,7 @@ const donemselCrud = createFmBackendCrud({
   isRecordType: isDonemselFmRecordType,
   mapFormFromBackend: mapDonemselFormFromBackend,
   buildSaveData: buildDonemselSaveData,
+  localStorageKey: DONEMSEL_CASES_KEY,
 });
 
 export const listDonemselFmCases = donemselCrud.listCases;

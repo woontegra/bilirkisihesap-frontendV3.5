@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Calculator,
+  CirclePlay,
   Eye,
   FilePlus2,
   FolderOpen,
@@ -16,12 +17,19 @@ import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTextInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 
+import {
+  AYRIMCILIK_TOUR,
+  AYRIMCILIK_TOUR_WELCOME_BODY,
+  AYRIMCILIK_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   buildAyrimcilikSaveResult,
   ayrimcilikCaseCrud,
@@ -37,7 +45,7 @@ import {
   isDateOrderInvalid,
 } from "./engine";
 import { NOTE_BLOCKS, createEmptyForm, snapshotKey, type AyrimcilikForm, type SavedCase } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { clearCorruptCases, deleteCase } from "./storage";
 import styles from "./AyrimcilikTazminatiPage.module.css";
 
 const PAGE_TITLE = "Ayrımcılık Tazminatı";
@@ -144,7 +152,8 @@ function NameModal({
 }
 
 export default function AyrimcilikTazminatiPage() {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
+  const tour = useGuidedTourController();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const backendLoadedCaseIdRef = useRef<string | null>(null);
@@ -195,8 +204,7 @@ export default function AyrimcilikTazminatiPage() {
             ? error.message
             : "Kayıtlar yüklenemedi";
       setStorageError(message);
-      const local = loadCasesSafe();
-      setCases(local.ok ? local.items : []);
+      setCases([]);
     }
   }, []);
 
@@ -438,10 +446,10 @@ export default function AyrimcilikTazminatiPage() {
             <h1 className={styles.title}>{PAGE_TITLE}</h1>
             <p className={styles.desc}>
               1–4 aylık katsayı tablosu, damga vergisi (binde 7,59) ve net ayrımcılık tazminatı —
-              hesaplama tamamen lokal çalışır.
+              hesaplama cihazınızda yapılır; kayıtlar hesabınıza yazılır.
             </p>
             <div className={styles.privacyBadge}>
-              <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+              <ShieldCheck size={12} /> Veriler hesabınıza güvenli şekilde kaydedilir
             </div>
           </div>
         </div>
@@ -458,6 +466,16 @@ export default function AyrimcilikTazminatiPage() {
             </span>
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} /> Nasıl kullanılır?
+            </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
               <FolderOpen size={14} /> Kayıtlar
             </Button>
@@ -488,7 +506,7 @@ export default function AyrimcilikTazminatiPage() {
 
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="ayrimcilik-donem">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Tarih bilgileri</h2>
@@ -567,7 +585,7 @@ export default function AyrimcilikTazminatiPage() {
             </div>
           </section>
 
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="ayrimcilik-ucret">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
@@ -680,7 +698,10 @@ export default function AyrimcilikTazminatiPage() {
         </aside>
       </div>
 
-      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}
+        data-tour="ayrimcilik-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <div className={styles.stickyStatus}>
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
@@ -792,6 +813,24 @@ export default function AyrimcilikTazminatiPage() {
         sections={previewSections}
         contentId="ayrimcilik-preview"
         onClose={() => setPreviewOpen(false)}
+      />
+
+      <GuidedTourHost
+        definition={AYRIMCILIK_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={AYRIMCILIK_TOUR_WELCOME_TITLE}
+        welcomeBody={AYRIMCILIK_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={previewOpen || nameOpen || listOpen}
       />
     </div>
   );

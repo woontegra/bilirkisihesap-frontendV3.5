@@ -509,11 +509,22 @@ export function mapRecordToListItem(record: SavedCaseRecord): SavedCaseListItem 
 
 
 export async function listStandartFmCases(): Promise<SavedCaseListItem[]> {
-
+  const { migrateLocalSavedCasesOnce } = await import("../../shared/localCasesMigration");
+  const { STANDART_FM_CASES_KEY } = await import("./storage");
+  await migrateLocalSavedCasesOnce({
+    storageKey: STANDART_FM_CASES_KEY,
+    recordType: STANDART_FM_RECORD_TYPE,
+    buildData: (local) => {
+      if (!local.form) return null;
+      return {
+        form: local.form,
+        formValues: local.form,
+        results: local.results ?? {},
+      };
+    },
+  });
   const all = await listSavedCases();
-
   return all.filter((r) => isStandartFmRecordType(r.type ?? r.hesaplama_tipi)).map(mapRecordToListItem);
-
 }
 
 

@@ -7,6 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Calculator,
+  CirclePlay,
   Eye,
   FilePlus2,
   FolderOpen,
@@ -20,10 +21,17 @@ import {
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import {
+  FM_VARDIYA_48_TOUR,
+  FM_VARDIYA_48_TOUR_WELCOME_BODY,
+  FM_VARDIYA_48_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   ManualBrutWageApplyControls,
   clearAllManualBrutFromRowOverrides,
@@ -169,6 +177,20 @@ export default function Vardiya48FmPage() {
   const [saveFlash, setSaveFlash] = useState(false);
   const [formSwap, setFormSwap] = useState(false);
   const [baseline, setBaseline] = useState("");
+  const [exclusionOverlayOpen, setExclusionOverlayOpen] = useState(false);
+  const tour = useGuidedTourController();
+
+  const tourPaused =
+    showRecordsModal ||
+    showCaseSaveModal ||
+    showPreview ||
+    showUbgtPicker ||
+    showZamanasimiModal ||
+    showKatsayiModal ||
+    showMahsupModal ||
+    exclusionOverlayOpen ||
+    deleteCaseTarget !== null ||
+    discardOpen;
 
   const setField = <K extends keyof Vardiya48FormSnapshot>(key: K, value: Vardiya48FormSnapshot[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -566,7 +588,7 @@ export default function Vardiya48FmPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama yalnızca bu cihazda yapılır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -586,6 +608,17 @@ export default function Vardiya48FmPage() {
             />
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" type="button" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -617,7 +650,7 @@ export default function Vardiya48FmPage() {
       ) : null}
 
       <div className={styles.formStack}>
-        <section className={styles.card} style={{ animationDelay: "40ms" }}>
+        <section className={styles.card} style={{ animationDelay: "40ms" }} data-tour="fm-vardiya-48-donem">
           <h2 className={styles.cardTitle}>Dava dönemi</h2>
           <div className={styles.basicGrid}>
             <label className={styles.field}>
@@ -650,7 +683,7 @@ export default function Vardiya48FmPage() {
           </div>
         </section>
 
-        <section className={styles.card} style={{ animationDelay: "70ms" }}>
+        <section className={styles.card} style={{ animationDelay: "70ms" }} data-tour="fm-vardiya-48-taniklar">
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>Tanık beyanları (tarih aralığı)</h2>
             <Button variant="soft" type="button" onClick={addWitness}>
@@ -709,40 +742,43 @@ export default function Vardiya48FmPage() {
 
         <MetinHesaplamasi anchorIsWorkDay={form.anchorIsWorkDay} />
 
-        <ExclusionsPanel
-          exclusions={form.exclusions}
-          onChange={(next) => setField("exclusions", next)}
-          onOpenUbgtPicker={() => setShowUbgtPicker(true)}
-          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
-        />
+        <div data-tour="fm-vardiya-48-ayarlar" style={{ display: "grid", gap: "1rem", minWidth: 0 }}>
+          <ExclusionsPanel
+            exclusions={form.exclusions}
+            onChange={(next) => setField("exclusions", next)}
+            onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+            visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
+            onOverlayOpenChange={setExclusionOverlayOpen}
+          />
 
-        <section className={styles.card} style={{ animationDelay: "140ms" }}>
-          <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
-          <div className={styles.basicGrid}>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Kat Sayı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() => (hasCustomKatsayi ? setField("katSayi", "1") : setShowKatsayiModal(true))}
-              >
-                <Calculator size={13} />
-                {hasCustomKatsayi ? `Katsayı ${katSayiNum.toFixed(2)}` : "Kat sayı"}
-              </button>
+          <section className={styles.card} style={{ animationDelay: "140ms" }}>
+            <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
+            <div className={styles.basicGrid}>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Kat Sayı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() => (hasCustomKatsayi ? setField("katSayi", "1") : setShowKatsayiModal(true))}
+                >
+                  <Calculator size={13} />
+                  {hasCustomKatsayi ? `Katsayı ${katSayiNum.toFixed(2)}` : "Kat sayı"}
+                </button>
+              </div>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Zamanaşımı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() => (zamanasimi ? setField("zamanasimi", null) : setShowZamanasimiModal(true))}
+                >
+                  <History size={13} />
+                  {zamanasimi ? "Zamanaşımı" : "Zamanaşımı itirazı"}
+                </button>
+              </div>
             </div>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Zamanaşımı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() => (zamanasimi ? setField("zamanasimi", null) : setShowZamanasimiModal(true))}
-              >
-                <History size={13} />
-                {zamanasimi ? "Zamanaşımı" : "Zamanaşımı itirazı"}
-              </button>
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
         <ZamanasimiCetvelBanner nihaiBaslangic={zamanasimi?.nihaiBaslangic} />
 
@@ -856,6 +892,7 @@ export default function Vardiya48FmPage() {
 
       <div
         className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="fm-vardiya-48-kaydet-actions"
       >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
@@ -898,7 +935,7 @@ export default function Vardiya48FmPage() {
               </button>
             </div>
             {savedCases.length === 0 ? (
-              <p className={styles.emptyText}>Henüz lokal kayıt yok.</p>
+              <p className={styles.emptyText}>Henüz kayıt yok.</p>
             ) : (
               <ul className={styles.recordsList}>
                 {savedCases.map((c) => (
@@ -1015,6 +1052,24 @@ export default function Vardiya48FmPage() {
         danger
         onConfirm={confirmDeleteCase}
         onCancel={() => setDeleteCaseTarget(null)}
+      />
+
+      <GuidedTourHost
+        definition={FM_VARDIYA_48_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={FM_VARDIYA_48_TOUR_WELCOME_TITLE}
+        welcomeBody={FM_VARDIYA_48_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={tourPaused}
       />
     </div>
   );

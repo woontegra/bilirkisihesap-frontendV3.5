@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → İşe Başlatmama form mapping.
  * Yalnızca form alanlarını doldurur; sonucu backend'den almaz (lokal motor yeniden hesaplar).
@@ -91,6 +92,7 @@ export const iseAlmamaCaseCrud = createCalcBackendCrud({
       iseGiris: form.startDate || null,
       istenCikis: form.endDate || null,
     }),
+  localStorageKey: STORAGE_KEY,
 });
 
 export function buildIseAlmamaSaveResult(result: {

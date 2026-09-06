@@ -9,10 +9,13 @@ import {
   type Placement,
   type Rect,
 } from "./geometry";
-import { loadTourPrefs, saveTourPrefs, shouldOfferWelcome } from "./storage";
+import { markAutoWelcomeSeen, shouldOfferWelcome } from "./storage";
 import { scheduleReadyCheck } from "./autoAdvance";
 import type { GuidedTourDefinition, GuidedTourStep, GuidedTourStepMode } from "./types";
 import styles from "./GuidedTour.module.css";
+
+/** StrictMode / eşzamanlı host: yalnızca son planlanan offer geçerli olsun. */
+let autoWelcomeOfferEpoch = 0;
 
 type Props = {
   definition: GuidedTourDefinition;
@@ -25,6 +28,7 @@ type Props = {
   welcomeBody: string;
   welcomeStartLabel?: string;
   welcomeLaterLabel?: string;
+  /** @deprecated Global welcome; “Bir daha gösterme” kaldırıldı. */
   welcomeNeverLabel?: string;
   onCollectingComplete?: () => void;
   onDismiss?: () => void;
@@ -55,7 +59,6 @@ export function GuidedTourHost({
   welcomeBody,
   welcomeStartLabel = "Başlat",
   welcomeLaterLabel = "Kendim devam edeceğim",
-  welcomeNeverLabel = "Bir daha gösterme",
   onCollectingComplete,
   onDismiss,
   initialStepIndex = 0,
@@ -67,10 +70,12 @@ export function GuidedTourHost({
   const [rect, setRect] = useState<Rect | null>(null);
   const [placement, setPlacement] = useState<Placement>("bottom");
   const [bubblePos, setBubblePos] = useState({ top: 24, left: 24 });
+  const [gateWarn, setGateWarn] = useState<string | null>(null);
 
   const bubbleRef = useRef<HTMLDivElement | null>(null);
   const activeTargetRef = useRef<HTMLElement | null>(null);
   const offeredRef = useRef(false);
+  const welcomeStartingRef = useRef(false);
   const wasActiveRef = useRef(false);
   const userEditedRef = useRef(false);
   const advancingRef = useRef(false);
@@ -128,6 +133,7 @@ export function GuidedTourHost({
       advancingRef.current = true;
       clearTimers();
       userEditedRef.current = false;
+      setGateWarn(null);
       if (nextIndex >= stepsRef.current.length) {
         finishCollecting();
         return;
@@ -143,6 +149,7 @@ export function GuidedTourHost({
   advanceToRef.current = advanceTo;
 
   const goNext = useCallback(() => {
+    setGateWarn(null);
     if (isLast) {
       finishCollecting();
       return;
@@ -154,10 +161,45 @@ export function GuidedTourHost({
     clearTimers();
     advancingRef.current = false;
     userEditedRef.current = false;
+    setGateWarn(null);
     setIndex((i) => Math.max(0, i - 1));
   }, [clearTimers]);
 
+  const tryOptionalConfirm = useCallback(() => {
+    if (!step) return;
+    if (step.optionalConfirmReady && !step.optionalConfirmReady()) {
+      setGateWarn(
+        step.optionalConfirmBlockedHint ??
+          "Bu adımı tamamlamak için gerekli alanları doldurun.",
+      );
+      return;
+    }
+    setGateWarn(null);
+    goNext();
+  }, [goNext, step]);
+
+  /** manual İleri — autoAdvance.isReady ile aynı kapı (Atla yokken zorunlu alanlar). */
+  const tryManualAdvance = useCallback(() => {
+    if (!step) return;
+    const readyFn = step.autoAdvance?.isReady;
+    if (readyFn && !readyFn()) {
+      setGateWarn(
+        step.advanceBlockedHint ?? "Bu adımı tamamlamak için gerekli alanları doldurun.",
+      );
+      return;
+    }
+    setGateWarn(null);
+    goNext();
+  }, [goNext, step]);
+
+  useEffect(() => {
+    setGateWarn(null);
+  }, [step?.id]);
+
   const startTour = useCallback(() => {
+    if (welcomeStartingRef.current) return;
+    welcomeStartingRef.current = true;
+    markAutoWelcomeSeen();
     clearTimers();
     advancingRef.current = false;
     userEditedRef.current = false;
@@ -177,29 +219,37 @@ export function GuidedTourHost({
       pendingStartIndexRef.current = null;
       setIndex(Math.min(Math.max(0, start), max));
     }
+    if (!active) welcomeStartingRef.current = false;
     wasActiveRef.current = active;
   }, [active, clearTimers, initialStepIndex, onTourStarted]);
 
-  const dismissWelcome = useCallback(
-    (forever: boolean) => {
-      if (forever) {
-        saveTourPrefs(definition.id, { version: definition.version, neverShowWelcome: true });
-      } else {
-        const prev = loadTourPrefs(definition.id, definition.version);
-        saveTourPrefs(definition.id, { ...prev, version: definition.version });
-      }
-      onWelcomeOpenChange(false);
-    },
-    [definition.id, definition.version, onWelcomeOpenChange],
-  );
+  const dismissWelcome = useCallback(() => {
+    markAutoWelcomeSeen();
+    welcomeStartingRef.current = false;
+    onWelcomeOpenChange(false);
+  }, [onWelcomeOpenChange]);
 
   useEffect(() => {
-    if (!offerWelcomeOnMount || offeredRef.current) return;
-    offeredRef.current = true;
-    if (shouldOfferWelcome(definition.id, definition.version)) {
+    if (!offerWelcomeOnMount) return;
+    if (!shouldOfferWelcome()) return;
+
+    const epoch = ++autoWelcomeOfferEpoch;
+    const raf = window.requestAnimationFrame(() => {
+      if (epoch !== autoWelcomeOfferEpoch) return;
+      if (!shouldOfferWelcome()) return;
+      if (offeredRef.current) return;
+      offeredRef.current = true;
       onWelcomeOpenChange(true);
-    }
-  }, [definition.id, definition.version, offerWelcomeOnMount, onWelcomeOpenChange]);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      // Route değişimi / unmount: karşılama açık kalmasın (StrictMode’da remount yeniden planlar).
+      if (epoch === autoWelcomeOfferEpoch) {
+        onWelcomeOpenChange(false);
+      }
+    };
+  }, [definition.id, offerWelcomeOnMount, onWelcomeOpenChange]);
 
   /* Spotlight sync — skip while paused (preview modal open) */
   useLayoutEffect(() => {
@@ -211,12 +261,18 @@ export function GuidedTourHost({
 
     let cancelled = false;
     const apply = async () => {
-      let el = findTourTarget(step.target);
-      if (!el) {
-        if (!cancelled && safeIndex < steps.length - 1) advanceTo(safeIndex + 1);
-        else if (!cancelled) finishCollecting();
-        return;
+      // Hedef henüz mount olmamış olabilir — birkaç kez dene; sessizce sonraki adıma atlama.
+      let el: HTMLElement | null = null;
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        if (cancelled) return;
+        el = findTourTarget(step.target);
+        if (el) break;
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 40);
+        });
       }
+      if (!el || cancelled) return;
+
       await scrollTargetIntoView(el, step.scroll ?? "center");
       if (cancelled) return;
       el = findTourTarget(step.target);
@@ -242,7 +298,7 @@ export function GuidedTourHost({
     return () => {
       cancelled = true;
     };
-  }, [active, paused, step, safeIndex, steps.length, clearActiveAttr, finishCollecting, advanceTo]);
+  }, [active, paused, step, clearActiveAttr]);
 
   useLayoutEffect(() => {
     if (!active || paused || !rect || !bubbleRef.current) return;
@@ -266,9 +322,16 @@ export function GuidedTourHost({
     };
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
+    const targetEl = findTourTarget(step.target);
+    let ro: ResizeObserver | null = null;
+    if (targetEl && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => update());
+      ro.observe(targetEl);
+    }
     return () => {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
+      ro?.disconnect();
     };
   }, [active, paused, step]);
 
@@ -277,7 +340,7 @@ export function GuidedTourHost({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        if (welcomeOpen) dismissWelcome(false);
+        if (welcomeOpen) dismissWelcome();
         else if (!paused) closeTour();
       }
     };
@@ -290,12 +353,12 @@ export function GuidedTourHost({
    * - Listen to trusted input/change/keyup in capture (blur NOT required)
    * - Debounce, then poll live DOM readiness briefly (controlled/native date lag)
    * - Only after user edit on THIS step visit (geri sonrası anında fırlamaz)
-   * - Works for `auto` and `manual` steps that declare `autoAdvance`
+   * - Works for `auto`, `manual`, and `optional` steps that declare `autoAdvance`
    * - Effect deps avoid full `step` object so parent re-renders don't clear timers mid-type
    */
   useEffect(() => {
     if (!active || paused || !step?.autoAdvance) return;
-    if (mode !== "auto" && mode !== "manual") return;
+    if (mode !== "auto" && mode !== "manual" && mode !== "optional") return;
 
     const stepIndex = safeIndex;
     const delayMs = step.autoAdvance.delayMs ?? 500;
@@ -408,7 +471,7 @@ export function GuidedTourHost({
               {skipLabel}
             </Button>
           ) : null}
-          <Button variant="primary" size="sm" onClick={goNext}>
+          <Button variant="primary" size="sm" onClick={tryOptionalConfirm}>
             {confirmLabel}
           </Button>
         </div>
@@ -449,7 +512,7 @@ export function GuidedTourHost({
               Atla
             </Button>
           ) : null}
-          <Button variant="primary" size="sm" onClick={goNext}>
+          <Button variant="primary" size="sm" onClick={tryManualAdvance}>
             İleri
           </Button>
         </div>
@@ -492,11 +555,8 @@ export function GuidedTourHost({
               <Button variant="primary" size="sm" onClick={startTour}>
                 {welcomeStartLabel}
               </Button>
-              <Button variant="soft" size="sm" onClick={() => dismissWelcome(false)}>
+              <Button variant="soft" size="sm" onClick={dismissWelcome}>
                 {welcomeLaterLabel}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => dismissWelcome(true)}>
-                {welcomeNeverLabel}
               </Button>
             </div>
           </div>
@@ -527,6 +587,11 @@ export function GuidedTourHost({
               {step.title}
             </h3>
             <p className={styles.bubbleBody}>{step.body}</p>
+            {gateWarn ? (
+              <p className={styles.gateWarn} role="alert">
+                {gateWarn}
+              </p>
+            ) : null}
             <div className={styles.progress}>
               {safeIndex + 1} / {steps.length}
             </div>

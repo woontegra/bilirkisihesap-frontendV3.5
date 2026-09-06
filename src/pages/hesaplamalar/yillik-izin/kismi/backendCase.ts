@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → Yıllık Ücretli İzin (Kısmi Süreli).
  */
@@ -145,6 +146,7 @@ const caseCrud = createCalcBackendCrud({
   isRecordType: isYillikKismiRecordType,
   mapFormFromBackend: mapYillikKismiFormFromBackend,
   buildSaveData,
+  localStorageKey: STORAGE_KEY,
 });
 
 function mapRecordToSavedCase(record: SavedCaseRecord): YillikSavedCase<YillikKismiForm> | null {

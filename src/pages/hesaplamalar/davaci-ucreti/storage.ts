@@ -1,9 +1,6 @@
 /**
- * Davacı Ücreti — lokal depolama.
- *
- * - Hesaplama kayıtları (cases): lokal, sayfaya özel.
- * - Ekstra setler: asıl kaynak backend; burada yalnızca başarıyla alınan son
- *   listenin tenant/kullanıcı namespaced geçici cache'i tutulur (çevrimdışı görüntüleme).
+ * Davacı Ücreti — legacy local case migrate kaynağı + obsolete key temizliği.
+ * Asıl kayıtlar /api/saved-cases üzerinden tutulur.
  */
 
 import type { DavaciFormSnapshot, SavedCase, SavedExtraSet } from "./model";
@@ -18,7 +15,6 @@ const OBSOLETE_KEYS = [
 ] as const;
 
 type CasesPayload = { version: 1; cases: SavedCase[] };
-type SetsCachePayload = { version: 1; cachedAt: string; sets: SavedExtraSet[] };
 
 export type LoadResult<T> = { ok: true; items: T[] } | { ok: false; items: []; reason: string };
 
@@ -134,32 +130,20 @@ export function purgeObsoleteLocalSetStores(): void {
   }
 }
 
-export function writeExtraSetsCache(sets: SavedExtraSet[]): void {
-  if (typeof window === "undefined") return;
+export function writeExtraSetsCache(_sets: SavedExtraSet[]): void {
+  /* Kalıcı kullanıcı verisi localStorage'da tutulmaz; cache yazımı kaldırıldı. */
   try {
-    const payload: SetsCachePayload = {
-      version: 1,
-      cachedAt: new Date().toISOString(),
-      sets,
-    };
-    localStorage.setItem(extraSetsCacheKey(), JSON.stringify(payload));
+    localStorage.removeItem(extraSetsCacheKey());
   } catch {
-    /* kota — cache zorunlu değil */
+    /* ignore */
   }
 }
 
 export function readExtraSetsCache(): SavedExtraSet[] {
-  if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(extraSetsCacheKey());
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Partial<SetsCachePayload>;
-    if (parsed?.version !== 1 || !Array.isArray(parsed.sets)) return [];
-    return parsed.sets.filter(
-      (s): s is SavedExtraSet =>
-        !!s && typeof s.id === "number" && typeof s.name === "string" && Array.isArray(s.data),
-    );
+    localStorage.removeItem(extraSetsCacheKey());
   } catch {
-    return [];
+    /* ignore */
   }
+  return [];
 }

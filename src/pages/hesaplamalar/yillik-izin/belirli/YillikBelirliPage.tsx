@@ -164,6 +164,7 @@ export default function YillikBelirliPage() {
 
   return (
     <YillikPageView
+      guidedTourVariant="belirli"
       icon={FileCheck}
       pageTitle={PAGE_TITLE}
       pageDescription="Belirli süreli sözleşmede yıllık izin alacağı."

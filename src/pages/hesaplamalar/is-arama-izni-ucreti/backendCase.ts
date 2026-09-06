@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → İş Arama İzni Ücreti form mapping.
  * Yalnızca form alanlarını doldurur; sonucu backend'den almaz (lokal motor yeniden hesaplar).
@@ -108,6 +109,7 @@ export const isAramaIzniCaseCrud = createCalcBackendCrud({
       iseGiris: form.startDate || null,
       istenCikis: form.endDate || null,
     }),
+  localStorageKey: STORAGE_KEY,
 });
 
 export function buildIsAramaIzniSaveResult(result: {

@@ -174,6 +174,7 @@ export default function YillikStandartPage() {
 
   return (
     <YillikPageView
+      guidedTourVariant="standart"
       icon={Briefcase}
       pageTitle={PAGE_TITLE}
       pageDescription="4857 sayılı İş Kanunu kapsamında yıllık ücretli izin alacağı hesabı."

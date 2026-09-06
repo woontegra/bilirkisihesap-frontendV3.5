@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → Yıllık Ücretli İzin (Borçlar Kanunu).
  */
@@ -16,6 +17,7 @@ export const yillikBorclarBackend = createYillikBackendCase({
   isRecordType: isYillikBorclarRecordType,
   normalizeForm,
   normalizeResults,
+  localStorageKey: STORAGE_KEY,
 });
 
 export const yillikBorclarCaseCrud = yillikBorclarBackend.caseCrud;

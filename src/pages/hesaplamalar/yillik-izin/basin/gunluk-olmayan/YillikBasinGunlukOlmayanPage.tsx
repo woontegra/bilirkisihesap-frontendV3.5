@@ -216,6 +216,7 @@ export default function YillikBasinGunlukOlmayanPage() {
 
   return (
     <YillikPageView
+      guidedTourVariant="basin-gunluk-olmayan"
       icon={Newspaper}
       pageTitle={PAGE_TITLE}
       pageDescription="5953 sayılı Basın İş Kanunu — günlük olmayan gazete işçisi yıllık izin (6 ayda 14 gün kuralı)."

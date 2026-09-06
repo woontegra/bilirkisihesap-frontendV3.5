@@ -1,3 +1,4 @@
+import { DONEMSEL_HAFTALIK_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Dönemsel Haftalık form eşlemesi.
  * raw = form || formValues || payload; d = raw.donemselState || raw
@@ -310,6 +311,7 @@ const donemselHaftalikCrud = createFmBackendCrud({
   isRecordType: isDonemselHaftalikFmRecordType,
   mapFormFromBackend: mapDonemselHaftalikFormFromBackend,
   buildSaveData: buildDonemselHaftalikSaveData,
+  localStorageKey: DONEMSEL_HAFTALIK_CASES_KEY,
 });
 
 export const listDonemselHaftalikFmCases = donemselHaftalikCrud.listCases;

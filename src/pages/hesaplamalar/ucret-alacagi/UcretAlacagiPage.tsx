@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Banknote, Calculator, Eye, FilePlus2, FolderOpen, Save, ShieldCheck, Trash2, X } from "lucide-react";
+import { Banknote, Calculator, CirclePlay, Eye, FilePlus2, FolderOpen, Save, ShieldCheck, Trash2, X } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTextInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import {
+  UCRET_ALACAGI_TOUR,
+  UCRET_ALACAGI_TOUR_WELCOME_BODY,
+  UCRET_ALACAGI_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   buildUcretAlacagiSaveResult,
   listUcretAlacagiCasesFromBackend,
@@ -34,7 +41,7 @@ import {
 import { getAsgariUcretForPeriod } from "./asgariUcret";
 import { ManualBrutWageApplyControls } from "./ManualBrutWageApplyControls";
 import { createEmptyForm, NOTE_TEXT, snapshotKey, type CetvelRow, type HesaplamaTab, type SavedCase, type UcretAlacagiForm } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { clearCorruptCases, deleteCase } from "./storage";
 import styles from "./UcretAlacagiPage.module.css";
 
 const PAGE_TITLE = "Ücret Alacağı";
@@ -186,7 +193,8 @@ function KatsayiModal({
 }
 
 export default function UcretAlacagiPage() {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
+  const tour = useGuidedTourController();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const backendLoadedCaseIdRef = useRef<string | null>(null);
@@ -234,8 +242,7 @@ export default function UcretAlacagiPage() {
             ? error.message
             : "Kayıtlar yüklenemedi";
       setStorageError(message);
-      const local = loadCasesSafe();
-      setCases(local.ok ? local.items : []);
+      setCases([]);
     }
   }, []);
 
@@ -641,6 +648,16 @@ export default function UcretAlacagiPage() {
             <span className={styles.quickTotalValue}>{formatMoney(totalAmount)} ₺</span>
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} /> Nasıl kullanılır?
+            </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
               <FolderOpen size={14} /> Kayıtlar
             </Button>
@@ -669,7 +686,7 @@ export default function UcretAlacagiPage() {
         </div>
       ) : null}
 
-      <section className={styles.card}>
+      <section className={styles.card} data-tour="ucret-alacagi-donem">
         <div className={styles.cardHead}>
           <Calculator size={16} />
           <h2 className={styles.cardTitle}>Tarih bilgileri</h2>
@@ -714,7 +731,7 @@ export default function UcretAlacagiPage() {
         </div>
       </section>
 
-      <div className={styles.tabRow}>
+      <div className={styles.tabRow} data-tour="ucret-alacagi-hesap-turu">
         <button
           type="button"
           className={`${styles.tabBtn} ${!isNetTab ? styles.tabBtnActive : ""}`}
@@ -731,10 +748,10 @@ export default function UcretAlacagiPage() {
         </button>
       </div>
 
-      <section className={styles.card}>
+      <section className={styles.card} data-tour="ucret-alacagi-kalemler">
         <div className={styles.rowHead}>
           <h2 className={styles.cardTitle}>{isNetTab ? "Net Ücret Hesaplama Cetveli" : "Ücret Hesaplama Cetveli"}</h2>
-          <div style={{ display: "flex", gap: "0.4rem" }}>
+          <div data-tour="ucret-alacagi-ayarlar" style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
             <Button
               type="button"
               variant="ghost"
@@ -751,15 +768,6 @@ export default function UcretAlacagiPage() {
                 Kat Sayı Kaldır ({(isNetTab ? form.netGlobalKatsayi : form.globalKatsayi).toFixed(4)})
               </Button>
             ) : null}
-          </div>
-        </div>
-
-        {rows.length === 0 ? (
-          <p className={styles.emptyCoef}>
-            {isNetTab ? "Net ücret hesaplaması" : "Ücret hesaplaması"} için tarihleri girin. Tablo otomatik oluşturulacaktır.
-          </p>
-        ) : (
-          <div className={styles.tableWrap}>
             {!isNetTab ? (
               <ManualBrutWageApplyControls
                 rows={form.cetvelRows}
@@ -770,6 +778,15 @@ export default function UcretAlacagiPage() {
                 error={showError}
               />
             ) : null}
+          </div>
+        </div>
+
+        {rows.length === 0 ? (
+          <p className={styles.emptyCoef}>
+            {isNetTab ? "Net ücret hesaplaması" : "Ücret hesaplaması"} için tarihleri girin. Tablo otomatik oluşturulacaktır.
+          </p>
+        ) : (
+          <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
                 <tr>
@@ -963,7 +980,7 @@ export default function UcretAlacagiPage() {
         <p className={styles.note}>{NOTE_TEXT}</p>
       </section>
 
-      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}>
+      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`} data-tour="ucret-alacagi-kaydet-actions">
         <div className={styles.stickyInner}>
           <div className={styles.stickyStatus}>
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
@@ -1047,6 +1064,24 @@ export default function UcretAlacagiPage() {
         sections={previewSections}
         contentId="ucret-alacagi-preview"
         onClose={() => setPreviewOpen(false)}
+      />
+
+      <GuidedTourHost
+        definition={UCRET_ALACAGI_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={UCRET_ALACAGI_TOUR_WELCOME_TITLE}
+        welcomeBody={UCRET_ALACAGI_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={previewOpen || nameOpen || listOpen || katsayiOpen || confirmNew || !!confirmDeleteId}
       />
     </div>
   );

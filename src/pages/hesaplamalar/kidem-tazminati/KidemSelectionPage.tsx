@@ -6,7 +6,6 @@ import {
   FileCheck,
   Newspaper,
   Scale,
-  ShieldCheck,
   Ship,
   Sun,
 } from "lucide-react";
@@ -71,13 +70,8 @@ export default function KidemSelectionPage() {
         <div className={styles.heroCopy}>
           <h1 className={styles.title}>Kıdem Tazminatı</h1>
           <p className={styles.desc}>
-            Hesaplama türünü seçin. Her tür kendi kurallarıyla, birbirinden izole ve tamamen
-            tarayıcı içinde çalışır.
+            Hesaplama türünü seçin. Her tür kendi kurallarıyla, birbirinden bağımsız çalışır.
           </p>
-          <div className={styles.privacyBadge}>
-            <ShieldCheck size={14} />
-            <span>Hesaplamalar yalnızca bu cihazda · backend isteği yok</span>
-          </div>
         </div>
       </header>
 

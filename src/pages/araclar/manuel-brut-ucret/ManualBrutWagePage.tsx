@@ -82,12 +82,12 @@ export default function ManualBrutWagePage() {
   const [yearFilter, setYearFilter] = useState<YearFilter>("all");
   const [fillFlashYear, setFillFlashYear] = useState<number | null>(null);
 
-  const reload = useCallback(() => {
-    const result = loadTemplatesSafe();
+  const reload = useCallback(async () => {
+    const result = await loadTemplatesSafe();
     if (!result.ok) {
       setStorageError(result.reason);
       setTemplates([]);
-      return [];
+      return [] as ManuelBrutTemplate[];
     }
     setStorageError(null);
     setTemplates(result.templates);
@@ -115,11 +115,18 @@ export default function ManualBrutWagePage() {
   }, []);
 
   useEffect(() => {
-    const list = reload();
-    if (list[0]) {
-      setSelectedId(list[0].id);
-      applyEditor(list[0]);
-    }
+    let cancelled = false;
+    (async () => {
+      const list = await reload();
+      if (cancelled) return;
+      if (list[0]) {
+        setSelectedId(list[0].id);
+        applyEditor(list[0]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [reload, applyEditor]);
 
   const isDirty = useMemo(() => {
@@ -240,7 +247,7 @@ export default function ManualBrutWagePage() {
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const periods = buildPeriodsMap(periodInputs);
     const floorErrors = collectPeriodFloorErrors(catalog, periodInputs);
     if (Object.keys(floorErrors).length > 0) {
@@ -263,32 +270,36 @@ export default function ManualBrutWagePage() {
       return;
     }
 
-    if (selectedId) {
-      const ok = updateTemplate(selectedId, name, periods);
-      if (!ok) {
-        toast.error("Kaydedilemedi. Aynı isimde başka şablon olabilir.");
+    try {
+      if (selectedId) {
+        const ok = await updateTemplate(selectedId, name, periods);
+        if (!ok) {
+          toast.error("Kaydedilemedi. Aynı isimde başka şablon olabilir.");
+          return;
+        }
+        const list = await reload();
+        const updated = list.find((t) => t.id === selectedId) ?? null;
+        applyEditor(updated);
+        setSaveFlash(true);
+        window.setTimeout(() => setSaveFlash(false), 700);
+        toast.success("Şablon güncellendi");
         return;
       }
-      const list = reload();
-      const updated = list.find((t) => t.id === selectedId) ?? null;
-      applyEditor(updated);
+
+      const created = await addTemplate(name, periods);
+      if (!created) {
+        toast.error("Kaydedilemedi. Aynı isimde şablon var veya geçerli ücret girilmedi.");
+        return;
+      }
+      await reload();
+      setSelectedId(created.id);
+      applyEditor(created);
       setSaveFlash(true);
       window.setTimeout(() => setSaveFlash(false), 700);
-      toast.success("Şablon güncellendi");
-      return;
+      toast.success("Şablon kaydedildi");
+    } catch {
+      toast.error("Şablon kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin.");
     }
-
-    const created = addTemplate(name, periods);
-    if (!created) {
-      toast.error("Kaydedilemedi. Aynı isimde şablon var veya geçerli ücret girilmedi.");
-      return;
-    }
-    reload();
-    setSelectedId(created.id);
-    applyEditor(created);
-    setSaveFlash(true);
-    window.setTimeout(() => setSaveFlash(false), 700);
-    toast.success("Şablon kaydedildi");
   };
 
   const handleReset = () => {
@@ -306,19 +317,23 @@ export default function ManualBrutWagePage() {
     setDeleteOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     const id = deleteTargetId ?? selectedId;
     if (!id) return;
-    deleteTemplate(id);
-    const list = reload();
-    if (selectedId === id) {
-      const next = list[0] ?? null;
-      setSelectedId(next?.id ?? null);
-      applyEditor(next);
+    try {
+      await deleteTemplate(id);
+      const list = await reload();
+      if (selectedId === id) {
+        const next = list[0] ?? null;
+        setSelectedId(next?.id ?? null);
+        applyEditor(next);
+      }
+      setDeleteOpen(false);
+      setDeleteTargetId(null);
+      toast.success("Şablon silindi");
+    } catch {
+      toast.error("Şablon silinemedi. Bağlantınızı kontrol edip tekrar deneyin.");
     }
-    setDeleteOpen(false);
-    setDeleteTargetId(null);
-    toast.success("Şablon silindi");
   };
 
   const selectedTemplate = templates.find((t) => t.id === selectedId);
@@ -340,7 +355,7 @@ export default function ManualBrutWagePage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Veriler yalnızca bu cihazda saklanır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -371,13 +386,15 @@ export default function ManualBrutWagePage() {
             onClick={() => {
               clearCorruptStorage();
               setStorageError(null);
-              reload();
-              setSelectedId(null);
-              applyEditor(null);
-              toast.info("Bozuk lokal veri temizlendi");
+              void (async () => {
+                await reload();
+                setSelectedId(null);
+                applyEditor(null);
+                toast.info("Önbellek temizlendi; yeniden yükleniyor");
+              })();
             }}
           >
-            Temizle ve devam et
+            Yeniden dene
           </Button>
         </div>
       ) : null}
@@ -665,10 +682,10 @@ export default function ManualBrutWagePage() {
       <ConfirmDialog
         open={deleteOpen}
         title="Şablonu sil"
-        description={`“${deleteTargetName}” silinecek. Bu işlem geri alınamaz; kayıt yalnızca bu tarayıcıdaki lokal depolamadan kaldırılır.`}
+        description={`“${deleteTargetName}” hesabınızdan silinecek. Bu işlem geri alınamaz.`}
         confirmLabel="Sil"
         danger
-        onConfirm={confirmDelete}
+        onConfirm={() => void confirmDelete()}
         onCancel={() => {
           setDeleteOpen(false);
           setDeleteTargetId(null);

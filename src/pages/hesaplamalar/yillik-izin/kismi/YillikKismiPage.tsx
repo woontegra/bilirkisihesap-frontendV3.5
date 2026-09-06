@@ -164,6 +164,7 @@ export default function YillikKismiPage() {
 
   return (
     <YillikPageView
+      guidedTourVariant="kismi"
       icon={Clock3}
       pageTitle={PAGE_TITLE}
       pageDescription="Kısmi süreli iş sözleşmesinde yıllık izin alacağı."

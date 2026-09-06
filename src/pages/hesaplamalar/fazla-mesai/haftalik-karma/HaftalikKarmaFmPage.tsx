@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Calculator,
   CalendarRange,
+  CirclePlay,
   Eye,
   FilePlus2,
   FolderOpen,
@@ -21,6 +22,8 @@ import {
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
@@ -31,6 +34,11 @@ import {
   isManualBrutActiveInOverrides,
   mergeManualWageBrutsIntoRowOverrides,
 } from "@/features/manual-brut-wage";
+import {
+  FM_HAFTALIK_KARMA_TOUR,
+  FM_HAFTALIK_KARMA_TOUR_WELCOME_BODY,
+  FM_HAFTALIK_KARMA_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   listHaftalikKarmaFmCases,
   loadHaftalikKarmaFmCase,
@@ -192,7 +200,7 @@ function DayGroupRows({
   return (
     <div className={styles.witnessList}>
       {groups.map((g, index) => (
-        <div key={g.id} className={styles.witnessRow}>
+        <div key={g.id} className={styles.witnessRow} data-tour-day-group-row>
           <label className={styles.field}>
             <span>Gün Sayısı</span>
             <input
@@ -279,8 +287,21 @@ export default function HaftalikKarmaFmPage() {
   const [saveFlash, setSaveFlash] = useState(false);
   const [formSwap, setFormSwap] = useState(false);
   const [baseline, setBaseline] = useState("");
+  const [exclusionOverlayOpen, setExclusionOverlayOpen] = useState(false);
+  const tour = useGuidedTourController();
 
   const modalReturnFocusRef = useRef<HTMLElement | null>(null);
+  const tourPaused =
+    showRecordsModal ||
+    showCaseSaveModal ||
+    showPreview ||
+    showUbgtPicker ||
+    showZamanasimiModal ||
+    showKatsayiModal ||
+    showMahsupModal ||
+    exclusionOverlayOpen ||
+    deleteCaseTarget !== null ||
+    discardOpen;
 
   const setField = <K extends keyof HaftalikKarmaFormSnapshot>(key: K, value: HaftalikKarmaFormSnapshot[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -746,7 +767,7 @@ export default function HaftalikKarmaFmPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama yalnızca bu cihazda yapılır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -766,6 +787,17 @@ export default function HaftalikKarmaFmPage() {
             />
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -802,7 +834,7 @@ export default function HaftalikKarmaFmPage() {
         {/* 1. Dönem ve Haftalık Desen */}
         <section className={styles.card} style={{ animationDelay: "40ms" }}>
           <h2 className={styles.cardTitle}>Dönem ve Haftalık Desen</h2>
-          <div className={styles.grid2}>
+          <div className={styles.grid2} data-tour="fm-haftalik-karma-donem">
             <label className={styles.field}>
               <span>İşe Giriş</span>
               <DraftDateInput
@@ -822,52 +854,58 @@ export default function HaftalikKarmaFmPage() {
           </div>
           {dateError ? <p className={styles.fieldError}>{dateError}</p> : null}
 
-          <h3 className={styles.subTitle}>Haftalık Karma Desen</h3>
-          <DayGroupRows
-            groups={form.dayGroups}
-            onChange={(next) => setField("dayGroups", next as DayGroup[])}
-            allowAddRemove={false}
-            timeLabels="giris"
-          />
+          <div data-tour="fm-haftalik-karma-desen">
+            <h3 className={styles.subTitle}>Haftalık Karma Desen</h3>
+            <DayGroupRows
+              groups={form.dayGroups}
+              onChange={(next) => setField("dayGroups", next as DayGroup[])}
+              allowAddRemove={false}
+              timeLabels="giris"
+            />
 
-          {showHolidayControls ? (
-            <div className={styles.inlineChecks} style={{ marginTop: "0.75rem" }}>
-              <label className={styles.checkLabel}>
-                <input
-                  type="checkbox"
-                  checked={form.hasWeeklyHoliday}
-                  onChange={(e) => setField("hasWeeklyHoliday", e.target.checked)}
-                />
-                Hafta Tatili Var mı?
-              </label>
-              {form.hasWeeklyHoliday ? (
-                <label className={styles.field}>
-                  <span>Hafta tatili hangi gruba dahil?</span>
-                  <select
-                    className={styles.input}
-                    value={form.weeklyHolidayGroup}
-                    onChange={(e) => setField("weeklyHolidayGroup", Number(e.target.value) || 1)}
-                  >
-                    <option value={1}>Grup 1</option>
-                    <option value={2}>Grup 2</option>
-                  </select>
+            {showHolidayControls ? (
+              <div className={styles.inlineChecks} style={{ marginTop: "0.75rem" }}>
+                <label className={styles.checkLabel}>
+                  <input
+                    type="checkbox"
+                    checked={form.hasWeeklyHoliday}
+                    onChange={(e) => setField("hasWeeklyHoliday", e.target.checked)}
+                  />
+                  Hafta Tatili Var mı?
                 </label>
-              ) : null}
-            </div>
-          ) : null}
+                {form.hasWeeklyHoliday ? (
+                  <label className={styles.field}>
+                    <span>Hafta tatili hangi gruba dahil?</span>
+                    <select
+                      className={styles.input}
+                      value={form.weeklyHolidayGroup}
+                      onChange={(e) => setField("weeklyHolidayGroup", Number(e.target.value) || 1)}
+                    >
+                      <option value={1}>Grup 1</option>
+                      <option value={2}>Grup 2</option>
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
 
-          <p className={styles.infoLine}>
-            Haftalık FM Saati (Davacı):{" "}
-            <FlashValue
-              value={result.davaciWeeklyFmHours.toFixed(2)}
-              className={styles.infoStrong}
-            />{" "}
-            (45 saat üzeri)
-          </p>
+            <p className={styles.infoLine}>
+              Haftalık FM Saati (Davacı):{" "}
+              <FlashValue
+                value={result.davaciWeeklyFmHours.toFixed(2)}
+                className={styles.infoStrong}
+              />{" "}
+              (45 saat üzeri)
+            </p>
+          </div>
         </section>
 
         {/* 2. Tanık Dönemleri */}
-        <section className={styles.card} style={{ animationDelay: "70ms" }}>
+        <section
+          className={styles.card}
+          style={{ animationDelay: "70ms" }}
+          data-tour="fm-haftalik-karma-taniklar"
+        >
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>Tanık Dönemleri</h2>
             <Button
@@ -947,89 +985,91 @@ export default function HaftalikKarmaFmPage() {
           witnesses={form.witnesses}
         />
 
-        {/* 4. Hafta tatili + istisnalar */}
-        <section className={styles.card} style={{ animationDelay: "110ms" }}>
-          <label className={styles.field} style={{ maxWidth: "34rem", marginBottom: "0.75rem" }}>
-            <span className={styles.fieldLabel}>Hafta tatili günü (yıllık izin / UBGT düşümü)</span>
-            <span className={styles.panelHint}>
-              Seçilmezse işaretlenen her takvim günü düşüme girer. Bir gün seçilirse, o haftanın tatil günü dışlamada
-              sayılmaz (Tanıklı Standart ile aynı).
-            </span>
-            <select
-              className={styles.selectInput}
-              value={form.haftaTatiliGunu === "" ? "" : String(form.haftaTatiliGunu)}
-              onChange={(e) => {
-                const v = e.target.value;
-                setField("haftaTatiliGunu", v === "" ? "" : Number(v));
-              }}
-            >
-              {WEEKDAY_OPTIONS.map((o) => (
-                <option key={String(o.value)} value={o.value === "" ? "" : String(o.value)}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </section>
-        <ExclusionsPanel
-          exclusions={form.exclusions}
-          onChange={(next) => setField("exclusions", next)}
-          onOpenUbgtPicker={() => setShowUbgtPicker(true)}
-          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
-        />
+        {/* 4. Hafta tatili + istisnalar + diğer ayarlar */}
+        <div data-tour="fm-haftalik-karma-ayarlar" style={{ display: "grid", gap: "1rem", minWidth: 0 }}>
+          <section className={styles.card} style={{ animationDelay: "110ms" }}>
+            <label className={styles.field} style={{ maxWidth: "34rem", marginBottom: "0.75rem" }}>
+              <span className={styles.fieldLabel}>Hafta tatili günü (yıllık izin / UBGT düşümü)</span>
+              <span className={styles.panelHint}>
+                Seçilmezse işaretlenen her takvim günü düşüme girer. Bir gün seçilirse, o haftanın tatil günü dışlamada
+                sayılmaz (Tanıklı Standart ile aynı).
+              </span>
+              <select
+                className={styles.selectInput}
+                value={form.haftaTatiliGunu === "" ? "" : String(form.haftaTatiliGunu)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setField("haftaTatiliGunu", v === "" ? "" : Number(v));
+                }}
+              >
+                {WEEKDAY_OPTIONS.map((o) => (
+                  <option key={String(o.value)} value={o.value === "" ? "" : String(o.value)}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+          <ExclusionsPanel
+            exclusions={form.exclusions}
+            onChange={(next) => setField("exclusions", next)}
+            onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+            visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
+            onOverlayOpenChange={setExclusionOverlayOpen}
+          />
+
+          <section className={styles.card} style={{ animationDelay: "140ms" }}>
+            <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
+            <div className={styles.basicGrid}>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Kat Sayı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() =>
+                    hasCustomKatsayi ? setField("katSayi", "1") : setShowKatsayiModal(true)
+                  }
+                  title={hasCustomKatsayi ? "Katsayıyı kaldır" : "Katsayı hesapla"}
+                >
+                  <Calculator size={13} />
+                  {hasCustomKatsayi ? `Katsayı ${katSayiNum.toFixed(2)}` : "Kat Sayı"}
+                </button>
+              </div>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>270 Saat</span>
+                <select
+                  className={styles.selectInput}
+                  value={form.mode270}
+                  onChange={(e) => setField("mode270", e.target.value as HaftalikKarmaFormSnapshot["mode270"])}
+                >
+                  <option value="none">Kapalı</option>
+                  <option value="detailed">Şirket Uygulaması</option>
+                  <option value="simple">Yargıtay Uygulaması</option>
+                </select>
+              </label>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Zamanaşımı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() =>
+                    form.zamanasimi ? setField("zamanasimi", null) : setShowZamanasimiModal(true)
+                  }
+                  title={form.zamanasimi ? "Zamanaşımını kaldır" : "Zamanaşımı hesapla"}
+                >
+                  <History size={13} />
+                  {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
 
         <p className={styles.noteInfo}>
           Son haftaya isabet eden izin/UBGT düşümlerinde, tabloda görülen tarih aralığı 7 günden kısa olsa dahi
           hesaplama bu süre üzerinden yapılmaz. İlgili düşüm, üst satırdaki toplam haftadan 1 hafta eksiltilerek ayrı
           bir satırda 1 hafta olarak dikkate alınmıştır.
         </p>
-
-        {/* 5. Diğer Ayarlar */}
-        <section className={styles.card} style={{ animationDelay: "140ms" }}>
-          <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
-          <div className={styles.basicGrid}>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Kat Sayı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() =>
-                  hasCustomKatsayi ? setField("katSayi", "1") : setShowKatsayiModal(true)
-                }
-                title={hasCustomKatsayi ? "Katsayıyı kaldır" : "Katsayı hesapla"}
-              >
-                <Calculator size={13} />
-                {hasCustomKatsayi ? `Katsayı ${katSayiNum.toFixed(2)}` : "Kat Sayı"}
-              </button>
-            </div>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>270 Saat</span>
-              <select
-                className={styles.selectInput}
-                value={form.mode270}
-                onChange={(e) => setField("mode270", e.target.value as HaftalikKarmaFormSnapshot["mode270"])}
-              >
-                <option value="none">Kapalı</option>
-                <option value="detailed">Şirket Uygulaması</option>
-                <option value="simple">Yargıtay Uygulaması</option>
-              </select>
-            </label>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Zamanaşımı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() =>
-                  form.zamanasimi ? setField("zamanasimi", null) : setShowZamanasimiModal(true)
-                }
-                title={form.zamanasimi ? "Zamanaşımını kaldır" : "Zamanaşımı hesapla"}
-              >
-                <History size={13} />
-                {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
-              </button>
-            </div>
-          </div>
-        </section>
 
         {/* 6. Cetvel */}
         <ZamanasimiCetvelBanner nihaiBaslangic={form.zamanasimi?.nihaiBaslangic} />
@@ -1130,6 +1170,7 @@ export default function HaftalikKarmaFmPage() {
 
       <div
         className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="fm-haftalik-karma-kaydet-actions"
       >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
@@ -1178,7 +1219,7 @@ export default function HaftalikKarmaFmPage() {
               </button>
             </div>
             {savedCases.length === 0 ? (
-              <p className={styles.emptyText}>Henüz lokal kayıt yok.</p>
+              <p className={styles.emptyText}>Henüz kayıt yok.</p>
             ) : (
               <ul className={styles.recordsList}>
                 {savedCases.map((c) => (
@@ -1303,6 +1344,25 @@ export default function HaftalikKarmaFmPage() {
         danger
         onConfirm={confirmDeleteCase}
         onCancel={() => setDeleteCaseTarget(null)}
+      />
+
+      <GuidedTourHost
+        definition={FM_HAFTALIK_KARMA_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={FM_HAFTALIK_KARMA_TOUR_WELCOME_TITLE}
+        welcomeBody={FM_HAFTALIK_KARMA_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        welcomeNeverLabel="Bir daha gösterme"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toast.success("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={tourPaused}
       />
     </div>
   );

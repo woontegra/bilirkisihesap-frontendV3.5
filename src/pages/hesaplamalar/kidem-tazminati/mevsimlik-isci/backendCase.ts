@@ -1,3 +1,4 @@
+import { MEVSIMLIK_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Mevsimlik İşçi kıdem form mapping.
  * Yalnızca form alanlarını doldurur; sonuçları backend'den almaz.
@@ -129,7 +130,7 @@ export function mapMevsimlikFormFromBackend(data: unknown): MevsimlikFormSnapsho
   }
 }
 
-export const mevsimlikCaseCrud = createKidemCrud(KIDEM_MEVSIMLIK_TYPE, mapMevsimlikFormFromBackend);
+export const mevsimlikCaseCrud = createKidemCrud(KIDEM_MEVSIMLIK_TYPE, mapMevsimlikFormFromBackend, MEVSIMLIK_CASES_KEY);
 
 export function mapMevsimlikRecordToSavedCase(record: SavedCaseRecord): SavedMevsimlikCase | null {
   const form = mapMevsimlikFormFromBackend(record.data);

@@ -7,6 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Calculator,
+  CirclePlay,
   Clock,
   Eye,
   FilePlus2,
@@ -20,10 +21,17 @@ import {
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import {
+  FM_VARDIYA_24_TOUR,
+  FM_VARDIYA_24_TOUR_WELCOME_BODY,
+  FM_VARDIYA_24_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   ManualBrutWageApplyControls,
   clearAllManualBrutFromRowOverrides,
@@ -170,6 +178,20 @@ export default function Vardiya24FmPage() {
   const [saveFlash, setSaveFlash] = useState(false);
   const [formSwap, setFormSwap] = useState(false);
   const [baseline, setBaseline] = useState("");
+  const [exclusionOverlayOpen, setExclusionOverlayOpen] = useState(false);
+  const tour = useGuidedTourController();
+
+  const tourPaused =
+    showRecordsModal ||
+    showCaseSaveModal ||
+    showPreview ||
+    showUbgtPicker ||
+    showZamanasimiModal ||
+    showKatsayiModal ||
+    showMahsupModal ||
+    exclusionOverlayOpen ||
+    deleteCaseTarget !== null ||
+    discardOpen;
 
   const modalReturnFocusRef = useRef<HTMLElement | null>(null);
 
@@ -614,7 +636,7 @@ export default function Vardiya24FmPage() {
             <p className={styles.desc}>Gün aşırı 24/24 vardiya; 3 veya 4 çalışma günü → 9 / 12 saat haftalık fazla mesai.</p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama yalnızca bu cihazda yapılır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -634,6 +656,17 @@ export default function Vardiya24FmPage() {
             />
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -664,7 +697,7 @@ export default function Vardiya24FmPage() {
         </div>
       ) : null}
 
-      <section className={styles.card} style={{ animationDelay: "40ms" }}>
+      <section className={styles.card} style={{ animationDelay: "40ms" }} data-tour="fm-vardiya-24-donem">
         <h2 className={styles.cardTitle}>Dava dönemi</h2>
         <div className={styles.grid3}>
           <label className={styles.field}>
@@ -689,7 +722,7 @@ export default function Vardiya24FmPage() {
         </div>
       </section>
 
-      <section className={styles.card} style={{ animationDelay: "70ms" }}>
+      <section className={styles.card} style={{ animationDelay: "70ms" }} data-tour="fm-vardiya-24-taniklar">
         <div className={styles.cardTitleRow}>
           <h2 className={styles.cardTitle}>Tanık beyanları (tarih aralığı)</h2>
           <Button
@@ -742,42 +775,45 @@ export default function Vardiya24FmPage() {
 
       <MetinHesaplamasi anchorIsWorkDay={form.anchorIsWorkDay} />
 
-      <ExclusionsPanel
-        exclusions={form.exclusions}
-        onChange={(next) => setField("exclusions", next)}
-        onOpenUbgtPicker={() => setShowUbgtPicker(true)}
-        visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
-      />
+      <div data-tour="fm-vardiya-24-ayarlar" style={{ display: "grid", gap: "1rem", minWidth: 0 }}>
+        <ExclusionsPanel
+          exclusions={form.exclusions}
+          onChange={(next) => setField("exclusions", next)}
+          onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
+          onOverlayOpenChange={setExclusionOverlayOpen}
+        />
 
-      <section className={styles.card} style={{ animationDelay: "100ms" }}>
-        <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
-        <div className={styles.toolbarRow}>
-          <button
-            type="button"
-            className={`${styles.toolBtn} ${zamanasimiBaslangic ? styles.toolBtnActive : ""}`}
-            onClick={() =>
-              zamanasimiBaslangic
-                ? (setField("zamanasimi", null), toast.success("Zamanaşımı kaldırıldı."))
-                : setShowZamanasimiModal(true)
-            }
-          >
-            {zamanasimiBaslangic ? "Zamanaşımı" : "Zamanaşımı Hesabı"}
-          </button>
-          <button
-            type="button"
-            className={`${styles.toolBtn} ${hasCustomKatsayi ? styles.toolBtnActive : ""}`}
-            onClick={() => (hasCustomKatsayi ? setField("katSayi", "1") : setShowKatsayiModal(true))}
-          >
-            {hasCustomKatsayi ? `Katsayı ${katSayiNum.toFixed(2)}` : "Kat Sayı"}
-          </button>
-        </div>
-        <ZamanasimiCetvelBanner nihaiBaslangic={zamanasimiBaslangic} />
-        {hiddenRowCount > 0 ? (
-          <Button variant="soft" size="sm" onClick={showHiddenRows}>
-            Gizlenen {hiddenRowCount} satırı göster
-          </Button>
-        ) : null}
-      </section>
+        <section className={styles.card} style={{ animationDelay: "100ms" }}>
+          <h2 className={styles.cardTitle}>Diğer Ayarlar</h2>
+          <div className={styles.toolbarRow}>
+            <button
+              type="button"
+              className={`${styles.toolBtn} ${zamanasimiBaslangic ? styles.toolBtnActive : ""}`}
+              onClick={() =>
+                zamanasimiBaslangic
+                  ? (setField("zamanasimi", null), toast.success("Zamanaşımı kaldırıldı."))
+                  : setShowZamanasimiModal(true)
+              }
+            >
+              {zamanasimiBaslangic ? "Zamanaşımı" : "Zamanaşımı Hesabı"}
+            </button>
+            <button
+              type="button"
+              className={`${styles.toolBtn} ${hasCustomKatsayi ? styles.toolBtnActive : ""}`}
+              onClick={() => (hasCustomKatsayi ? setField("katSayi", "1") : setShowKatsayiModal(true))}
+            >
+              {hasCustomKatsayi ? `Katsayı ${katSayiNum.toFixed(2)}` : "Kat Sayı"}
+            </button>
+          </div>
+          <ZamanasimiCetvelBanner nihaiBaslangic={zamanasimiBaslangic} />
+          {hiddenRowCount > 0 ? (
+            <Button variant="soft" size="sm" onClick={showHiddenRows}>
+              Gizlenen {hiddenRowCount} satırı göster
+            </Button>
+          ) : null}
+        </section>
+      </div>
 
       <ManualBrutWageApplyControls
         rows={result.rows}
@@ -873,7 +909,10 @@ export default function Vardiya24FmPage() {
         <NotlarAccordion />
       </section>
 
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="fm-vardiya-24-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {caseLoading ? "Yükleniyor…" : isDirty ? "Kaydedilmemiş değişiklikler" : currentRecordName ? "Kayıtlı" : "Hazır"}
@@ -1014,6 +1053,24 @@ export default function Vardiya24FmPage() {
       <div className={styles.srOnly} aria-hidden>
         <Calculator />
       </div>
+
+      <GuidedTourHost
+        definition={FM_VARDIYA_24_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={FM_VARDIYA_24_TOUR_WELCOME_TITLE}
+        welcomeBody={FM_VARDIYA_24_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={tourPaused}
+      />
     </div>
   );
 }

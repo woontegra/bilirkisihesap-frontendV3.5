@@ -1,3 +1,4 @@
+import { HAFTALIK_KARMA_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Haftalık Karma form eşlemesi.
  * raw = form || formValues || payload; hk = raw.haftalikKarmaState || payload.haftalikKarmaState
@@ -365,6 +366,7 @@ const haftalikKarmaCrud = createFmBackendCrud({
   isRecordType: isHaftalikKarmaFmRecordType,
   mapFormFromBackend: mapHaftalikKarmaFormFromBackend,
   buildSaveData: buildHaftalikKarmaSaveData,
+  localStorageKey: HAFTALIK_KARMA_CASES_KEY,
 });
 
 export const listHaftalikKarmaFmCases = haftalikKarmaCrud.listCases;

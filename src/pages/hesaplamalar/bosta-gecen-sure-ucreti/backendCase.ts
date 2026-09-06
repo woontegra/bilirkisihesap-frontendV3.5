@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → Boşta Geçen Süre Ücreti form mapping.
  */
@@ -110,6 +111,7 @@ export const bostaGecenSureCaseCrud = createCalcBackendCrud({
       result,
       istenCikis: form.endDate || null,
     }),
+  localStorageKey: STORAGE_KEY,
 });
 
 export function buildBostaGecenSureSaveResult(result: {

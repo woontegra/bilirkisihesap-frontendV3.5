@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Calculator,
+  CirclePlay,
   Download,
   Eye,
   FilePlus2,
@@ -18,10 +19,17 @@ import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTextInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import {
+  BAKIYE_UCRET_TOUR,
+  BAKIYE_UCRET_TOUR_WELCOME_BODY,
+  BAKIYE_UCRET_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   applyExtraSetItemsAsExtrasList,
   collectExtrasOnlyItems,
@@ -72,7 +80,7 @@ import {
   type BakiyeResults,
   type SavedCase,
 } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { clearCorruptCases, deleteCase } from "./storage";
 import styles from "./BakiyeUcretAlacagiPage.module.css";
 
 const PAGE_TITLE = "Bakiye Ücret Alacağı";
@@ -255,7 +263,8 @@ function NetBreakdown({ data, title }: { data: SegmentedNetResult & { gross?: nu
 }
 
 export default function BakiyeUcretAlacagiPage() {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
+  const tour = useGuidedTourController();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const backendLoadedCaseIdRef = useRef<string | null>(null);
@@ -306,8 +315,8 @@ export default function BakiyeUcretAlacagiPage() {
     [showError],
   );
 
-  const refreshExtraSets = useCallback(() => {
-    setSavedExtraSets(listLocalExtraSets(EXTRA_SETS_MODULE_ID));
+  const refreshExtraSets = useCallback(async () => {
+    setSavedExtraSets(await listLocalExtraSets(EXTRA_SETS_MODULE_ID));
   }, []);
 
   useEffect(() => {
@@ -316,9 +325,9 @@ export default function BakiyeUcretAlacagiPage() {
       const merged = await tryMergeLegacyExtraSets(EXTRA_SETS_MODULE_ID);
       if (cancelled) return;
       if (merged && merged.imported > 0) {
-        success(`${merged.imported} eski ekstra set yerel depoya alındı`);
+        success(`${merged.imported} eski ekstra set hesaba aktarıldı`);
       }
-      refreshExtraSets();
+      await refreshExtraSets();
     })();
     return () => {
       cancelled = true;
@@ -328,20 +337,21 @@ export default function BakiyeUcretAlacagiPage() {
   const hasExtraSetData = form.extras.some((e) => String(e.value ?? "").trim() !== "");
 
   const openExtraImport = () => {
-    refreshExtraSets();
-    setExtraImportOpen(true);
+    void refreshExtraSets().then(() => setExtraImportOpen(true));
   };
 
   const persistExtraSet = (name: string) => {
-    try {
-      const items = collectExtrasOnlyItems(form.extras);
-      upsertLocalExtraSet(EXTRA_SETS_MODULE_ID, name, items);
-      refreshExtraSets();
-      setExtraSaveOpen(false);
-      success("Ekstra hesaplamalar kaydedildi");
-    } catch (err) {
-      showError(err instanceof Error ? err.message : "Kaydedilemedi");
-    }
+    void (async () => {
+      try {
+        const items = collectExtrasOnlyItems(form.extras);
+        await upsertLocalExtraSet(EXTRA_SETS_MODULE_ID, name, items);
+        await refreshExtraSets();
+        setExtraSaveOpen(false);
+        success("Ekstra hesaplamalar kaydedildi");
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "Kaydedilemedi");
+      }
+    })();
   };
 
   const importExtraSet = (set: LocalExtraSet) => {
@@ -351,16 +361,18 @@ export default function BakiyeUcretAlacagiPage() {
   };
 
   const removeExtraSet = (id: string) => {
-    deleteLocalExtraSet(EXTRA_SETS_MODULE_ID, id);
-    refreshExtraSets();
-    success("Set silindi");
+    void (async () => {
+      await deleteLocalExtraSet(EXTRA_SETS_MODULE_ID, id);
+      await refreshExtraSets();
+      success("Set silindi");
+    })();
   };
 
   const rescanLegacy = async () => {
     const merged = await tryMergeLegacyExtraSets(EXTRA_SETS_MODULE_ID, { force: true });
-    refreshExtraSets();
+    await refreshExtraSets();
     if (!merged) {
-      success("Yerel setler kullanılıyor (sunucu setleri alınamadı)");
+      success("Hesap setleri kullanılıyor (eski sunucu setleri alınamadı)");
       return;
     }
     success(
@@ -498,8 +510,7 @@ export default function BakiyeUcretAlacagiPage() {
             ? error.message
             : "Kayıtlar yüklenemedi";
       setStorageError(message);
-      const local = loadCasesSafe();
-      setCases(local.ok ? local.items : []);
+      setCases([]);
     }
   }, []);
 
@@ -841,7 +852,7 @@ export default function BakiyeUcretAlacagiPage() {
               Fesih sonrası kalan süre için ay bölme cetveli; istisnalı brütten nete dönüşüm.
             </p>
             <div className={styles.privacyBadge}>
-              <ShieldCheck size={12} /> Hesaplama lokal çalışır
+              <ShieldCheck size={12} /> Veriler hesabınıza güvenli şekilde kaydedilir
             </div>
           </div>
         </div>
@@ -856,6 +867,16 @@ export default function BakiyeUcretAlacagiPage() {
             <span className={styles.quickTotalValue}>{formatMoney(displayTotal)} ₺</span>
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} /> Nasıl kullanılır?
+            </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
               <FolderOpen size={14} /> Kayıtlar
             </Button>
@@ -892,6 +913,7 @@ export default function BakiyeUcretAlacagiPage() {
       <div className={styles.layout}>
         <section className={styles.card}>
           <div className={styles.fields}>
+            <div data-tour="bakiye-ucret-donem" className={styles.fields} style={{ gap: "0.5rem" }}>
             <div>
               <label className={styles.label}>Çalışma dönemi başlangıcı</label>
               <DraftDateInput
@@ -938,7 +960,8 @@ export default function BakiyeUcretAlacagiPage() {
                   : "—"}
               </p>
             </div>
-            <div>
+            </div>
+            <div data-tour="bakiye-ucret-ucret">
               <label className={styles.label}>Çıplak Brüt Ücret</label>
               <DraftTextInput
                 className={styles.input}
@@ -949,7 +972,7 @@ export default function BakiyeUcretAlacagiPage() {
               {asgariErr ? <p className={styles.helper}>{asgariErr}</p> : null}
             </div>
 
-            <div>
+            <div data-tour="bakiye-ucret-kalemler">
               <div className={styles.cardTitleRow} style={{ marginBottom: "0.35rem" }}>
                 <label className={styles.label} style={{ margin: 0 }}>
                   Ekstra Hesaplamalar (Prim, İkramiye, Yol, Yemek vb.)
@@ -1031,14 +1054,16 @@ export default function BakiyeUcretAlacagiPage() {
                 Aylık toplam: {formatMoney(monthly)} ₺
               </p>
             </div>
+            <div data-tour="bakiye-ucret-hesapla">
             <Button type="button" variant="primary" size="md" onClick={handleCalculate} style={{ width: "100%" }}>
               <Calculator size={16} /> {CALCULATE_LABEL}
             </Button>
+            </div>
             <p className={styles.note}>{NOTE_TEXT}</p>
           </div>
         </section>
 
-        <section className={styles.card}>
+        <section className={styles.card} data-tour="bakiye-ucret-cetvel">
           <div className={styles.cardHead}>
             <h2 className={styles.cardTitle}>Bakiye cetveli</h2>
           </div>
@@ -1129,7 +1154,7 @@ export default function BakiyeUcretAlacagiPage() {
         </section>
       </div>
 
-      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}>
+      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`} data-tour="bakiye-ucret-kaydet-actions">
         <div className={styles.stickyInner}>
           <div className={styles.stickyStatus}>
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
@@ -1321,6 +1346,33 @@ export default function BakiyeUcretAlacagiPage() {
         title="Bakiye Ücret Alacağı — Önizleme"
         sections={previewSections}
         contentId="bakiye-ucret-preview"
+      />
+
+      <GuidedTourHost
+        definition={BAKIYE_UCRET_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={BAKIYE_UCRET_TOUR_WELCOME_TITLE}
+        welcomeBody={BAKIYE_UCRET_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={
+          previewOpen ||
+          nameOpen ||
+          listOpen ||
+          extraSaveOpen ||
+          extraImportOpen ||
+          !!eklentiFor ||
+          confirmNew ||
+          !!confirmDeleteId
+        }
       />
     </div>
   );

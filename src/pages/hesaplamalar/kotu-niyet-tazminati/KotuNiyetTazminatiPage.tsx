@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Calculator,
+  CirclePlay,
   Download,
   Eye,
   FilePlus2,
@@ -18,11 +19,18 @@ import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTextInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
+import {
+  KOTU_NIYET_TOUR,
+  KOTU_NIYET_TOUR_WELCOME_BODY,
+  KOTU_NIYET_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   applyExtraSetItems,
   collectExtraSetItems,
@@ -58,7 +66,7 @@ import {
   type KotuNiyetForm,
   type SavedCase,
 } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { clearCorruptCases, deleteCase } from "./storage";
 import styles from "./KotuNiyetTazminatiPage.module.css";
 
 const PAGE_TITLE = "Kötü Niyet Tazminatı";
@@ -181,7 +189,8 @@ function NameModal({
 }
 
 export default function KotuNiyetTazminatiPage() {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
+  const tour = useGuidedTourController();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const backendLoadedCaseIdRef = useRef<string | null>(null);
@@ -221,8 +230,8 @@ export default function KotuNiyetTazminatiPage() {
   const result = useDeferredFormMemo(form, computeKotuNiyet);
   const dirty = snapshotKey(form) !== baseline;
 
-  const refreshExtraSets = useCallback(() => {
-    setSavedExtraSets(listLocalExtraSets(EXTRA_SETS_MODULE_ID));
+  const refreshExtraSets = useCallback(async () => {
+    setSavedExtraSets(await listLocalExtraSets(EXTRA_SETS_MODULE_ID));
   }, []);
 
   useEffect(() => {
@@ -231,9 +240,9 @@ export default function KotuNiyetTazminatiPage() {
       const merged = await tryMergeLegacyExtraSets(EXTRA_SETS_MODULE_ID);
       if (cancelled) return;
       if (merged && merged.imported > 0) {
-        success(`${merged.imported} eski ekstra set yerel depoya alındı`);
+        success(`${merged.imported} eski ekstra set hesaba aktarıldı`);
       }
-      refreshExtraSets();
+      await refreshExtraSets();
     })();
     return () => {
       cancelled = true;
@@ -244,23 +253,24 @@ export default function KotuNiyetTazminatiPage() {
     !!(form.prim || form.ikramiye || form.yol || form.yemek) || form.extras.length > 0;
 
   const openExtraImport = () => {
-    refreshExtraSets();
-    setExtraImportOpen(true);
+    void refreshExtraSets().then(() => setExtraImportOpen(true));
   };
 
   const persistExtraSet = (name: string) => {
-    try {
-      const items = collectExtraSetItems(
+    void (async () => {
+      try {
+        const items = collectExtraSetItems(
         { prim: form.prim, ikramiye: form.ikramiye, yol: form.yol, yemek: form.yemek },
         form.extras,
       );
-      upsertLocalExtraSet(EXTRA_SETS_MODULE_ID, name, items);
-      refreshExtraSets();
-      setExtraSaveOpen(false);
-      success("Ekstra hesaplamalar kaydedildi");
-    } catch (err) {
-      showError(err instanceof Error ? err.message : "Kaydedilemedi");
-    }
+        await upsertLocalExtraSet(EXTRA_SETS_MODULE_ID, name, items);
+        await refreshExtraSets();
+        setExtraSaveOpen(false);
+        success("Ekstra hesaplamalar kaydedildi");
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "Kaydedilemedi");
+      }
+    })();
   };
 
   const importExtraSet = (set: LocalExtraSet) => {
@@ -271,16 +281,18 @@ export default function KotuNiyetTazminatiPage() {
   };
 
   const removeExtraSet = (id: string) => {
-    deleteLocalExtraSet(EXTRA_SETS_MODULE_ID, id);
-    refreshExtraSets();
-    success("Set silindi");
+    void (async () => {
+      await deleteLocalExtraSet(EXTRA_SETS_MODULE_ID, id);
+      await refreshExtraSets();
+      success("Set silindi");
+    })();
   };
 
   const rescanLegacy = async () => {
     const merged = await tryMergeLegacyExtraSets(EXTRA_SETS_MODULE_ID, { force: true });
-    refreshExtraSets();
+    await refreshExtraSets();
     if (!merged) {
-      success("Yerel setler kullanılıyor (sunucu setleri alınamadı)");
+      success("Hesap setleri kullanılıyor (eski sunucu setleri alınamadı)");
       return;
     }
     success(
@@ -328,8 +340,7 @@ export default function KotuNiyetTazminatiPage() {
             ? error.message
             : "Kayıtlar yüklenemedi";
       setStorageError(message);
-      const local = loadCasesSafe();
-      setCases(local.ok ? local.items : []);
+      setCases([]);
     }
   }, []);
 
@@ -593,7 +604,7 @@ export default function KotuNiyetTazminatiPage() {
               hesaplanır. Yalnızca damga vergisi kesilir.
             </p>
             <div className={styles.privacyBadge}>
-              <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+              <ShieldCheck size={12} /> Veriler hesabınıza güvenli şekilde kaydedilir
             </div>
           </div>
         </div>
@@ -610,6 +621,16 @@ export default function KotuNiyetTazminatiPage() {
             </span>
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} /> Nasıl kullanılır?
+            </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
               <FolderOpen size={14} /> Kayıtlar
             </Button>
@@ -640,7 +661,7 @@ export default function KotuNiyetTazminatiPage() {
 
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="kotu-niyet-donem">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Ücret ve çalışma bilgileri</h2>
@@ -718,7 +739,7 @@ export default function KotuNiyetTazminatiPage() {
               </div>
             </div>
             <div className={styles.fields}>
-              <div className={styles.field}>
+              <div className={styles.field} data-tour="kotu-niyet-ucret">
                 <label className={styles.label} htmlFor="kn-brut">
                   Çıplak brüt ücret
                 </label>
@@ -732,6 +753,7 @@ export default function KotuNiyetTazminatiPage() {
                 />
               </div>
             </div>
+            <div data-tour="kotu-niyet-kalemler">
             <div className={styles.wageGrid} style={{ marginTop: "0.6rem" }}>
               {(["prim", "ikramiye", "yol", "yemek"] as const).map((key) => (
                 <div key={key} className={styles.wageRow}>
@@ -782,6 +804,7 @@ export default function KotuNiyetTazminatiPage() {
             <Button type="button" variant="ghost" size="sm" onClick={addExtra} style={{ marginTop: "0.6rem" }}>
               <Plus size={14} /> Ek Ücret Kalemi
             </Button>
+            </div>
           </section>
 
           <section className={styles.card}>
@@ -857,7 +880,7 @@ export default function KotuNiyetTazminatiPage() {
         </aside>
       </div>
 
-      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}>
+      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`} data-tour="kotu-niyet-kaydet-actions">
         <div className={styles.stickyInner}>
           <div className={styles.stickyStatus}>
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
@@ -1040,6 +1063,33 @@ export default function KotuNiyetTazminatiPage() {
         sections={previewSections}
         contentId="kotu-niyet-preview"
         onClose={() => setPreviewOpen(false)}
+      />
+
+      <GuidedTourHost
+        definition={KOTU_NIYET_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={KOTU_NIYET_TOUR_WELCOME_TITLE}
+        welcomeBody={KOTU_NIYET_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={
+          previewOpen ||
+          nameOpen ||
+          listOpen ||
+          extraSaveOpen ||
+          extraImportOpen ||
+          !!eklentiFor ||
+          confirmNew ||
+          !!confirmDeleteId
+        }
       />
     </div>
   );

@@ -278,8 +278,8 @@ export function IhbarPageView(props: IhbarPageViewProps) {
   const [extraImportOpen, setExtraImportOpen] = useState(false);
   const [savedExtraSets, setSavedExtraSets] = useState<LocalExtraSet[]>([]);
 
-  const refreshExtraSets = useCallback(() => {
-    setSavedExtraSets(listLocalExtraSets(extraSetsModuleId));
+  const refreshExtraSets = useCallback(async () => {
+    setSavedExtraSets(await listLocalExtraSets(extraSetsModuleId));
   }, [extraSetsModuleId]);
 
   useEffect(() => {
@@ -288,9 +288,9 @@ export function IhbarPageView(props: IhbarPageViewProps) {
       const merged = await tryMergeLegacyExtraSets(extraSetsModuleId);
       if (cancelled) return;
       if (merged && merged.imported > 0) {
-        success(`${merged.imported} eski ekstra set yerel depoya alındı`);
+        success(`${merged.imported} eski ekstra set hesaba aktarıldı`);
       }
-      refreshExtraSets();
+      await refreshExtraSets();
     })();
     return () => {
       cancelled = true;
@@ -302,20 +302,21 @@ export function IhbarPageView(props: IhbarPageViewProps) {
     props.extras.length > 0;
 
   const openExtraImport = () => {
-    refreshExtraSets();
-    setExtraImportOpen(true);
+    void refreshExtraSets().then(() => setExtraImportOpen(true));
   };
 
   const persistExtraSet = (name: string) => {
-    try {
-      const items = collectExtraSetItems(props.wage, props.extras);
-      upsertLocalExtraSet(extraSetsModuleId, name, items);
-      refreshExtraSets();
-      setExtraSaveOpen(false);
-      success("Ekstra hesaplamalar kaydedildi");
-    } catch (err) {
-      showError(err instanceof Error ? err.message : "Kaydedilemedi");
-    }
+    void (async () => {
+      try {
+        const items = collectExtraSetItems(props.wage, props.extras);
+        await upsertLocalExtraSet(extraSetsModuleId, name, items);
+        await refreshExtraSets();
+        setExtraSaveOpen(false);
+        success("Ekstra hesaplamalar kaydedildi");
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "Kaydedilemedi");
+      }
+    })();
   };
 
   const importExtraSet = (set: LocalExtraSet) => {
@@ -330,16 +331,18 @@ export function IhbarPageView(props: IhbarPageViewProps) {
   };
 
   const removeExtraSet = (id: string) => {
-    deleteLocalExtraSet(extraSetsModuleId, id);
-    refreshExtraSets();
-    success("Set silindi");
+    void (async () => {
+      await deleteLocalExtraSet(extraSetsModuleId, id);
+      await refreshExtraSets();
+      success("Set silindi");
+    })();
   };
 
   const rescanLegacy = async () => {
     const merged = await tryMergeLegacyExtraSets(extraSetsModuleId, { force: true });
-    refreshExtraSets();
+    await refreshExtraSets();
     if (!merged) {
-      success("Yerel setler kullanılıyor (sunucu setleri alınamadı)");
+      success("Hesap setleri kullanılıyor (eski sunucu setleri alınamadı)");
       return;
     }
     success(
@@ -393,7 +396,7 @@ export function IhbarPageView(props: IhbarPageViewProps) {
             <p className={styles.desc}>{props.pageDescription}</p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama ve kayıtlar yalnızca bu cihazda</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>

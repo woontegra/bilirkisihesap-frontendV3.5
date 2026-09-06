@@ -1,3 +1,4 @@
+import { VARDIYA48_CASES_KEY } from "./storage";
 /**
  * V3.5 backend kayıt → 48 Saat Vardiya form mapping.
  * V3 JSON şeması (iseGiris / taniklar / katSayi / mahsuplasmaMiktari / zamanasimi) fallback ile okunur.
@@ -256,6 +257,7 @@ const vardiya48Crud = createFmBackendCrud({
   isRecordType: isVardiya48FmRecordType,
   mapFormFromBackend: mapVardiya48FormFromBackend,
   buildSaveData: buildVardiya48SaveData,
+  localStorageKey: VARDIYA48_CASES_KEY,
 });
 
 export const listVardiya48FmCases = vardiya48Crud.listCases;

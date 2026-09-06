@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → Prim Alacağı form mapping.
  * Yalnızca form alanlarını doldurur; sonucu backend'den almaz (lokal motor yeniden hesaplar).
@@ -86,6 +87,7 @@ export const primAlacagiCaseCrud = createCalcBackendCrud({
   isRecordType: isPrimAlacagiRecordType,
   mapFormFromBackend: mapPrimFormFromBackend,
   buildSaveData: (form, result) => buildCalcSavePayload({ form, result }),
+  localStorageKey: STORAGE_KEY,
 });
 
 export function buildPrimAlacagiSaveResult(total: number, netTotal: number): CalcSaveResult {

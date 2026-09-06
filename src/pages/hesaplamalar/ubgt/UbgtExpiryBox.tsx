@@ -1,7 +1,7 @@
 /**
  * V3 UbgtExpiryBox — Zamanaşımı İtirazı modalı (date-fns olmadan aynı formül).
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/context/ToastContext";
@@ -12,6 +12,8 @@ export type UbgtExpiryBoxProps = {
   onUbgtExpiryStartChange: (date: string | null) => void;
   onUbgtExpiryCancel?: () => void;
   iseGiris?: string;
+  /** Zamanaşımı modalı açıkken kılavuz pause için. */
+  onOpenChange?: (open: boolean) => void;
 };
 
 function toUTC(dateStr: string): Date | null {
@@ -87,12 +89,18 @@ export default function UbgtExpiryBox({
   onUbgtExpiryStartChange,
   onUbgtExpiryCancel,
   iseGiris,
+  onOpenChange,
 }: UbgtExpiryBoxProps) {
   const { error: showToastError } = useToast();
   const [open, setOpen] = useState(false);
   const [zForm, setZForm] = useState({ dava: "", bas: "", bit: "" });
   const prevRef = useRef<string | null>(null);
   const preview = useZamanasimiPreview(zForm.dava, zForm.bas, zForm.bit, iseGiris);
+
+  useEffect(() => {
+    onOpenChange?.(open);
+    return () => onOpenChange?.(false);
+  }, [open, onOpenChange]);
 
   const apply = useCallback(() => {
     try {

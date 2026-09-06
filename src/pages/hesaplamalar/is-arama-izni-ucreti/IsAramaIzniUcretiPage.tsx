@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   BriefcaseBusiness,
   Calculator,
+  CirclePlay,
   Eye,
   FilePlus2,
   FolderOpen,
@@ -16,11 +17,18 @@ import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTextInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
+import {
+  IS_ARAMA_IZNI_TOUR,
+  IS_ARAMA_IZNI_TOUR_WELCOME_BODY,
+  IS_ARAMA_IZNI_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   buildIsAramaIzniSaveResult,
   isAramaIzniCaseCrud,
@@ -39,7 +47,7 @@ import {
   parseNum,
 } from "./engine";
 import { createEmptyForm, newLocalId, NOTE_BLOCKS, snapshotKey, type IsAramaForm, type SavedCase } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { clearCorruptCases, deleteCase } from "./storage";
 import styles from "./IsAramaIzniUcretiPage.module.css";
 
 const PAGE_TITLE = "İş Arama İzni Ücreti";
@@ -145,7 +153,8 @@ function NameModal({
 }
 
 export default function IsAramaIzniUcretiPage() {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
+  const tour = useGuidedTourController();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const backendLoadedCaseIdRef = useRef<string | null>(null);
@@ -190,8 +199,7 @@ export default function IsAramaIzniUcretiPage() {
             ? error.message
             : "Kayıtlar yüklenemedi";
       setStorageError(message);
-      const local = loadCasesSafe();
-      setCases(local.ok ? local.items : []);
+      setCases([]);
     }
   }, []);
 
@@ -490,6 +498,16 @@ export default function IsAramaIzniUcretiPage() {
             </span>
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} /> Nasıl kullanılır?
+            </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
               <FolderOpen size={14} /> Kayıtlar
             </Button>
@@ -520,7 +538,7 @@ export default function IsAramaIzniUcretiPage() {
 
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="is-arama-izni-donem">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Hesaplama bilgileri</h2>
@@ -565,7 +583,7 @@ export default function IsAramaIzniUcretiPage() {
             </div>
           </section>
 
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="is-arama-izni-ucret">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Ücret kalemleri</h2>
@@ -605,7 +623,7 @@ export default function IsAramaIzniUcretiPage() {
             </div>
           </section>
 
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="is-arama-izni-dusumler">
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>
                 Kullandırılmış iş arama izinleri (düşüm){" "}
@@ -804,7 +822,7 @@ export default function IsAramaIzniUcretiPage() {
         </aside>
       </div>
 
-      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}>
+      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`} data-tour="is-arama-izni-kaydet-actions">
         <div className={styles.stickyInner}>
           <div className={styles.stickyStatus}>
             {dirty
@@ -895,6 +913,24 @@ export default function IsAramaIzniUcretiPage() {
         sections={previewSections}
         contentId="is-arama-izni-preview"
         onClose={() => setPreviewOpen(false)}
+      />
+
+      <GuidedTourHost
+        definition={IS_ARAMA_IZNI_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={IS_ARAMA_IZNI_TOUR_WELCOME_TITLE}
+        welcomeBody={IS_ARAMA_IZNI_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={previewOpen || nameOpen || listOpen || confirmNew || !!confirmDeleteId}
       />
     </div>
   );

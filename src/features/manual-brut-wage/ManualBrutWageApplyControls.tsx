@@ -3,14 +3,14 @@
  * V3 ManualBrutWageApplyControls davranışı; V3.5 tasarım token’larıyla.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import type { ManuelBrutTemplate } from "@/pages/araclar/manuel-brut-ucret/model";
 import {
   applyManualWagePeriodsToRowBruts,
   countFilledPeriods,
   formatManualPeriodLabel,
   getManualBrutTemplate,
-  hasManualBrutTemplates,
   loadManualBrutTemplates,
   type ManualBrutRowStub,
 } from "./manualBrutApply";
@@ -35,12 +35,51 @@ export function ManualBrutWageApplyControls({
 }: ManualBrutWageApplyControlsProps) {
   const [showModal, setShowModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templatesList, setTemplatesList] = useState<ManuelBrutTemplate[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [selectedPeriods, setSelectedPeriods] = useState<Record<string, number>>({});
 
-  const templatesList = useMemo(() => (showModal ? loadManualBrutTemplates() : []), [showModal]);
+  useEffect(() => {
+    if (!showModal) return;
+    let cancelled = false;
+    setLoadingList(true);
+    (async () => {
+      try {
+        const list = await loadManualBrutTemplates();
+        if (cancelled) return;
+        setTemplatesList(list);
+        setSelectedTemplateId((prev) => (list.some((t) => t.id === prev) ? prev : list[0]?.id ?? ""));
+      } catch {
+        if (!cancelled) {
+          setTemplatesList([]);
+          error?.("Şablonlar yüklenemedi.", "Bağlantınızı kontrol edip tekrar deneyin.");
+        }
+      } finally {
+        if (!cancelled) setLoadingList(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showModal, error]);
+
+  useEffect(() => {
+    if (!showModal || !selectedTemplateId) {
+      setSelectedPeriods({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const tmpl = await getManualBrutTemplate(selectedTemplateId);
+      if (cancelled) return;
+      setSelectedPeriods(tmpl?.periods ?? {});
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showModal, selectedTemplateId, templatesList]);
 
   const openModal = useCallback(() => {
-    const list = loadManualBrutTemplates();
-    setSelectedTemplateId((prev) => (list.some((t) => t.id === prev) ? prev : list[0]?.id ?? ""));
     setShowModal(true);
   }, []);
 
@@ -53,8 +92,8 @@ export function ManualBrutWageApplyControls({
     openModal();
   }, [manualBrutActive, onDeactivateManualBrut, success, openModal]);
 
-  const handleApply = useCallback(() => {
-    const tmpl = getManualBrutTemplate(selectedTemplateId);
+  const handleApply = useCallback(async () => {
+    const tmpl = await getManualBrutTemplate(selectedTemplateId);
     const periods = tmpl?.periods;
     if (!periods || !Object.keys(periods).length) {
       error?.("Manuel ücret şablonu bulunamadı.", "Silinmiş veya geçersiz şablon.");
@@ -68,16 +107,17 @@ export function ManualBrutWageApplyControls({
 
   const previewRows = useMemo(() => {
     if (!showModal || !selectedTemplateId) return [] as { key: string; label: string; amount: number }[];
-    const tmpl = getManualBrutTemplate(selectedTemplateId);
-    const t = tmpl?.periods ?? {};
-    return Object.entries(t)
+    return Object.entries(selectedPeriods)
       .filter(([, v]) => typeof v === "number" && Number.isFinite(v) && v > 0)
       .map(([key, amount]) => ({
         key,
         label: formatManualPeriodLabel(key),
         amount: amount as number,
       }));
-  }, [showModal, selectedTemplateId]);
+  }, [showModal, selectedTemplateId, selectedPeriods]);
+
+  const hasTemplates = templatesList.length > 0;
+  const filledSelected = countFilledPeriods(selectedPeriods);
 
   return (
     <>
@@ -103,7 +143,9 @@ export function ManualBrutWageApplyControls({
             <p className={styles.modalText}>
               Tablodaki satır başlangıç tarihine göre asgari ücret dönemi eşleşir; yalnızca brüt ücret güncellenir.
             </p>
-            {!hasManualBrutTemplates() ? (
+            {loadingList ? (
+              <p className={styles.muted}>Şablonlar yükleniyor…</p>
+            ) : !hasTemplates ? (
               <p className={styles.empty}>
                 Önce Hızlı Araçlar {">"} Manuel Brüt Ücret Şablonu alanından ücretleri kaydedin.
               </p>
@@ -161,12 +203,8 @@ export function ManualBrutWageApplyControls({
                 type="button"
                 variant="primary"
                 size="sm"
-                disabled={
-                  !hasManualBrutTemplates() ||
-                  !selectedTemplateId ||
-                  countFilledPeriods(getManualBrutTemplate(selectedTemplateId)?.periods ?? {}) === 0
-                }
-                onClick={handleApply}
+                disabled={loadingList || !hasTemplates || !selectedTemplateId || filledSelected === 0}
+                onClick={() => void handleApply()}
               >
                 Tabloya Aktar
               </Button>

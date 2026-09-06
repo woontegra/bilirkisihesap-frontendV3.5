@@ -1,3 +1,4 @@
+import { TANIKLI_FM_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Tanıklı Standart form mapping.
  */
@@ -281,6 +282,7 @@ const tanikliCrud = createFmBackendCrud({
   isRecordType: isTanikliFmRecordType,
   mapFormFromBackend: mapTanikliFormFromBackend,
   buildSaveData: buildTanikliSaveData,
+  localStorageKey: TANIKLI_FM_CASES_KEY,
 });
 
 export const listTanikliFmCases = tanikliCrud.listCases;

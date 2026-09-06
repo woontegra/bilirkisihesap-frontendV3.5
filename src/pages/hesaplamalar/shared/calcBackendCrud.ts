@@ -11,6 +11,7 @@ import {
   type SavedCaseRecord,
 } from "@/api/savedCases";
 import { writeBoundCaseId } from "@/utils/calculationCaseBinding";
+import { migrateLocalSavedCasesOnce } from "./localCasesMigration";
 
 export type CalcSaveResult = {
   brut: number;
@@ -107,10 +108,48 @@ export function createCalcBackendCrud<TForm>(opts: {
   isRecordType: (type: string | undefined) => boolean;
   mapFormFromBackend: (data: unknown, record?: SavedCaseRecord) => TForm | null;
   buildSaveData: (form: TForm, result: CalcSaveResult) => Record<string, unknown>;
+  /** Varsa *:cases:v1 local kayıtlar bir defalık API'ye aktarılır ve silinir */
+  localStorageKey?: string;
 }) {
-  const { recordType, isRecordType, mapFormFromBackend, buildSaveData } = opts;
+  const { recordType, isRecordType, mapFormFromBackend, buildSaveData, localStorageKey } = opts;
+
+  async function ensureLocalMigrated(): Promise<void> {
+    if (!localStorageKey) return;
+    try {
+      await migrateLocalSavedCasesOnce({
+        storageKey: localStorageKey,
+        recordType,
+        buildData: (local) => {
+          if (!local.form) return null;
+          const results =
+            local.results && typeof local.results === "object"
+              ? (local.results as Record<string, unknown>)
+              : {};
+          const brut =
+            Number(
+              results.brut ??
+                results.total ??
+                results.toplamBrut ??
+                results.brutKidem ??
+                results.totalBrut ??
+                0,
+            ) || 0;
+          const net =
+            Number(results.net ?? results.netTotal ?? results.netKidem ?? results.netAmount ?? 0) || 0;
+          try {
+            return buildSaveData(local.form as TForm, { brut, net, ...results });
+          } catch {
+            return null;
+          }
+        },
+      });
+    } catch (err) {
+      console.warn("[calcBackendCrud] local migrate failed", recordType, err);
+    }
+  }
 
   async function listCases(): Promise<CalcSavedCaseListItem[]> {
+    await ensureLocalMigrated();
     const all = await listSavedCases();
     return all.filter((r) => isRecordType(r.type ?? r.hesaplama_tipi)).map(mapCalcRecordToListItem);
   }

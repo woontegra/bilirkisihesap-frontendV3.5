@@ -1,10 +1,12 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Calculator, Download, Eye, FilePlus2, FolderOpen, Plus, Save, ShieldCheck, Trash2, X } from "lucide-react";
+import { Calculator, CirclePlay, Download, Eye, FilePlus2, FolderOpen, Plus, Save, ShieldCheck, Trash2, X } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
@@ -43,7 +45,7 @@ import {
   type SavedCase,
   type UbgtForm,
 } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { clearCorruptCases, deleteCase } from "./storage";
 import {
   buildUbgtSaveResult,
   getUbgtCaseCrud,
@@ -77,6 +79,7 @@ import {
   type ManualDayRow,
   type ManualPeriodRow,
 } from "./ubgtCetvelRows";
+import { createUbgtGuidedTour, getUbgtTourWelcome } from "./guidedTour";
 import styles from "./UbgtCalcPage.module.css";
 
 const HOLIDAY_NAME_BY_ID: Record<string, string> = Object.fromEntries(
@@ -203,7 +206,8 @@ function HolidayChips({
 }
 
 export default function UbgtCalcPage({ mode, title }: Props) {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
+  const tour = useGuidedTourController();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const backendLoadedCaseIdRef = useRef<string | null>(null);
@@ -226,6 +230,7 @@ export default function UbgtCalcPage({ mode, title }: Props) {
   const [globalKatsayi, setGlobalKatsayi] = useState(1);
   const [exclusionSaveOpen, setExclusionSaveOpen] = useState(false);
   const [exclusionLoadOpen, setExclusionLoadOpen] = useState(false);
+  const [expiryOpen, setExpiryOpen] = useState(false);
   const [exclusionSaveName, setExclusionSaveName] = useState("");
   const [savedExclusionSets, setSavedExclusionSets] = useState<SavedUbgtExclusionSet[]>([]);
   const [bilirkisiClipError, setBilirkisiClipError] = useState<string | null>(null);
@@ -236,6 +241,28 @@ export default function UbgtCalcPage({ mode, title }: Props) {
   const [caseSaving, setCaseSaving] = useState(false);
   const [importedFromV3, setImportedFromV3] = useState(false);
   const [v3SourceCaseId, setV3SourceCaseId] = useState<string | null>(null);
+
+  const tourDefinition = useMemo(() => createUbgtGuidedTour(mode), [mode]);
+  const tourWelcome = useMemo(() => getUbgtTourWelcome(mode), [mode]);
+  const tourPaused =
+    previewOpen ||
+    nameOpen ||
+    listOpen ||
+    mahsupOpen ||
+    showKatsayiModal ||
+    exclusionSaveOpen ||
+    exclusionLoadOpen ||
+    confirmNew ||
+    !!confirmDeleteId ||
+    expiryOpen;
+  const DislamalarTourShell = mode === "bilirkisi" ? "div" : Fragment;
+  const dislamalarTourShellProps =
+    mode === "bilirkisi"
+      ? {
+          "data-tour": "ubgt-bilirkisi-dislamalar",
+          style: { display: "grid" as const, gap: "1rem", minWidth: 0 },
+        }
+      : {};
 
   const ubgtCaseCrud = useMemo(() => getUbgtCaseCrud(mode), [mode]);
 
@@ -474,8 +501,7 @@ export default function UbgtCalcPage({ mode, title }: Props) {
             ? error.message
             : "Kayıtlar yüklenemedi";
       setStorageError(message);
-      const local = loadCasesSafe(mode);
-      setCases(local.ok ? local.items : []);
+      setCases([]);
     }
   }, [mode]);
 
@@ -921,11 +947,11 @@ export default function UbgtCalcPage({ mode, title }: Props) {
             <p className={styles.desc}>{PAGE_DESCRIPTION[mode]}</p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama ve kayıtlar yalnızca bu cihazda</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
             {importedFromV3 ? (
               <p className={styles.importBanner}>
-                Eski kayıt V3&apos;ten içe aktarıldı. Yapılan değişiklikler bu cihazda lokal olarak saklanır.
+                Eski kayıt V3&apos;ten içe aktarıldı.
                 {v3SourceCaseId ? ` (kaynak #${v3SourceCaseId})` : ""}
               </p>
             ) : null}
@@ -961,6 +987,16 @@ export default function UbgtCalcPage({ mode, title }: Props) {
             <FlashValue className={styles.quickTotalValue} value={`${formatMoney(displayToplamBrut)} ₺`} />
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} /> Nasıl kullanılır?
+            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => setListOpen(true)}>
               <FolderOpen size={14} /> Kayıtlar ({cases.length})
             </Button>
@@ -994,166 +1030,168 @@ export default function UbgtCalcPage({ mode, title }: Props) {
               ? "Tanık çalışma tarihleri bu aralığa göre kısıtlanır; hesaplama yalnızca tanık beyanları üzerinden yapılır."
               : "Çalışma dönemlerinizi ekleyin"}
           </p>
-          <div className={styles.rangeStack}>
-            {form.dateRanges.map((row, idx) => (
-              <div key={row.id} className={styles.rangePanel}>
-                <div className={styles.rangePanelHead}>
-                  <p className={styles.rangePanelTitle} />
-                  <div className={styles.rangePanelActions}>
-                    {form.dateRanges.length > 1 ? (
-                      <button
-                        type="button"
-                        className={styles.rangeIconBtn}
-                        aria-label="Sil"
-                        title="Sil"
-                        onClick={() =>
-                          setForm((f) => ({ ...f, dateRanges: f.dateRanges.filter((_, i) => i !== idx) }))
-                        }
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    ) : null}
+          <div data-tour={mode === "standart" ? "ubgt-alacagi-donem" : "ubgt-bilirkisi-davaci"}>
+            <div className={styles.rangeStack}>
+              {form.dateRanges.map((row, idx) => (
+                <div key={row.id} className={styles.rangePanel} data-tour-period-row>
+                  <div className={styles.rangePanelHead}>
+                    <p className={styles.rangePanelTitle} />
+                    <div className={styles.rangePanelActions}>
+                      {form.dateRanges.length > 1 ? (
+                        <button
+                          type="button"
+                          className={styles.rangeIconBtn}
+                          aria-label="Sil"
+                          title="Sil"
+                          onClick={() =>
+                            setForm((f) => ({ ...f, dateRanges: f.dateRanges.filter((_, i) => i !== idx) }))
+                          }
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                <div className={mode === "bilirkisi" ? styles.periodFields3 : styles.periodFields2}>
-                  {mode === "bilirkisi" ? (
+                  <div className={mode === "bilirkisi" ? styles.periodFields3 : styles.periodFields2}>
+                    {mode === "bilirkisi" ? (
+                      <label className={styles.field}>
+                        <span className={styles.fieldLabel}>Kişi(ler)</span>
+                        <input
+                          className={styles.input}
+                          placeholder="Davacı"
+                          value={row.person || ""}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              dateRanges: f.dateRanges.map((r, i) =>
+                                i === idx ? { ...r, person: e.target.value } : r,
+                              ),
+                            }))
+                          }
+                        />
+                      </label>
+                    ) : null}
                     <label className={styles.field}>
-                      <span className={styles.fieldLabel}>Kişi(ler)</span>
-                      <input
-                        className={styles.input}
-                        placeholder="Davacı"
-                        value={row.person || ""}
-                        onChange={(e) =>
+                      <span className={styles.fieldLabel}>Başlangıç</span>
+                      <DraftDateInput
+                        className={styles.dateInput}
+                        value={row.start}
+                        onCommit={(v) =>
                           setForm((f) => ({
                             ...f,
-                            dateRanges: f.dateRanges.map((r, i) =>
-                              i === idx ? { ...r, person: e.target.value } : r,
-                            ),
+                            dateRanges: f.dateRanges.map((r, i) => (i === idx ? { ...r, start: v } : r)),
                           }))
                         }
+                        onBlur={() => validateRangeDates(row.start, row.end)}
                       />
                     </label>
-                  ) : null}
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>Başlangıç</span>
-                    <DraftDateInput
-                      className={styles.dateInput}
-                      value={row.start}
-                      onCommit={(v) =>
-                        setForm((f) => ({
-                          ...f,
-                          dateRanges: f.dateRanges.map((r, i) => (i === idx ? { ...r, start: v } : r)),
-                        }))
-                      }
-                      onBlur={() => validateRangeDates(row.start, row.end)}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>Bitiş</span>
-                    <DraftDateInput
-                      className={styles.dateInput}
-                      value={row.end}
-                      onCommit={(v) =>
-                        setForm((f) => ({
-                          ...f,
-                          dateRanges: f.dateRanges.map((r, i) => (i === idx ? { ...r, end: v } : r)),
-                        }))
-                      }
-                      onBlur={() => validateRangeDates(row.start, row.end)}
-                    />
-                  </label>
-                </div>
-                {mode === "bilirkisi" ? (
-                  <div className={styles.rangeHolidayBlock}>
-                    <div className={styles.chipToolbar}>
-                      <span className={styles.fieldLabel}>Davacı — tatil seçimi (üst sınır)</span>
-                      <div className={styles.chipToolbarActions}>
-                        <button
-                          type="button"
-                          className={styles.chipGhostBtn}
-                          onClick={() =>
-                            setForm((f) => ({
-                              ...f,
-                              dateRanges: f.dateRanges.map((r, i) =>
-                                i === idx ? { ...r, selectedHolidayIds: [...ALL_STATIC_HOLIDAY_IDS] } : r,
-                              ),
-                            }))
-                          }
-                        >
-                          Tümünü Seç
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.chipGhostBtn}
-                          onClick={() =>
-                            setForm((f) => ({
-                              ...f,
-                              dateRanges: f.dateRanges.map((r, i) =>
-                                i === idx ? { ...r, selectedHolidayIds: [] } : r,
-                              ),
-                            }))
-                          }
-                        >
-                          Tümünü Kaldır
-                        </button>
-                      </div>
-                    </div>
-                    <div className={styles.chipGroup}>
-                      {HOLIDAY_GROUPS.map((group) => (
-                        <div key={group.title}>
-                          <p className={styles.chipGroupTitle}>{group.title}</p>
-                          <HolidayChips
-                            selected={row.selectedHolidayIds ?? []}
-                            options={group.options}
-                            ariaLabel={group.title}
-                            onChange={(ids) => {
-                              const otherIds = (row.selectedHolidayIds ?? []).filter(
-                                (id) => !group.options.some((h) => h.id === id),
-                              );
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Bitiş</span>
+                      <DraftDateInput
+                        className={styles.dateInput}
+                        value={row.end}
+                        onCommit={(v) =>
+                          setForm((f) => ({
+                            ...f,
+                            dateRanges: f.dateRanges.map((r, i) => (i === idx ? { ...r, end: v } : r)),
+                          }))
+                        }
+                        onBlur={() => validateRangeDates(row.start, row.end)}
+                      />
+                    </label>
+                  </div>
+                  {mode === "bilirkisi" ? (
+                    <div className={styles.rangeHolidayBlock}>
+                      <div className={styles.chipToolbar}>
+                        <span className={styles.fieldLabel}>Davacı — tatil seçimi (üst sınır)</span>
+                        <div className={styles.chipToolbarActions}>
+                          <button
+                            type="button"
+                            className={styles.chipGhostBtn}
+                            onClick={() =>
                               setForm((f) => ({
                                 ...f,
                                 dateRanges: f.dateRanges.map((r, i) =>
-                                  i === idx ? { ...r, selectedHolidayIds: [...otherIds, ...ids] } : r,
+                                  i === idx ? { ...r, selectedHolidayIds: [...ALL_STATIC_HOLIDAY_IDS] } : r,
                                 ),
-                              }));
-                            }}
-                          />
+                              }))
+                            }
+                          >
+                            Tümünü Seç
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.chipGhostBtn}
+                            onClick={() =>
+                              setForm((f) => ({
+                                ...f,
+                                dateRanges: f.dateRanges.map((r, i) =>
+                                  i === idx ? { ...r, selectedHolidayIds: [] } : r,
+                                ),
+                              }))
+                            }
+                          >
+                            Tümünü Kaldır
+                          </button>
                         </div>
-                      ))}
+                      </div>
+                      <div className={styles.chipGroup}>
+                        {HOLIDAY_GROUPS.map((group) => (
+                          <div key={group.title}>
+                            <p className={styles.chipGroupTitle}>{group.title}</p>
+                            <HolidayChips
+                              selected={row.selectedHolidayIds ?? []}
+                              options={group.options}
+                              ariaLabel={group.title}
+                              onChange={(ids) => {
+                                const otherIds = (row.selectedHolidayIds ?? []).filter(
+                                  (id) => !group.options.some((h) => h.id === id),
+                                );
+                                setForm((f) => ({
+                                  ...f,
+                                  dateRanges: f.dateRanges.map((r, i) =>
+                                    i === idx ? { ...r, selectedHolidayIds: [...otherIds, ...ids] } : r,
+                                  ),
+                                }));
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          <div className={styles.rangeAddRow}>
-            <Button
-              type="button"
-              variant="soft"
-              size="sm"
-              className={styles.premiumSoftBtn}
-              onClick={() =>
-                setForm((f) => ({
-                  ...f,
-                  dateRanges: [
-                    ...f.dateRanges,
-                    {
-                      id: newLocalId("range"),
-                      start: "",
-                      end: "",
-                      person: mode === "bilirkisi" ? "Davacı" : undefined,
-                      selectedHolidayIds: mode === "bilirkisi" ? [] : undefined,
-                    },
-                  ],
-                }))
-              }
-            >
-              <Plus size={14} /> {mode === "bilirkisi" ? "Davacı dönemi ekle" : "Yeni Tarih Aralığı Ekle"}
-            </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div className={styles.rangeAddRow}>
+              <Button
+                type="button"
+                variant="soft"
+                size="sm"
+                className={styles.premiumSoftBtn}
+                onClick={() =>
+                  setForm((f) => ({
+                    ...f,
+                    dateRanges: [
+                      ...f.dateRanges,
+                      {
+                        id: newLocalId("range"),
+                        start: "",
+                        end: "",
+                        person: mode === "bilirkisi" ? "Davacı" : undefined,
+                        selectedHolidayIds: mode === "bilirkisi" ? [] : undefined,
+                      },
+                    ],
+                  }))
+                }
+              >
+                <Plus size={14} /> {mode === "bilirkisi" ? "Davacı dönemi ekle" : "Yeni Tarih Aralığı Ekle"}
+              </Button>
+            </div>
           </div>
 
           {mode === "bilirkisi" ? (
-            <div className={styles.witnessSection}>
+            <div data-tour="ubgt-bilirkisi-taniklar" className={styles.witnessSection}>
               <h3 className={styles.subSectionTitle}>Tanıklar</h3>
               <p className={styles.panelHint}>
                 Her tanık için çalışıldığı iddia edilen dönemi ve (davacının seçtiği tatiller içinden) kanıtlanan
@@ -1161,7 +1199,7 @@ export default function UbgtCalcPage({ mode, title }: Props) {
               </p>
               <div className={styles.rangeStack}>
                 {form.witnesses.map((w, idx) => (
-                  <div key={w.id} className={styles.rangePanel}>
+                  <div key={w.id} className={styles.rangePanel} data-tour-period-row>
                     <div className={styles.rangePanelHead}>
                       <p className={styles.rangePanelTitle} />
                       <div className={styles.rangePanelActions}>
@@ -1329,7 +1367,12 @@ export default function UbgtCalcPage({ mode, title }: Props) {
           </div>
         </section>
 
-        <section className={styles.card} style={{ animationDelay: "100ms" }}>
+        <DislamalarTourShell {...dislamalarTourShellProps}>
+        <section
+          className={styles.card}
+          style={{ animationDelay: "100ms" }}
+          data-tour={mode === "standart" ? "ubgt-alacagi-tatiller" : undefined}
+        >
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>Tatil Seçimi</h2>
             {mode === "standart" ? (
@@ -1405,7 +1448,11 @@ export default function UbgtCalcPage({ mode, title }: Props) {
           </div>
         </section>
 
-        <section className={styles.card} style={{ animationDelay: "140ms" }}>
+        <section
+          className={styles.card}
+          style={{ animationDelay: "140ms" }}
+          data-tour={mode === "standart" ? "ubgt-alacagi-dislamalar" : undefined}
+        >
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>Dışlanabilir günler</h2>
             <div className={styles.rowActions}>
@@ -1426,8 +1473,10 @@ export default function UbgtCalcPage({ mode, title }: Props) {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setSavedExclusionSets(getAllExclusionSets());
-                  setExclusionLoadOpen(true);
+                  void getAllExclusionSets().then((sets) => {
+                    setSavedExclusionSets(sets);
+                    setExclusionLoadOpen(true);
+                  });
                 }}
               >
                 <Download size={14} /> İçe aktar
@@ -1533,11 +1582,15 @@ export default function UbgtCalcPage({ mode, title }: Props) {
             setUbgtExclusionRules={(rules) => setForm((f) => ({ ...f, ubgtExclusionRules: rules }))}
           />
         </section>
+        </DislamalarTourShell>
 
         <section className={styles.card} style={{ animationDelay: "180ms" }}>
           {bilirkisiClipError ? <p className={styles.errorText}>{bilirkisiClipError}</p> : null}
           {result?.error ? <p className={styles.errorText}>{result.error}</p> : null}
-          <div className={styles.cetvelToolbar}>
+          <div
+            className={styles.cetvelToolbar}
+            data-tour={mode === "standart" ? "ubgt-alacagi-ayarlar" : "ubgt-bilirkisi-ayarlar"}
+          >
             <div className={styles.katsayiRow}>
               <UbgtExpiryBox
                 ubgtExpiryStart={form.ubgtExpiryStart || null}
@@ -1545,6 +1598,7 @@ export default function UbgtCalcPage({ mode, title }: Props) {
                   setForm((f) => ({ ...f, ubgtExpiryStart: d ?? "" }))
                 }
                 onUbgtExpiryCancel={handleExpiryCancel}
+                onOpenChange={setExpiryOpen}
                 iseGiris={iseGirisEarliest}
               />
               <button
@@ -1787,7 +1841,10 @@ export default function UbgtCalcPage({ mode, title }: Props) {
         </section>
       </div>
 
-      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}
+        data-tour={mode === "standart" ? "ubgt-alacagi-kaydet-actions" : "ubgt-bilirkisi-kaydet-actions"}
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1970,13 +2027,15 @@ export default function UbgtCalcPage({ mode, title }: Props) {
                     showError("Lütfen bir isim girin.");
                     return;
                   }
-                  const ok = saveExclusionSet(exclusionSaveName.trim(), form.ubgtExcludedDays);
-                  if (ok) {
-                    success(`"${exclusionSaveName.trim()}" olarak kaydedildi.`);
-                    setExclusionSaveOpen(false);
-                  } else {
-                    showError("Kaydetme başarısız oldu.");
-                  }
+                  void (async () => {
+                    const ok = await saveExclusionSet(exclusionSaveName.trim(), form.ubgtExcludedDays);
+                    if (ok) {
+                      success(`"${exclusionSaveName.trim()}" olarak kaydedildi.`);
+                      setExclusionSaveOpen(false);
+                    } else {
+                      showError("Kaydetme başarısız oldu.");
+                    }
+                  })();
                 }}
               >
                 Kaydet
@@ -2031,9 +2090,11 @@ export default function UbgtCalcPage({ mode, title }: Props) {
                         size="icon"
                         aria-label="Sil"
                         onClick={() => {
-                          deleteExclusionSet(set.id);
-                          setSavedExclusionSets(getAllExclusionSets());
-                          success("Silindi.");
+                          void (async () => {
+                            await deleteExclusionSet(set.id);
+                            setSavedExclusionSets(await getAllExclusionSets());
+                            success("Silindi.");
+                          })();
                         }}
                       >
                         <Trash2 size={14} />
@@ -2046,6 +2107,25 @@ export default function UbgtCalcPage({ mode, title }: Props) {
           </div>
         </div>
       ) : null}
+
+      <GuidedTourHost
+        key={mode}
+        definition={tourDefinition}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={tourWelcome.title}
+        welcomeBody={tourWelcome.body}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={tourPaused}
+      />
     </div>
   );
 }

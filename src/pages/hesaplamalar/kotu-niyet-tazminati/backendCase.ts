@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → Kötü Niyet Tazminatı form mapping.
  */
@@ -113,6 +114,7 @@ export const kotuNiyetCaseCrud = createCalcBackendCrud({
       iseGiris: form.startDate || null,
       istenCikis: form.endDate || null,
     }),
+  localStorageKey: STORAGE_KEY,
 });
 
 export function buildKotuNiyetSaveResult(result: {

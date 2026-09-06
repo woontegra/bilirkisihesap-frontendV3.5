@@ -1,14 +1,41 @@
+/**
+ * Puantaj eşleştirme şablonları — kullanıcı hesabına bağlı.
+ * Eski localStorage (v1/v2) bir defalık migrate edilir.
+ */
+
+import {
+  deletePuantajFmTemplate,
+  listPuantajFmTemplates,
+  migratePuantajFmTemplates,
+  savePuantajFmTemplate,
+} from "@/api/puantajFmTemplates";
 import type { PuantajTemplate } from "./model";
 import { id, normalizeText } from "./utils";
-
-/**
- * Puantaj eşleştirme şablonlarının LOKAL yönetimi.
- * Tüm veriler yalnızca localStorage'da tutulur; hiçbir ağ isteği yapılmaz.
- */
+import { decodeAccessTokenClaims } from "@/auth/session";
 
 export const TEMPLATE_SCHEMA_VERSION = 2;
 const STORAGE_KEY = "puantaj_fm_templates_v2";
 const LEGACY_STORAGE_KEY = "puantaj_fm_templates_v1";
+
+let cache: PuantajTemplate[] | null = null;
+let migratePromise: Promise<void> | null = null;
+
+function scopeIds(): { tenantId: string; userId: string } {
+  try {
+    const claims = decodeAccessTokenClaims();
+    return {
+      tenantId: localStorage.getItem("tenant_id") || "0",
+      userId: claims?.userId != null ? String(claims.userId) : localStorage.getItem("user_id") || "0",
+    };
+  } catch {
+    return { tenantId: "0", userId: "0" };
+  }
+}
+
+function migrateDoneKey(): string {
+  const { tenantId, userId } = scopeIds();
+  return `bilirkisi-hesap-v35:puantaj-fm-templates:api-migrated:v1:t${tenantId}:u${userId}`;
+}
 
 function safeParse(json: string | null): PuantajTemplate[] {
   if (!json) return [];
@@ -24,58 +51,107 @@ function hasStorage(): boolean {
   return typeof localStorage !== "undefined";
 }
 
-export function loadTemplates(): PuantajTemplate[] {
+function readLocalTemplates(): PuantajTemplate[] {
   if (!hasStorage()) return [];
   const current = safeParse(localStorage.getItem(STORAGE_KEY));
-  if (current.length > 0) return current;
-  // v1 → v2: codeMap aynı; yalnızca depo anahtarı yükselir.
+  if (current.length > 0) {
+    return current.map((t) => ({
+      ...t,
+      version: Math.max(t.version ?? 1, TEMPLATE_SCHEMA_VERSION),
+    }));
+  }
   const legacy = safeParse(localStorage.getItem(LEGACY_STORAGE_KEY));
-  if (legacy.length > 0) {
-    const migrated = legacy.map((t) => ({ ...t, version: Math.max(t.version ?? 1, TEMPLATE_SCHEMA_VERSION) }));
-    persist(migrated);
-    return migrated;
-  }
-  return [];
+  return legacy.map((t) => ({
+    ...t,
+    version: Math.max(t.version ?? 1, TEMPLATE_SCHEMA_VERSION),
+  }));
 }
 
-function persist(list: PuantajTemplate[]): void {
+function clearLocalTemplates(): void {
   if (!hasStorage()) return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-}
-
-export function saveTemplate(template: PuantajTemplate): PuantajTemplate {
-  const list = loadTemplates();
-  const now = new Date().toISOString();
-  const idx = list.findIndex((t) => t.id === template.id);
-  if (idx >= 0) {
-    const updated: PuantajTemplate = {
-      ...template,
-      version: (list[idx].version ?? 1) + 1,
-      updatedAt: now,
-      createdAt: list[idx].createdAt ?? now,
-    };
-    list[idx] = updated;
-    persist(list);
-    return updated;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    /* ignore */
   }
-  const created: PuantajTemplate = {
-    ...template,
-    id: template.id || id("tpl"),
-    version: template.version || 1,
-    createdAt: now,
-    updatedAt: now,
-  };
-  list.push(created);
-  persist(list);
-  return created;
 }
 
-export function deleteTemplate(templateId: string): void {
-  persist(loadTemplates().filter((t) => t.id !== templateId));
+function wasApiMigrated(): boolean {
+  try {
+    return localStorage.getItem(migrateDoneKey()) === "1";
+  } catch {
+    return false;
+  }
 }
 
-export function duplicateTemplate(templateId: string): PuantajTemplate | null {
-  const list = loadTemplates();
+function markApiMigrated(): void {
+  try {
+    localStorage.setItem(migrateDoneKey(), "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+async function migrateLocalIfNeeded(): Promise<void> {
+  if (wasApiMigrated()) {
+    clearLocalTemplates();
+    return;
+  }
+  const local = readLocalTemplates();
+  if (local.length === 0) {
+    markApiMigrated();
+    clearLocalTemplates();
+    return;
+  }
+  try {
+    await migratePuantajFmTemplates(local);
+    markApiMigrated();
+    clearLocalTemplates();
+  } catch (err) {
+    console.warn("[puantaj-fm-templates] migrate failed", err);
+  }
+}
+
+async function ensureReady(): Promise<void> {
+  if (!migratePromise) migratePromise = migrateLocalIfNeeded();
+  await migratePromise;
+}
+
+async function refresh(): Promise<PuantajTemplate[]> {
+  await ensureReady();
+  cache = await listPuantajFmTemplates();
+  return cache;
+}
+
+/** Sync cache (ilk await loadTemplatesSafe sonrası dolu). */
+export function loadTemplates(): PuantajTemplate[] {
+  return cache ? cache.slice() : [];
+}
+
+export async function loadTemplatesSafe(): Promise<PuantajTemplate[]> {
+  return refresh();
+}
+
+export async function saveTemplate(template: PuantajTemplate): Promise<PuantajTemplate> {
+  await ensureReady();
+  const saved = await savePuantajFmTemplate(template);
+  const list = cache ? [...cache] : [];
+  const idx = list.findIndex((t) => t.id === saved.id || t.name.toLocaleLowerCase("tr") === saved.name.toLocaleLowerCase("tr"));
+  if (idx >= 0) list[idx] = saved;
+  else list.push(saved);
+  cache = list;
+  return saved;
+}
+
+export async function deleteTemplate(templateId: string): Promise<void> {
+  await ensureReady();
+  await deletePuantajFmTemplate(templateId);
+  cache = (cache ?? []).filter((t) => t.id !== templateId);
+}
+
+export async function duplicateTemplate(templateId: string): Promise<PuantajTemplate | null> {
+  const list = await refresh();
   const src = list.find((t) => t.id === templateId);
   if (!src) return null;
   const now = new Date().toISOString();
@@ -87,9 +163,7 @@ export function duplicateTemplate(templateId: string): PuantajTemplate | null {
     createdAt: now,
     updatedAt: now,
   };
-  list.push(copy);
-  persist(list);
-  return copy;
+  return saveTemplate(copy);
 }
 
 /**
@@ -104,7 +178,7 @@ export function buildSignature(headers: string[]): string {
     .join("|");
 }
 
-/** İmzaya göre en uygun şablonu döner (birebir imza eşleşmesi veya yüksek örtüşme). */
+/** İmzaya göre en uygun şablonu döner (cache üzerinden). */
 export function suggestTemplate(headers: string[]): PuantajTemplate | null {
   const sig = buildSignature(headers);
   if (!sig) return null;

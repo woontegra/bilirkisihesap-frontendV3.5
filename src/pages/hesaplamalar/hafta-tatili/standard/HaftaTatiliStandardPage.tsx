@@ -28,6 +28,7 @@ const config: HaftaTatiliPageConfig<StandardForm> = {
   notes: NOTE_BLOCKS,
   showSeasonal: true,
   showGeceCalisan: false,
+  guidedTourVariant: "standart",
   createEmptyForm,
   snapshotKey,
   compute: computeStandardHaftaTatili,

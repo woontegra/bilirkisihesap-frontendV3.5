@@ -15,7 +15,7 @@ import {
   mapLegacyStandardUbgtCase,
   resolveSavedCaseDisplayName,
 } from "./legacyUbgtCaseAdapter";
-import type { SavedCase, UbgtForm, UbgtResults } from "./model";
+import { STORAGE_KEY, type SavedCase, type UbgtForm, type UbgtResults } from "./model";
 import { buildStandartUbgtSaveData } from "./standart/buildStandartUbgtSaveData";
 import { buildBilirkisiUbgtSaveData } from "./bilirkisi/buildBilirkisiUbgtSaveData";
 
@@ -58,6 +58,7 @@ function createUbgtCrud(mode: UbgtForm["mode"]) {
       mode === "standart"
         ? buildStandartUbgtSaveData(form, result)
         : buildBilirkisiUbgtSaveData(form, result),
+    localStorageKey: STORAGE_KEY,
   });
 }
 

@@ -10,7 +10,7 @@ import {
   buildSignature,
   deleteTemplate,
   duplicateTemplate,
-  loadTemplates,
+  loadTemplatesSafe,
   saveTemplate,
   suggestTemplate,
 } from "./templates";
@@ -62,7 +62,7 @@ import type { SmartImportAnalysis } from "./smart-import-v2/types";
 import type { SmartImportQualityReport } from "./smart-import-v2/qualityReport";
 import {
   deleteSmartImportTemplate,
-  loadSmartImportTemplates,
+  loadSmartImportTemplatesSafe,
   saveSmartImportTemplate,
   type SmartImportMappingTemplate,
 } from "./smart-import-v2/smartTemplateStore";
@@ -112,8 +112,8 @@ export default function PuantajFmPage() {
   const lastHeaderSig = useRef<string>("");
 
   useEffect(() => {
-    setTemplates(loadTemplates());
-    setSmartTemplates(loadSmartImportTemplates());
+    void loadTemplatesSafe().then(setTemplates);
+    void loadSmartImportTemplatesSafe().then(setSmartTemplates);
   }, []);
 
   const table: TableView | null = useMemo(() => {
@@ -272,21 +272,27 @@ export default function PuantajFmPage() {
         hourPriorityEnabled: true,
         multiPageBehavior: "mergeAll",
       };
-      const saved = saveTemplate(tpl);
-      setActiveTemplateId(saved.id);
-      setTemplates(loadTemplates());
+      void (async () => {
+        const saved = await saveTemplate(tpl);
+        setActiveTemplateId(saved.id);
+        setTemplates(await loadTemplatesSafe());
+      })();
     },
     [table, activeTemplateId, headerRowIndex, mappings, codeMap, constants],
   );
 
   const handleDeleteTemplate = useCallback((templateId: string) => {
-    deleteTemplate(templateId);
-    setTemplates(loadTemplates());
+    void (async () => {
+      await deleteTemplate(templateId);
+      setTemplates(await loadTemplatesSafe());
+    })();
   }, []);
 
   const handleDuplicateTemplate = useCallback((templateId: string) => {
-    duplicateTemplate(templateId);
-    setTemplates(loadTemplates());
+    void (async () => {
+      await duplicateTemplate(templateId);
+      setTemplates(await loadTemplatesSafe());
+    })();
   }, []);
 
   /* ── Standart satırları üret (kontrol adımına girerken) ── */
@@ -354,8 +360,10 @@ export default function PuantajFmPage() {
             confidence: p.confidence,
           })),
       };
-      saveSmartImportTemplate(tpl);
-      setSmartTemplates(loadSmartImportTemplates());
+      void (async () => {
+        await saveSmartImportTemplate(tpl);
+        setSmartTemplates(await loadSmartImportTemplatesSafe());
+      })();
     },
     [smartAnalysis, doc],
   );
@@ -379,8 +387,10 @@ export default function PuantajFmPage() {
   );
 
   const handleDeleteSmartTemplate = useCallback((templateId: string) => {
-    deleteSmartImportTemplate(templateId);
-    setSmartTemplates(loadSmartImportTemplates());
+    void (async () => {
+      await deleteSmartImportTemplate(templateId);
+      setSmartTemplates(await loadSmartImportTemplatesSafe());
+    })();
   }, []);
 
   const handleSmartReview = useCallback(() => setSmartUiMode("review"), []);
@@ -660,10 +670,10 @@ export default function PuantajFmPage() {
           <h1 className={styles.title}>Puantaj Kayıtlarına Göre Fazla Mesai</h1>
           <p className={styles.desc}>
             Puantaj belgenizi yükleyin, alanları eşleştirin, kayıtları kontrol edin ve fazla mesai cetvelini
-            oluşturun. Tüm işlemler bu cihazda, tamamen lokal çalışır.
+            oluşturun. Dosya cihazınızda işlenir; eşleştirme şablonları hesabınıza kaydedilir.
           </p>
           <div className={styles.privacyBadge}>
-            <ShieldCheck size={14} /> Dosya cihaz dışına gönderilmez · backend/API isteği yok
+            <ShieldCheck size={14} /> Dosya cihaz dışına gönderilmez · şablonlar hesabınıza kaydedilir
           </div>
         </div>
       </header>

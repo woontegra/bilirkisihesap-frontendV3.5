@@ -1,3 +1,4 @@
+import { IS_KANUNU_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → İş Kanunu kıdem form mapping.
  * Yalnızca form alanlarını doldurur; sonuçları backend'den almaz.
@@ -74,7 +75,7 @@ export function resolveSavedCaseDisplayName(record: SavedCaseRecord): string {
   return name && String(name).trim() ? String(name).trim() : `Kayıt #${record.id}`;
 }
 
-export const isKanunuCaseCrud = createKidemCrud(KIDEM_30ISCI_TYPE, mapIsKanunuFormFromBackend);
+export const isKanunuCaseCrud = createKidemCrud(KIDEM_30ISCI_TYPE, mapIsKanunuFormFromBackend, IS_KANUNU_CASES_KEY);
 
 export function mapIsKanunuRecordToSavedCase(record: SavedCaseRecord): SavedCase | null {
   const form = mapIsKanunuFormFromBackend(record.data, record);

@@ -1,14 +1,14 @@
 /**
- * UBGT dışlanabilir gün aralıkları — paylaşılan izin/dışlama havuzu.
+ * UBGT dışlanabilir gün aralıkları — paylaşılan izin/dışlama havuzu (hesap API).
  */
 
-import { deleteLocalExclusionSet, upsertLocalExclusionSet } from "@/lib/localExclusionSetsStore";
 import {
-  SHARED_LEAVE_EXCLUSION_POOL_ID,
+  deleteSharedLeaveExclusionSet,
   fmItemsToPoolItems,
-  listSharedLeaveExclusionSets,
+  listSharedLeaveExclusionSetsAsync,
   mergeRowsByFingerprint,
   poolItemsToFmItems,
+  upsertSharedLeaveExclusionSet,
 } from "@/lib/sharedLeaveExclusionPool";
 import type { UbgtExcludedDayRow } from "./model";
 
@@ -49,8 +49,9 @@ export function mergeUbgtExclusionImport(
   return mergeRowsByFingerprint(prev.map(normalize), loaded.map(normalize), createId);
 }
 
-export function getAllExclusionSets(): SavedUbgtExclusionSet[] {
-  return listSharedLeaveExclusionSets().map((set) => ({
+export async function getAllExclusionSets(): Promise<SavedUbgtExclusionSet[]> {
+  const sets = await listSharedLeaveExclusionSetsAsync();
+  return sets.map((set) => ({
     id: set.id,
     name: set.name,
     data: toUbgtRows(poolItemsToFmItems(set.data)),
@@ -58,7 +59,7 @@ export function getAllExclusionSets(): SavedUbgtExclusionSet[] {
   }));
 }
 
-export function saveExclusionSet(name: string, data: UbgtExcludedDayRow[]): boolean {
+export async function saveExclusionSet(name: string, data: UbgtExcludedDayRow[]): Promise<boolean> {
   const trimmed = name.trim();
   if (!trimmed) return false;
   const items = fmItemsToPoolItems(
@@ -71,11 +72,19 @@ export function saveExclusionSet(name: string, data: UbgtExcludedDayRow[]): bool
     })),
   );
   if (!items.length) return false;
-  upsertLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, trimmed, items);
-  return true;
+  try {
+    await upsertSharedLeaveExclusionSet(trimmed, items);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-export function deleteExclusionSet(id: string): boolean {
-  deleteLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, id);
-  return true;
+export async function deleteExclusionSet(id: string): Promise<boolean> {
+  try {
+    await deleteSharedLeaveExclusionSet(id);
+    return true;
+  } catch {
+    return false;
+  }
 }

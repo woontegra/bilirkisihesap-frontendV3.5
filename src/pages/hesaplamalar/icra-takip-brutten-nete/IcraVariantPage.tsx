@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Calculator, Eye, FilePlus2, FolderOpen, Save, Scale, Trash2, X } from "lucide-react";
+import { Calculator, CirclePlay, Eye, FilePlus2, FolderOpen, Save, Scale, Trash2, X } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTextInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import { useCalculationTools } from "@/context/CalculationToolsContext";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
+import { createIcraGuidedTour, icraWelcomeCopy } from "./guidedTour";
 import {
   buildIcraSaveResult,
   getIcraCaseCrud,
@@ -41,7 +44,7 @@ import {
   type IcraVariant,
   type SavedCase,
 } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { clearCorruptCases, deleteCase } from "./storage";
 import { InterestResultPanel } from "./InterestResultPanel";
 import { fmtDateTR } from "./lib/format";
 import pageStyles from "./IcraVariantPage.module.css";
@@ -149,8 +152,11 @@ function NameModal({
 }
 
 export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-brutten-nete" }: Props) {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
   const { beginNewCalculation } = useCalculationTools();
+  const tour = useGuidedTourController();
+  const tourDefinition = useMemo(() => createIcraGuidedTour(variant), [variant]);
+  const welcomeCopy = useMemo(() => icraWelcomeCopy(variant), [variant]);
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const backendLoadedCaseIdRef = useRef<string | null>(null);
@@ -265,8 +271,7 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
             ? error.message
             : "Kayıtlar yüklenemedi";
       setStorageError(message);
-      const local = loadCasesSafe(variant);
-      setCases(local.ok ? local.items : []);
+      setCases([]);
     }
   }, [variant]);
 
@@ -492,6 +497,16 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
             </span>
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} /> Nasıl kullanılır?
+            </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
               <FolderOpen size={14} /> Kayıtlar
             </Button>
@@ -532,7 +547,7 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
             <h2 className={styles.cardTitle}>Brütten nete çevir</h2>
           </div>
           <div className={styles.fields}>
-            <div>
+            <div data-tour="icra-ucret">
               <label className={styles.label} htmlFor="icra-brut">
                 {GROSS_INPUT_LABEL[variant] ?? "Brüt alacak tutarı"}
               </label>
@@ -547,7 +562,7 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
             </div>
 
             {variant !== "damga" ? (
-              <>
+              <div data-tour="icra-donem">
                 <div>
                   <label className={styles.label} htmlFor="icra-yil">
                     Gelir vergisi yılı
@@ -574,11 +589,11 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
                 </div>
                 {twoPeriods ? (
                   <div>
-                    <label className={styles.label} htmlFor="icra-donem">
+                    <label className={styles.label} htmlFor="icra-period">
                       {variant === "istisnasiz-full" ? "Dönem (referans)" : "Dönem"}
                     </label>
                     <select
-                      id="icra-donem"
+                      id="icra-period"
                       className={styles.input}
                       value={form.period}
                       onChange={(e) =>
@@ -590,7 +605,7 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
                     </select>
                   </div>
                 ) : null}
-              </>
+              </div>
             ) : null}
           </div>
 
@@ -646,7 +661,7 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
           <div className={styles.cardHead}>
             <h2 className={styles.cardTitle}>Faiz</h2>
           </div>
-          <div className={styles.fields}>
+          <div className={styles.fields} data-tour="icra-faiz">
             <div>
               <label className={styles.label} htmlFor="icra-faiz-bas">
                 Faiz başlangıç tarihi
@@ -727,7 +742,10 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
         />
       ) : null}
 
-      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}
+        data-tour="icra-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <div className={styles.stickyStatus}>
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
@@ -856,6 +874,24 @@ export default function IcraVariantPage({ variant, title, backTo = "/icra-takip-
         title={`${title} — Önizleme`}
         sections={previewSections}
         contentId={`icra-${variant}-preview`}
+      />
+
+      <GuidedTourHost
+        definition={tourDefinition}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={welcomeCopy.title}
+        welcomeBody={welcomeCopy.body}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={previewOpen || nameOpen || listOpen}
       />
     </div>
   );

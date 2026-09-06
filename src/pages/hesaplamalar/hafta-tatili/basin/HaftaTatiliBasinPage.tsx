@@ -28,6 +28,7 @@ const config: HaftaTatiliPageConfig<BasinForm> = {
   notes: NOTE_BLOCKS,
   showSeasonal: false,
   showGeceCalisan: true,
+  guidedTourVariant: "basin-is",
   createEmptyForm,
   snapshotKey,
   compute: computeBasinHaftaTatili,

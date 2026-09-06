@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Calculator,
+  CirclePlay,
   Eye,
   FilePlus2,
   FolderOpen,
@@ -15,11 +16,18 @@ import { ApiError } from "@/api/client";
 import { getSavedCase } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTextInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
 import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
+import {
+  HAKSIZ_FESIH_TOUR,
+  HAKSIZ_FESIH_TOUR_WELCOME_BODY,
+  HAKSIZ_FESIH_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   buildHaksizFesihSaveResult,
   haksizFesihCaseCrud,
@@ -41,7 +49,7 @@ import {
   type HaksizFesihForm,
   type SavedCase,
 } from "./model";
-import { clearCorruptCases, deleteCase, loadCasesSafe } from "./storage";
+import { clearCorruptCases, deleteCase } from "./storage";
 import styles from "./HaksizFesihTazminatiPage.module.css";
 
 const PAGE_TITLE = "Haksız Fesih Tazminatı";
@@ -147,7 +155,8 @@ function NameModal({
 }
 
 export default function HaksizFesihTazminatiPage() {
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
+  const tour = useGuidedTourController();
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const backendLoadedCaseIdRef = useRef<string | null>(null);
@@ -195,8 +204,7 @@ export default function HaksizFesihTazminatiPage() {
             ? error.message
             : "Kayıtlar yüklenemedi";
       setStorageError(message);
-      const local = loadCasesSafe();
-      setCases(local.ok ? local.items : []);
+      setCases([]);
     }
   }, []);
 
@@ -449,10 +457,10 @@ export default function HaksizFesihTazminatiPage() {
             <h1 className={styles.title}>{PAGE_TITLE}</h1>
             <p className={styles.desc}>
               TBK m.438 kapsamında haksız fesih tazminatı — 1–6 aylık katsayı tablosu, damga vergisi
-              (binde 7,59) ve mahsup hesabı. Hesaplama tamamen lokal çalışır.
+              (binde 7,59) ve mahsup hesabı. Hesaplama cihazınızda yapılır; kayıtlar hesabınıza yazılır.
             </p>
             <div className={styles.privacyBadge}>
-              <ShieldCheck size={12} /> %100 lokal · ağ isteği yok
+              <ShieldCheck size={12} /> Veriler hesabınıza güvenli şekilde kaydedilir
             </div>
           </div>
         </div>
@@ -469,6 +477,16 @@ export default function HaksizFesihTazminatiPage() {
             </span>
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} /> Nasıl kullanılır?
+            </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setListOpen(true)}>
               <FolderOpen size={14} /> Kayıtlar
             </Button>
@@ -499,7 +517,7 @@ export default function HaksizFesihTazminatiPage() {
 
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="haksiz-fesih-donem">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Tarih bilgileri</h2>
@@ -552,7 +570,7 @@ export default function HaksizFesihTazminatiPage() {
             </div>
           </section>
 
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="haksiz-fesih-ucret">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
@@ -596,7 +614,7 @@ export default function HaksizFesihTazminatiPage() {
             </div>
           </section>
 
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="haksiz-fesih-mahsup">
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>Mahsup</h2>
             </div>
@@ -704,7 +722,10 @@ export default function HaksizFesihTazminatiPage() {
         </aside>
       </div>
 
-      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}
+        data-tour="haksiz-fesih-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <div className={styles.stickyStatus}>
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? `Kayıt: ${activeName}` : "Yeni hesaplama"}
@@ -799,6 +820,24 @@ export default function HaksizFesihTazminatiPage() {
         sections={previewSections}
         contentId="haksiz-fesih-preview"
         onClose={() => setPreviewOpen(false)}
+      />
+
+      <GuidedTourHost
+        definition={HAKSIZ_FESIH_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={HAKSIZ_FESIH_TOUR_WELCOME_TITLE}
+        welcomeBody={HAKSIZ_FESIH_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={previewOpen || nameOpen || listOpen}
       />
     </div>
   );

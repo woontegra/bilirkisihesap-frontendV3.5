@@ -1,3 +1,4 @@
+import { VARDIYA24_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → 24 Saat Vardiya form eşlemesi.
  * Fallback: form || formValues || data; inner = raw?.data?.form || raw
@@ -266,6 +267,7 @@ const vardiya24Crud = createFmBackendCrud({
   isRecordType: isVardiya24FmRecordType,
   mapFormFromBackend: mapVardiya24FormFromBackend,
   buildSaveData: buildVardiya24SaveData,
+  localStorageKey: VARDIYA24_CASES_KEY,
 });
 
 export const listVardiya24FmCases = vardiya24Crud.listCases;

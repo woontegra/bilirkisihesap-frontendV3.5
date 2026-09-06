@@ -1,14 +1,15 @@
 /**
  * Fazla Mesai — paylaşılan izin/dışlama set deposu (tüm FM varyantları).
+ * Kullanıcı hesabına bağlı API üzerinden.
  */
 
-import { deleteLocalExclusionSet, upsertLocalExclusionSet } from "@/lib/localExclusionSetsStore";
 import {
-  SHARED_LEAVE_EXCLUSION_POOL_ID,
+  deleteSharedLeaveExclusionSet,
   fmItemsToPoolItems,
-  listSharedLeaveExclusionSets,
+  listSharedLeaveExclusionSetsAsync,
   mergeRowsByFingerprint,
   poolItemsToFmItems,
+  upsertSharedLeaveExclusionSet,
 } from "@/lib/sharedLeaveExclusionPool";
 
 export type FmExclusionItem = {
@@ -26,8 +27,9 @@ export type SavedExclusionSet = {
   createdAt: string;
 };
 
-export function getAllExclusionSets(): SavedExclusionSet[] {
-  return listSharedLeaveExclusionSets().map((set) => ({
+export async function getAllExclusionSets(): Promise<SavedExclusionSet[]> {
+  const sets = await listSharedLeaveExclusionSetsAsync();
+  return sets.map((set) => ({
     id: set.id,
     name: set.name,
     data: poolItemsToFmItems(set.data) as FmExclusionItem[],
@@ -35,18 +37,26 @@ export function getAllExclusionSets(): SavedExclusionSet[] {
   }));
 }
 
-export function saveExclusionSet(name: string, data: FmExclusionItem[]): boolean {
+export async function saveExclusionSet(name: string, data: FmExclusionItem[]): Promise<boolean> {
   const trimmed = name.trim();
   if (!trimmed) return false;
   const items = fmItemsToPoolItems(data);
   if (!items.length) return false;
-  upsertLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, trimmed, items);
-  return true;
+  try {
+    await upsertSharedLeaveExclusionSet(trimmed, items);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-export function deleteExclusionSet(id: string): boolean {
-  deleteLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, id);
-  return true;
+export async function deleteExclusionSet(id: string): Promise<boolean> {
+  try {
+    await deleteSharedLeaveExclusionSet(id);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** İçe aktarma: UBGT korunur, diğer satırlar birleştirilir, mükerrer eklenmez. */

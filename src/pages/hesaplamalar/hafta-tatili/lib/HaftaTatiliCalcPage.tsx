@@ -2,6 +2,7 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useSearchParams } from "react-router-dom";
 import {
   Calculator,
+  CirclePlay,
   Download,
   Eye,
   FilePlus2,
@@ -17,6 +18,8 @@ import { ApiError } from "@/api/client";
 import { getSavedCase, type SavedCaseRecord } from "@/api/savedCases";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftNumberInput, DraftTextInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
@@ -25,16 +28,21 @@ import { useCalculationCaseBinding } from "@/hooks/useCalculationCaseBinding";
 import type { CalcSaveResult } from "../../shared/calcBackendCrud";
 import HaftaTatiliExpiryBox from "./HaftaTatiliExpiryBox";
 import {
-  deleteLocalExclusionSet,
-  upsertLocalExclusionSet,
+  createHaftaTatiliGuidedTour,
+  haftaTatiliWelcomeCopy,
+  type HaftaTatiliTourVariant,
+} from "./guidedTour";
+import {
   type LocalExclusionSet,
 } from "@/lib/localExclusionSetsStore";
 import { tryMergeLegacyExclusionSets } from "@/lib/localExclusionSetsHelpers";
 import {
   SHARED_LEAVE_EXCLUSION_POOL_ID,
-  listSharedLeaveExclusionSets,
+  deleteSharedLeaveExclusionSet,
+  listSharedLeaveExclusionSetsAsync,
   mergeRowsByFingerprint,
   normalizeLeaveTypeForHaftaTatili,
+  upsertSharedLeaveExclusionSet,
 } from "@/lib/sharedLeaveExclusionPool";
 import { clampYear, formatDateTR, formatMoney, newLocalId, parseNum } from "./money";
 import type { DateRange, ExcludedDay, NetBreakdown, TableRow } from "./types";
@@ -128,6 +136,8 @@ export type HaftaTatiliPageConfig<TForm extends HaftaTatiliBaseForm> = {
   styles: Record<string, string>;
   exclusionSetsModuleId?: string;
   backend?: HaftaTatiliBackendConfig<TForm>;
+  /** Etkileşimli kılavuz variant kimliği. */
+  guidedTourVariant?: HaftaTatiliTourVariant;
 };
 
 function AnimatedMoney({ value, className }: { value: number; className?: string }) {
@@ -201,7 +211,16 @@ function mergeAutoWithManual(auto: TableRow[], prevRows: TableRow[]): TableRow[]
 export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config }: { config: HaftaTatiliPageConfig<TForm> }) {
   const styles = config.styles;
   const backend = config.backend;
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
+  const tour = useGuidedTourController();
+  const tourDefinition = useMemo(
+    () => (config.guidedTourVariant ? createHaftaTatiliGuidedTour(config.guidedTourVariant) : null),
+    [config.guidedTourVariant],
+  );
+  const welcomeCopy = useMemo(
+    () => (config.guidedTourVariant ? haftaTatiliWelcomeCopy(config.guidedTourVariant) : null),
+    [config.guidedTourVariant],
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const caseIdParam = searchParams.get("caseId");
   const backendLoadedCaseIdRef = useRef<string | null>(null);
@@ -267,23 +286,16 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
               ? error.message
               : "Kayıtlar yüklenemedi";
         setStorageError(message);
-        const local = config.storage.loadCasesSafe();
-        setCases(local.ok ? local.items : []);
+        setCases([]);
         return;
       }
     }
-    const loaded = config.storage.loadCasesSafe();
-    if (!loaded.ok) {
-      setStorageError(loaded.reason || "Depo hatası");
-      setCases([]);
-      return;
-    }
-    setStorageError(null);
-    setCases(loaded.items);
+    setStorageError("Kayıtlar sunucudan yüklenemedi");
+    setCases([]);
   }, [backend, config.storage]);
 
-  const refreshExclusionSets = useCallback(() => {
-    setSavedExclusionSets(listSharedLeaveExclusionSets());
+  const refreshExclusionSets = useCallback(async () => {
+    setSavedExclusionSets(await listSharedLeaveExclusionSetsAsync());
   }, []);
 
   useEffect(() => { void reloadCases(); }, [reloadCases]);
@@ -342,7 +354,7 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
       if (merged && merged.imported > 0) {
         success(`${merged.imported} eski dışlama seti yerel depoya alındı`);
       }
-      refreshExclusionSets();
+      await refreshExclusionSets();
     })();
     return () => { cancelled = true; };
   }, [refreshExclusionSets, success]);
@@ -397,14 +409,16 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
   }, [config]);
 
   const persistExclusionSet = (name: string) => {
-    try {
-      upsertLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, name, excludedDaysToSetItems(form.excludedDays));
-      refreshExclusionSets();
-      setExclusionSaveOpen(false);
-      success("Dışlama seti kaydedildi");
-    } catch (err) {
-      showError(err instanceof Error ? err.message : "Kaydedilemedi");
-    }
+    void (async () => {
+      try {
+        await upsertSharedLeaveExclusionSet(name, excludedDaysToSetItems(form.excludedDays));
+        await refreshExclusionSets();
+        setExclusionSaveOpen(false);
+        success("Dışlama seti kaydedildi");
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "Kaydedilemedi");
+      }
+    })();
   };
 
   const importExclusionSet = (set: LocalExclusionSet) => {
@@ -419,16 +433,18 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
   };
 
   const removeExclusionSet = (id: string) => {
-    deleteLocalExclusionSet(SHARED_LEAVE_EXCLUSION_POOL_ID, id);
-    refreshExclusionSets();
-    success("Set silindi");
+    void (async () => {
+      await deleteSharedLeaveExclusionSet(id);
+      await refreshExclusionSets();
+      success("Set silindi");
+    })();
   };
 
   const rescanLegacyExclusions = async () => {
     const merged = await tryMergeLegacyExclusionSets(SHARED_LEAVE_EXCLUSION_POOL_ID, { force: true });
-    refreshExclusionSets();
+    await refreshExclusionSets();
     if (!merged) {
-      success("Yerel setler kullanılıyor (sunucu setleri alınamadı)");
+      success("Hesap setleri kullanılıyor (eski sunucu setleri alınamadı)");
       return;
     }
     success(
@@ -554,13 +570,7 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
       }
       return;
     }
-    const saved = config.storage.saveCase(name, form, { totalBrut: result.totalBrut, netAmount: result.net.netAmount }, activeId);
-    if (!saved) { showError("Kayıt adı gerekli"); return; }
-    setActiveId(saved.id);
-    setActiveName(saved.name);
-    setBaseline(config.snapshotKey(form));
-    void reloadCases();
-    success("Kayıt kaydedildi");
+    showError("Sunucu kaydı gerekli");
     setNameOpen(false);
   };
 
@@ -649,11 +659,11 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
           <div>
             <h1 className={styles.title}>{config.pageTitle}</h1>
             <p className={styles.desc}>
-              {config.pageDescription ?? (backend ? "V3 formülleri · sunucu kayıt desteği" : "V3 formülleri · tamamen lokal hesaplama")}
+              {config.pageDescription ?? (backend ? "V3 formülleri · sunucu kayıt desteği" : "V3 formülleri")}
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>{backend ? "Hesaplama ve kayıtlar yalnızca bu cihazda" : "Bu cihazda · ağ yok"}</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
             {storageError ? (
               <p className={styles.helper}>
@@ -689,6 +699,18 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
             </span>
           </div>
           <div className={styles.heroActions}>
+            {tourDefinition ? (
+              <Button
+                type="button"
+                variant="soft"
+                size="sm"
+                className={tourStyles.howToBtn}
+                onClick={() => tour.openTour(0)}
+                aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+              >
+                <CirclePlay size={14} /> Nasıl kullanılır?
+              </Button>
+            ) : null}
             <Button type="button" variant="soft" size="sm" onClick={() => setListOpen(true)}>
               <FolderOpen size={14} /> Kayıtlar ({cases.length})
             </Button>
@@ -701,10 +723,10 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
 
       <div className={styles.layout}>
         <div className={styles.mainCol}>
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="hafta-tatili-donem">
             <h2 className={styles.sectionTitle}>İşe Giriş — Çıkış Tarihleri</h2>
             {form.dateRanges.map((range) => (
-              <div key={range.id} className={styles.rangeRow}>
+              <div key={range.id} className={styles.rangeRow} data-tour-period-row>
                 <DraftDateInput className={styles.input} value={range.start} max="9999-12-31"
                   onCommit={(v) => patch("dateRanges", form.dateRanges.map((r) => r.id === range.id ? { ...r, start: clampYear(v) } : r) as TForm["dateRanges"])} />
                 <span>—</span>
@@ -720,7 +742,7 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
           </section>
 
           {config.showSeasonal && (
-            <section className={styles.card}>
+            <section className={styles.card} data-tour="hafta-tatili-ozel-bilgiler">
               <h2 className={styles.sectionTitle}>Hafta Tatili Kullanım Bilgisi</h2>
               <div className={styles.grid3}>
                 <DraftTextInput className={styles.input} placeholder="Başlangıç gg.aa" value={form.kullanimBaslangic ?? ""}
@@ -737,7 +759,7 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
           )}
 
           {config.showGeceCalisan && (
-            <section className={styles.card} aria-labelledby="gece-calisan-heading">
+            <section className={styles.card} aria-labelledby="gece-calisan-heading" data-tour="hafta-tatili-ozel-bilgiler">
               <label className={styles.geceBlock ?? styles.checkRow} htmlFor="gece-calisan">
                 <input
                   id="gece-calisan"
@@ -756,7 +778,7 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
             </section>
           )}
 
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="hafta-tatili-dislamalar">
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>Dışlanabilir Günler</h2>
               <div className={styles.inlineBtns}>
@@ -767,7 +789,7 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
                   type="button"
                   size="sm"
                   variant="soft"
-                  onClick={() => { refreshExclusionSets(); setExclusionImportOpen(true); }}
+                  onClick={() => { void refreshExclusionSets().then(() => setExclusionImportOpen(true)); }}
                 >
                   <Download size={14} /> İçe aktar
                 </Button>
@@ -800,36 +822,38 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
           </section>
 
           <section className={styles.card}>
-            <div className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>Hesaplama Tablosu</h2>
-              <div className={styles.inlineBtns}>
-                {backend?.useExpiryBox ? (
-                  <HaftaTatiliExpiryBox
-                    expiryStart={form.expiryStart}
-                    onExpiryStartChange={(d) => patch("expiryStart", d as TForm["expiryStart"])}
-                    iseGiris={iseGiris}
-                    styles={styles}
-                  />
-                ) : (
-                  <input
-                    type="date"
-                    className={styles.input}
-                    title="Zamanaşımı başlangıcı"
-                    value={form.expiryStart ?? ""}
-                    onChange={(e) => patch("expiryStart", (e.target.value || null) as TForm["expiryStart"])}
-                  />
-                )}
-                <Button type="button" size="sm" variant="ghost" onClick={() => setKatsayiOpen(true)}>Kat Sayı</Button>
+            <div data-tour="hafta-tatili-ayarlar">
+              <div className={styles.sectionHead}>
+                <h2 className={styles.sectionTitle}>Hesaplama Tablosu</h2>
+                <div className={styles.inlineBtns}>
+                  {backend?.useExpiryBox ? (
+                    <HaftaTatiliExpiryBox
+                      expiryStart={form.expiryStart}
+                      onExpiryStartChange={(d) => patch("expiryStart", d as TForm["expiryStart"])}
+                      iseGiris={iseGiris}
+                      styles={styles}
+                    />
+                  ) : (
+                    <input
+                      type="date"
+                      className={styles.input}
+                      title="Zamanaşımı başlangıcı"
+                      value={form.expiryStart ?? ""}
+                      onChange={(e) => patch("expiryStart", (e.target.value || null) as TForm["expiryStart"])}
+                    />
+                  )}
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setKatsayiOpen(true)}>Kat Sayı</Button>
+                </div>
               </div>
+              <ManualBrutWageApplyControls
+                rows={result.rows}
+                onApplyBrutsByRowId={handleApplyManualBruts}
+                manualBrutActive={manualBrutActive}
+                onDeactivateManualBrut={handleDeactivateManualBrut}
+                success={success}
+                error={showError}
+              />
             </div>
-            <ManualBrutWageApplyControls
-              rows={result.rows}
-              onApplyBrutsByRowId={handleApplyManualBruts}
-              manualBrutActive={manualBrutActive}
-              onDeactivateManualBrut={handleDeactivateManualBrut}
-              success={success}
-              error={showError}
-            />
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
@@ -968,7 +992,10 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
         </aside>
       </div>
 
-      <div className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${dirty ? styles.stickyBarDirty : ""}`}
+        data-tour="hafta-tatili-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {dirty ? "Kaydedilmemiş değişiklikler var" : activeName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1093,6 +1120,36 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
       <CalculationPreviewModal open={previewOpen} onClose={() => setPreviewOpen(false)} title={config.previewTitle} sections={previewSections} contentId="ht-preview" />
       <ConfirmDialog open={confirmNew} title="Yeni hesap?" description="Kaydedilmemiş değişiklikler silinecek." onConfirm={doNew} onCancel={() => setConfirmNew(false)} />
       <ConfirmDialog open={!!confirmDeleteId} title="Kaydı sil?" description="Bu işlem geri alınamaz." danger onConfirm={() => void handleConfirmDelete()} onCancel={() => setConfirmDeleteId(null)} />
+
+      {tourDefinition && welcomeCopy ? (
+        <GuidedTourHost
+          definition={tourDefinition}
+          active={tour.active}
+          onActiveChange={tour.setActive}
+          welcomeOpen={tour.welcomeOpen}
+          onWelcomeOpenChange={tour.setWelcomeOpen}
+          welcomeTitle={welcomeCopy.title}
+          welcomeBody={welcomeCopy.body}
+          welcomeStartLabel="Başlat"
+          welcomeLaterLabel="Kendim devam edeceğim"
+          initialStepIndex={tour.resumeStepIndex}
+          onCollectingComplete={() => {
+            tour.completeTour();
+            toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+          }}
+          paused={
+            previewOpen ||
+            nameOpen ||
+            listOpen ||
+            katsayiOpen ||
+            mahsupOpen ||
+            exclusionSaveOpen ||
+            exclusionImportOpen ||
+            confirmNew ||
+            !!confirmDeleteId
+          }
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { YERALTI_FM_CASES_KEY } from "./storage";
 /**
  * V3 backend kayıt → Yeraltı İşçisi Fazla Mesai form mapping.
  * Yalnızca form alanlarını doldurur; sonuçlar her zaman lokalde yeniden
@@ -241,6 +242,7 @@ const yeraltiCrud = createFmBackendCrud({
   isRecordType: isYeraltiFmRecordType,
   mapFormFromBackend: mapYeraltiFormFromBackend,
   buildSaveData: buildYeraltiSaveData,
+  localStorageKey: YERALTI_FM_CASES_KEY,
 });
 
 export const listYeraltiFmCases = yeraltiCrud.listCases;

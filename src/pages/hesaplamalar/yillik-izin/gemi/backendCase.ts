@@ -1,3 +1,4 @@
+import { STORAGE_KEY } from "./storage";
 /**
  * V3/backend kayıt → Yıllık Ücretli İzin (Gemi Adamları).
  */
@@ -125,6 +126,7 @@ const caseCrud = createCalcBackendCrud({
   isRecordType: isYillikGemiRecordType,
   mapFormFromBackend: mapYillikGemiFormFromBackend,
   buildSaveData,
+  localStorageKey: STORAGE_KEY,
 });
 
 function mapRecordToSavedCase(record: SavedCaseRecord): YillikSavedCase<YillikGemiForm> | null {

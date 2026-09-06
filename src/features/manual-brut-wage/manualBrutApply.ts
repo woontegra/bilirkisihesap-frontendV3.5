@@ -8,20 +8,25 @@ import {
   getManuelBrutPeriodCatalog,
   periodStorageKey,
 } from "@/pages/araclar/manuel-brut-ucret/periodCatalog";
-import { getTemplateById, loadTemplatesSafe } from "@/pages/araclar/manuel-brut-ucret/storage";
-import type { ManuelBrutPeriodsMap } from "@/pages/araclar/manuel-brut-ucret/model";
+import {
+  getCachedTemplates,
+  getTemplateById,
+  loadTemplatesSafe,
+} from "@/pages/araclar/manuel-brut-ucret/storage";
+import type { ManuelBrutPeriodsMap, ManuelBrutTemplate } from "@/pages/araclar/manuel-brut-ucret/model";
 
 export type ManualBrutRowStub = { id: string; startISO: string };
 
-export function loadManualBrutTemplates() {
-  return loadTemplatesSafe().templates;
+export async function loadManualBrutTemplates(): Promise<ManuelBrutTemplate[]> {
+  const result = await loadTemplatesSafe();
+  return result.templates;
 }
 
 export function hasManualBrutTemplates(): boolean {
-  return loadManualBrutTemplates().length > 0;
+  return getCachedTemplates().length > 0;
 }
 
-export function getManualBrutTemplate(id: string) {
+export async function getManualBrutTemplate(id: string): Promise<ManuelBrutTemplate | undefined> {
   return getTemplateById(id);
 }
 

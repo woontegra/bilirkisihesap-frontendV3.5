@@ -164,6 +164,7 @@ export default function YillikMevsimPage() {
 
   return (
     <YillikPageView
+      guidedTourVariant="mevsim"
       icon={Sun}
       pageTitle={PAGE_TITLE}
       pageDescription="Mevsimlik iş ilişkisinde fiili kıdeme göre yıllık izin alacağı."

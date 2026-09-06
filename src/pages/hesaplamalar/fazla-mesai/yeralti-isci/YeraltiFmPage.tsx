@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Calculator,
+  CirclePlay,
   Clock3,
   Eye,
   FilePlus2,
@@ -24,10 +25,17 @@ import {
 import { ApiError } from "@/api/client";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
 import { DraftDateInput, DraftTimeInput } from "@/components/form";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 import { Button } from "@/components/ui/Button";
 import { useDeferredFormMemo } from "@/hooks/useDeferredFormMemo";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
+import {
+  FM_YERALTI_TOUR,
+  FM_YERALTI_TOUR_WELCOME_BODY,
+  FM_YERALTI_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import {
   listYeraltiFmCases,
   loadYeraltiFmCase,
@@ -184,6 +192,20 @@ export default function YeraltiFmPage() {
   const [saveFlash, setSaveFlash] = useState(false);
   const [formSwap, setFormSwap] = useState(false);
   const [baseline, setBaseline] = useState("");
+  const [exclusionOverlayOpen, setExclusionOverlayOpen] = useState(false);
+  const tour = useGuidedTourController();
+
+  const tourPaused =
+    showRecordsModal ||
+    showCaseSaveModal ||
+    showPreview ||
+    showUbgtPicker ||
+    showZamanasimiModal ||
+    showKatsayiModal ||
+    showMahsupModal ||
+    exclusionOverlayOpen ||
+    deleteCaseTarget !== null ||
+    discardOpen;
 
   const setField = <K extends keyof YeraltiFormSnapshot>(key: K, value: YeraltiFormSnapshot[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -608,7 +630,7 @@ export default function YeraltiFmPage() {
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={14} />
-              <span>Hesaplama yalnızca bu cihazda yapılır</span>
+              <span>Veriler hesabınıza güvenli şekilde kaydedilir</span>
             </div>
           </div>
         </div>
@@ -625,6 +647,17 @@ export default function YeraltiFmPage() {
             <FlashValue className={styles.quickTotalValue} value={`${formatMoney(result.totalFm)} ₺`} />
           </div>
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button variant="soft" size="sm" onClick={() => setShowRecordsModal(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({savedCases.length})
@@ -657,25 +690,27 @@ export default function YeraltiFmPage() {
             <h2 className={styles.cardTitle}>Davacı Tarih ve Saat Bilgileri</h2>
           </div>
           <div className={styles.basicGrid}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>İşe Giriş</span>
-              <DraftDateInput
-                className={styles.dateInput}
-                value={form.davaciDateIn}
-                onCommit={(v) => setField("davaciDateIn", v)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>İşten Çıkış</span>
-              <div className={`${styles.dateWrap} ${dateError ? styles.inputWrapError : ""}`}>
+            <div data-tour="fm-yeralti-donem" className={styles.basicGrid} style={{ gridColumn: "1 / -1" }}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>İşe Giriş</span>
                 <DraftDateInput
                   className={styles.dateInput}
-                  value={form.davaciDateOut}
-                  onCommit={(v) => setField("davaciDateOut", v)}
-                  aria-invalid={dateError ? true : undefined}
+                  value={form.davaciDateIn}
+                  onCommit={(v) => setField("davaciDateIn", v)}
                 />
-              </div>
-            </label>
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>İşten Çıkış</span>
+                <div className={`${styles.dateWrap} ${dateError ? styles.inputWrapError : ""}`}>
+                  <DraftDateInput
+                    className={styles.dateInput}
+                    value={form.davaciDateOut}
+                    onCommit={(v) => setField("davaciDateOut", v)}
+                    aria-invalid={dateError ? true : undefined}
+                  />
+                </div>
+              </label>
+            </div>
             {dateError ? <p className={styles.errorText}>{dateError}</p> : null}
 
             <label className={styles.field}>
@@ -693,22 +728,24 @@ export default function YeraltiFmPage() {
               </select>
             </label>
 
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Giriş Saati</span>
-              <DraftTimeInput
-                className={styles.dateInput}
-                value={form.davaciIn}
-                onCommit={(v) => setField("davaciIn", v)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Çıkış Saati</span>
-              <DraftTimeInput
-                className={styles.dateInput}
-                value={form.davaciOut}
-                onCommit={(v) => setField("davaciOut", v)}
-              />
-            </label>
+            <div data-tour="fm-yeralti-saatler" className={styles.basicGrid} style={{ gridColumn: "1 / -1" }}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Giriş Saati</span>
+                <DraftTimeInput
+                  className={styles.dateInput}
+                  value={form.davaciIn}
+                  onCommit={(v) => setField("davaciIn", v)}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Çıkış Saati</span>
+                <DraftTimeInput
+                  className={styles.dateInput}
+                  value={form.davaciOut}
+                  onCommit={(v) => setField("davaciOut", v)}
+                />
+              </label>
+            </div>
 
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Hafta Tatili Hangi Gün? (opsiyonel)</span>
@@ -728,7 +765,7 @@ export default function YeraltiFmPage() {
           </div>
         </section>
 
-        <section className={styles.card} style={{ animationDelay: "90ms" }}>
+        <section className={styles.card} style={{ animationDelay: "90ms" }} data-tour="fm-yeralti-taniklar">
           <div className={styles.cardTitleRow}>
             <h2 className={styles.cardTitle}>Tanık Beyanları</h2>
             <button type="button" className={styles.addRowBtn} onClick={addWitness}>
@@ -830,59 +867,62 @@ export default function YeraltiFmPage() {
           </div>
         </section>
 
-        <ExclusionsPanel
-          exclusions={form.exclusions}
-          onChange={setExclusions}
-          onOpenUbgtPicker={() => setShowUbgtPicker(true)}
-          visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
-        />
+        <div data-tour="fm-yeralti-ayarlar" style={{ display: "grid", gap: "1rem", minWidth: 0 }}>
+          <ExclusionsPanel
+            exclusions={form.exclusions}
+            onChange={setExclusions}
+            onOpenUbgtPicker={() => setShowUbgtPicker(true)}
+            visibleAfterIso={form.zamanasimi?.nihaiBaslangic ?? null}
+            onOverlayOpenChange={setExclusionOverlayOpen}
+          />
 
-        <p className={styles.redNote}>
-          Son haftaya isabet eden izin/UBGT düşümlerinde, tabloda görülen tarih aralığı 7 günden kısa olsa dahi hesaplama
-          bu süre üzerinden yapılmaz. İlgili düşüm, üst satırdaki toplam haftadan 1 hafta eksiltilerek ayrı bir satırda 1
-          hafta olarak dikkate alınmıştır.
-        </p>
+          <p className={styles.redNote}>
+            Son haftaya isabet eden izin/UBGT düşümlerinde, tabloda görülen tarih aralığı 7 günden kısa olsa dahi hesaplama
+            bu süre üzerinden yapılmaz. İlgili düşüm, üst satırdaki toplam haftadan 1 hafta eksiltilerek ayrı bir satırda 1
+            hafta olarak dikkate alınmıştır.
+          </p>
 
-        <section className={styles.card} style={{ animationDelay: "150ms" }}>
-          <h2 className={styles.cardTitle}></h2>
-          <div className={styles.basicGrid}>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Kat Sayı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() => setShowKatsayiModal(true)}
-                title={hasCustomKatsayi ? "Katsayıyı düzenle" : "Katsayı hesapla"}
-              >
-                <Calculator size={13} />
-                {hasCustomKatsayi ? `Katsayı ${form.katsayi}` : "Kat Sayı"}
-              </button>
+          <section className={styles.card} style={{ animationDelay: "150ms" }}>
+            <h2 className={styles.cardTitle}></h2>
+            <div className={styles.basicGrid}>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Kat Sayı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${hasCustomKatsayi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() => setShowKatsayiModal(true)}
+                  title={hasCustomKatsayi ? "Katsayıyı düzenle" : "Katsayı hesapla"}
+                >
+                  <Calculator size={13} />
+                  {hasCustomKatsayi ? `Katsayı ${form.katsayi}` : "Kat Sayı"}
+                </button>
+              </div>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>270 Saat</span>
+                <select
+                  className={styles.selectInput}
+                  value={form.mode270}
+                  onChange={(e) => setField("mode270", e.target.value as Mode270)}
+                >
+                  <option value="none">Kapalı</option>
+                  <option value="detailed">Şirket Uygulaması</option>
+                  <option value="simple">Yargıtay Uygulaması</option>
+                </select>
+              </label>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Zamanaşımı</span>
+                <button
+                  type="button"
+                  className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
+                  onClick={() => setShowZamanasimiModal(true)}
+                >
+                  <History size={13} />
+                  {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
+                </button>
+              </div>
             </div>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>270 Saat</span>
-              <select
-                className={styles.selectInput}
-                value={form.mode270}
-                onChange={(e) => setField("mode270", e.target.value as Mode270)}
-              >
-                <option value="none">Kapalı</option>
-                <option value="detailed">Şirket Uygulaması</option>
-                <option value="simple">Yargıtay Uygulaması</option>
-              </select>
-            </label>
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Zamanaşımı</span>
-              <button
-                type="button"
-                className={`${styles.zamanasimiBadge} ${form.zamanasimi ? styles.zamanasimiBadgeActive : ""}`}
-                onClick={() => setShowZamanasimiModal(true)}
-              >
-                <History size={13} />
-                {form.zamanasimi ? "Zamanaşımı" : "Zamanaşımı İtirazı"}
-              </button>
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
         <ZamanasimiCetvelBanner nihaiBaslangic={form.zamanasimi?.nihaiBaslangic} />
         <CetvelTable
@@ -983,7 +1023,10 @@ export default function YeraltiFmPage() {
         </section>
       </div>
 
-      <div className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${isDirty ? styles.stickyBarDirty : ""} ${saveFlash ? styles.stickyBarSaved : ""}`}
+        data-tour="fm-yeralti-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {isDirty ? "Kaydedilmemiş değişiklikler var" : currentRecordName ? "Tüm değişiklikler kaydedildi" : "Hazır"}
@@ -1134,6 +1177,24 @@ export default function YeraltiFmPage() {
           setDiscardOpen(false);
           setPendingAction(null);
         }}
+      />
+
+      <GuidedTourHost
+        definition={FM_YERALTI_TOUR}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={FM_YERALTI_TOUR_WELCOME_TITLE}
+        welcomeBody={FM_YERALTI_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toast.info("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={tourPaused}
       />
     </div>
   );
