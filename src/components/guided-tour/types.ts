@@ -6,10 +6,11 @@ export type GuidedTourContext = {
 
 /**
  * auto — form doldurulunca gecikmeli ilerler; gereksiz “İleri” yok
- * optional — isteğe bağlı; “Ek ödemem yok” / “Devam et”
+ * manual — kullanıcı İleri / Atla ile ilerler (İhbar vb.)
+ * optional — isteğe bağlı; “Ek ödemem yok” / “Ek ödemeleri tamamladım”
  * finish — son adım; “Kılavuzu tamamla”
  */
-export type GuidedTourStepMode = "auto" | "optional" | "finish";
+export type GuidedTourStepMode = "auto" | "manual" | "optional" | "finish";
 
 export type GuidedTourAutoAdvance = {
   /** Adım tamamlandığında true. */

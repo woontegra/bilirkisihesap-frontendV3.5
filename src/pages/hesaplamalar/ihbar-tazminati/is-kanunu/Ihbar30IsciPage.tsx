@@ -411,6 +411,7 @@ export default function Ihbar30IsciPage() {
         previewTitle={PREVIEW_TITLE}
 
         previewContentId="ihbar-30isci-preview"
+        guidedTourId="ihbar-30isci"
 
         startDate={form.startDate}
 

@@ -5,9 +5,10 @@
  * Yalnızca ihbar-tazminati modülü içinde paylaşılır.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Calculator,
+  CirclePlay,
   Download,
   Eye,
   FilePlus2,
@@ -21,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { CalculationPreviewModal, type PreviewSection } from "@/components/calculation-preview";
+import { GuidedTourHost, useGuidedTourController } from "@/components/guided-tour";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/context/ToastContext";
@@ -36,9 +38,15 @@ import {
   upsertLocalExtraSet,
 } from "@/lib/localExtraSetsStore";
 import { computeEklentiResult } from "./core";
+import {
+  createIhbarGuidedTour,
+  IHBAR_TOUR_WELCOME_BODY,
+  IHBAR_TOUR_WELCOME_TITLE,
+} from "./guidedTour";
 import { formatMoney } from "./money";
 import type { CaseListEntry, ExtraItem, NoteBlock } from "./types";
 import styles from "./IhbarPageView.module.css";
+import tourStyles from "@/components/guided-tour/GuidedTour.module.css";
 
 export function FlashValue({ value, className }: { value: string; className?: string }) {
   const [flash, setFlash] = useState(false);
@@ -231,6 +239,11 @@ export type IhbarPageViewProps = {
   extraCard?: ReactNode;
   caseSaving?: boolean;
   caseLoading?: boolean;
+  /**
+   * Sayfa bazlı kılavuz persistence anahtarı (örn. ihbar-30isci).
+   * Kıdem anahtarlarıyla çakışmamalı; her ihbar varyantı ayrı olmalı.
+   */
+  guidedTourId: string;
 };
 
 const WAGE_LABELS: Record<WageFieldKey, string> = {
@@ -252,8 +265,13 @@ function emptyMonths(): string[] {
 
 export function IhbarPageView(props: IhbarPageViewProps) {
   const Icon = props.icon;
-  const { success, error: showError } = useToast();
+  const { success, error: showError, info: toastInfo } = useToast();
   const extraSetsModuleId = props.extraSetsModuleId ?? "ihbar-tazminati";
+  const tour = useGuidedTourController();
+  const tourDefinition = useMemo(
+    () => createIhbarGuidedTour(props.guidedTourId),
+    [props.guidedTourId],
+  );
   const [eklentiFor, setEklentiFor] = useState<EklentiTarget | null>(null);
   const [eklentiMonths, setEklentiMonths] = useState<Record<string, string[]>>({});
   const [extraSaveOpen, setExtraSaveOpen] = useState(false);
@@ -388,6 +406,17 @@ export function IhbarPageView(props: IhbarPageViewProps) {
             </div>
           ) : null}
           <div className={styles.heroActions}>
+            <Button
+              type="button"
+              variant="soft"
+              size="sm"
+              className={tourStyles.howToBtn}
+              onClick={() => tour.openTour(0)}
+              aria-label="Nasıl kullanılır? Etkileşimli kılavuzu başlat"
+            >
+              <CirclePlay size={14} />
+              Nasıl kullanılır?
+            </Button>
             <Button type="button" variant="soft" size="sm" onClick={() => props.setListOpen(true)}>
               <FolderOpen size={14} />
               Kayıtlar ({props.cases.length})
@@ -411,7 +440,7 @@ export function IhbarPageView(props: IhbarPageViewProps) {
 
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
-          <section className={styles.card}>
+          <section className={styles.card} data-tour="ihbar-tarihler">
             <div className={styles.cardHead}>
               <Calculator size={16} />
               <h2 className={styles.cardTitle}>Tarih bilgileri</h2>
@@ -505,7 +534,7 @@ export function IhbarPageView(props: IhbarPageViewProps) {
                 </Button>
               </div>
             </div>
-            <div className={styles.fields}>
+            <div className={styles.fields} data-tour="ihbar-brut">
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="ihbar-brut">
                   Brüt ücret
@@ -527,6 +556,7 @@ export function IhbarPageView(props: IhbarPageViewProps) {
               </div>
             </div>
 
+            <div data-tour="ihbar-ekstra">
             <div className={styles.wageGrid}>
               {(Object.keys(WAGE_LABELS) as WageFieldKey[]).map((field) => (
                 <div key={field} className={styles.fixedExtraRow}>
@@ -616,6 +646,7 @@ export function IhbarPageView(props: IhbarPageViewProps) {
               <button type="button" className={styles.addRowBtn} onClick={props.onAddExtra}>
                 <Plus size={14} /> Kalem ekle
               </button>
+            </div>
             </div>
 
             <div className={styles.grossSummary}>
@@ -715,7 +746,10 @@ export function IhbarPageView(props: IhbarPageViewProps) {
         </aside>
       </div>
 
-      <div className={`${styles.stickyBar} ${props.dirty ? styles.stickyBarDirty : ""}`}>
+      <div
+        className={`${styles.stickyBar} ${props.dirty ? styles.stickyBarDirty : ""}`}
+        data-tour="ihbar-kaydet-actions"
+      >
         <div className={styles.stickyInner}>
           <p className={styles.stickyStatus}>
             {props.dirty
@@ -923,6 +957,25 @@ export function IhbarPageView(props: IhbarPageViewProps) {
         sections={props.previewSections}
         contentId={props.previewContentId}
         onClose={() => props.setPreviewOpen(false)}
+      />
+
+      <GuidedTourHost
+        definition={tourDefinition}
+        active={tour.active}
+        onActiveChange={tour.setActive}
+        welcomeOpen={tour.welcomeOpen}
+        onWelcomeOpenChange={tour.setWelcomeOpen}
+        welcomeTitle={IHBAR_TOUR_WELCOME_TITLE}
+        welcomeBody={IHBAR_TOUR_WELCOME_BODY}
+        welcomeStartLabel="Başlat"
+        welcomeLaterLabel="Kendim devam edeceğim"
+        welcomeNeverLabel="Bir daha gösterme"
+        initialStepIndex={tour.resumeStepIndex}
+        onCollectingComplete={() => {
+          tour.completeTour();
+          toastInfo("Kılavuz tamamlandı. Hesaplamanızı önizleyebilir veya kaydedebilirsiniz.");
+        }}
+        paused={props.previewOpen}
       />
     </div>
   );

@@ -205,6 +205,7 @@ export default function IhbarMevsimPage() {
         icon={Sun}
         previewTitle={PREVIEW_TITLE}
         previewContentId="ihbar-mevsim-preview"
+        guidedTourId="ihbar-mevsim"
         startDate={form.startDate}
         endDate={form.endDate}
         onStartDateChange={(v) => patch("startDate", clampYear(v))}

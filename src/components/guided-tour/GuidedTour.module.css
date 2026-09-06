@@ -124,3 +124,7 @@
   z-index: 12010 !important;
   pointer-events: auto !important;
 }
+
+.howToBtn {
+  flex-shrink: 0;
+}

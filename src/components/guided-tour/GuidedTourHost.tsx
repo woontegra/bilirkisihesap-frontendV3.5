@@ -290,10 +290,12 @@ export function GuidedTourHost({
    * - Listen to trusted input/change/keyup in capture (blur NOT required)
    * - Debounce, then poll live DOM readiness briefly (controlled/native date lag)
    * - Only after user edit on THIS step visit (geri sonrası anında fırlamaz)
+   * - Works for `auto` and `manual` steps that declare `autoAdvance`
    * - Effect deps avoid full `step` object so parent re-renders don't clear timers mid-type
    */
   useEffect(() => {
-    if (!active || paused || mode !== "auto" || !step?.autoAdvance) return;
+    if (!active || paused || !step?.autoAdvance) return;
+    if (mode !== "auto" && mode !== "manual") return;
 
     const stepIndex = safeIndex;
     const delayMs = step.autoAdvance.delayMs ?? 500;
@@ -341,12 +343,31 @@ export function GuidedTourHost({
       });
     };
 
+    /** Blur / Enter: geçerli değer varsa debounce beklemeden ilerle (Kıdem/İhbar ücret adımı). */
+    const onCommit = (e: Event) => {
+      if (!e.isTrusted) return;
+      if (indexRef.current !== stepIndex) return;
+      const t = e.target;
+      if (t instanceof Element && !t.closest("input, textarea, select, [contenteditable=true]")) {
+        return;
+      }
+      if (e instanceof KeyboardEvent && e.key !== "Enter") return;
+      userEditedRef.current = true;
+      clearTimers();
+      window.requestAnimationFrame(() => {
+        if (cancelled) return;
+        tryAdvance();
+      });
+    };
+
     const el = findTourTarget(step.target);
     if (!el) return;
 
     el.addEventListener("input", onUserEdit, true);
     el.addEventListener("change", onUserEdit, true);
     el.addEventListener("keyup", onUserEdit, true);
+    el.addEventListener("blur", onCommit, true);
+    el.addEventListener("keydown", onCommit, true);
 
     return () => {
       cancelled = true;
@@ -354,6 +375,8 @@ export function GuidedTourHost({
       el.removeEventListener("input", onUserEdit, true);
       el.removeEventListener("change", onUserEdit, true);
       el.removeEventListener("keyup", onUserEdit, true);
+      el.removeEventListener("blur", onCommit, true);
+      el.removeEventListener("keydown", onCommit, true);
     };
   }, [active, paused, mode, safeIndex, step?.id, step?.target, step?.autoAdvance, clearTimers]);
 
@@ -404,6 +427,30 @@ export function GuidedTourHost({
           </Button>
           <Button variant="primary" size="sm" onClick={goNext}>
             Kılavuzu tamamla
+          </Button>
+        </div>
+      );
+    }
+
+    if (mode === "manual") {
+      return (
+        <div className={styles.actions}>
+          <Button variant="soft" size="sm" onClick={closeTour}>
+            Kılavuzu kapat
+          </Button>
+          <span className={styles.actionsSpacer} />
+          {safeIndex > 0 ? (
+            <Button variant="soft" size="sm" onClick={goPrev}>
+              Geri
+            </Button>
+          ) : null}
+          {step.skippable !== false ? (
+            <Button variant="soft" size="sm" onClick={goNext} disabled={isLast}>
+              Atla
+            </Button>
+          ) : null}
+          <Button variant="primary" size="sm" onClick={goNext}>
+            İleri
           </Button>
         </div>
       );

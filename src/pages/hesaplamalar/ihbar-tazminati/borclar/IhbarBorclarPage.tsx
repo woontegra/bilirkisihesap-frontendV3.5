@@ -411,6 +411,7 @@ export default function IhbarBorclarPage() {
         previewTitle={PREVIEW_TITLE}
 
         previewContentId="ihbar-borclar-preview"
+        guidedTourId="ihbar-borclar"
 
         startDate={form.startDate}
 

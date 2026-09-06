@@ -211,6 +211,7 @@ export default function IhbarBasinPage() {
         icon={Newspaper}
         previewTitle={PREVIEW_TITLE}
         previewContentId="ihbar-basin-preview"
+        guidedTourId="ihbar-basin"
         startDate={form.startDate}
         endDate={form.endDate}
         onStartDateChange={(v) => patch("startDate", clampYear(v))}

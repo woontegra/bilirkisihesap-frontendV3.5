@@ -205,6 +205,7 @@ export default function IhbarGemiPage() {
         icon={Anchor}
         previewTitle={PREVIEW_TITLE}
         previewContentId="ihbar-gemi-preview"
+        guidedTourId="ihbar-gemi"
         startDate={form.startDate}
         endDate={form.endDate}
         onStartDateChange={(v) => patch("startDate", clampYear(v))}

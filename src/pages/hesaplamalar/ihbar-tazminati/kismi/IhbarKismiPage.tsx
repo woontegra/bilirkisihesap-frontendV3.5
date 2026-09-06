@@ -205,6 +205,7 @@ export default function IhbarKismiPage() {
         icon={Clock3}
         previewTitle={PREVIEW_TITLE}
         previewContentId="ihbar-kismi-preview"
+        guidedTourId="ihbar-kismi"
         startDate={form.startDate}
         endDate={form.endDate}
         onStartDateChange={(v) => patch("startDate", clampYear(v))}

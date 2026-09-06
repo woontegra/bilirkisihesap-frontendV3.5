@@ -205,6 +205,7 @@ export default function IhbarBelirliPage() {
         icon={FileClock}
         previewTitle={PREVIEW_TITLE}
         previewContentId="ihbar-belirli-preview"
+        guidedTourId="ihbar-belirli"
         startDate={form.startDate}
         endDate={form.endDate}
         onStartDateChange={(v) => patch("startDate", clampYear(v))}
