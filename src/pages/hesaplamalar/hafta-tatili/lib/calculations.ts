@@ -169,6 +169,13 @@ export function calculateWeekCount(
   return Math.round(Math.max(0, totalDays - excluded) / 7);
 }
 
+/** Kullanım oranı sonrası hafta sayısını daima tam haftaya yukarı yuvarlar (34.5→35; 39→39). */
+function ceilWeekCount(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  // Tam sayılarda floating-point sapmasını bozmamak için epsilon
+  return Math.ceil(value - 1e-9);
+}
+
 export function adjustWeekCountForSeasonalUsage(
   originalWeekCount: number,
   periodStart: string,
@@ -181,14 +188,14 @@ export function adjustWeekCountForSeasonalUsage(
 
   if (!seasonalStartDayMonth || !seasonalEndDayMonth) {
     if (oran === 1.0) return originalWeekCount;
-    return Math.max(0, Math.round(originalWeekCount * oran * 100) / 100);
+    return ceilWeekCount(originalWeekCount * oran);
   }
 
   const dmStart = parseDayMonth(seasonalStartDayMonth);
   const dmEnd = parseDayMonth(seasonalEndDayMonth);
   if (!dmStart || !dmEnd) {
     if (oran === 1.0) return originalWeekCount;
-    return Math.max(0, Math.round(originalWeekCount * oran * 100) / 100);
+    return ceilWeekCount(originalWeekCount * oran);
   }
 
   const ps = new Date(periodStart);
@@ -206,7 +213,7 @@ export function adjustWeekCountForSeasonalUsage(
     totalOverlapDays += Math.floor((oe.getTime() - os.getTime()) / 86400000) + 1;
   }
 
-  return Math.max(0, Math.round((totalOverlapDays / 7) * oran));
+  return ceilWeekCount((totalOverlapDays / 7) * oran);
 }
 
 export function generateHaftaTatiliPeriods(
