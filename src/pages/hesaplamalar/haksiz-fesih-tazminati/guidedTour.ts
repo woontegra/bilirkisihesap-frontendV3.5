@@ -29,7 +29,7 @@ export const HAKSIZ_FESIH_TOUR: GuidedTourDefinition = {
       id: "ucret",
       target: "haksiz-fesih-ucret",
       title: "Brüt ücret",
-      body: "Haksız fesih tazminatına esas çıplak brüt ücreti girin. Program 1–6 aylık katsayı tutarlarını otomatik listeler.",
+      body: "Haksız fesih tazminatına esas çıplak brüt ücreti girin, ardından Hesapla’ya basın. Program 1–6 aylık katsayı tutarlarını listeler.",
       mode: "manual",
       skippable: false,
       placement: "bottom",

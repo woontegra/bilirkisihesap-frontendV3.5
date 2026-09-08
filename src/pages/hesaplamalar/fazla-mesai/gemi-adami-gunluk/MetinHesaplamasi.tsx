@@ -11,6 +11,7 @@ import {
 } from "./engine";
 import { METIN_DAILY_REF_HOURS, WEEKLY_WORK_LIMIT } from "./constants";
 import type { SevenDayMode, Witness } from "./model";
+import { MetinHesaplamasiPersonCards } from "../shared/MetinHesaplamasiPersonCards";
 import styles from "./GemiGunlukFmPage.module.css";
 
 function fmtH(n: number): string {
@@ -201,13 +202,16 @@ export function MetinHesaplamasi({
           <p className={styles.errorText} style={{ marginBottom: "0.75rem" }}>
             Aşağıdaki metin kartları yalnızca davacı ve tanık beyanlarına göre üretilir (Tanıklı Standart ile aynı yapı). Cetvel satırları sunucuda dönemsel olarak hesaplanır; haftalık yasal çalışma 48 saattir.
           </p>
-          <div className={styles.metinCards}>
-            {cards.map((c) => (
-              <pre key={c.key} className={styles.metinText}>
-                {c.body}
-              </pre>
-            ))}
-          </div>
+          <MetinHesaplamasiPersonCards
+            cards={cards.map((c, i) => {
+              const first = c.body.split("\n")[0]?.trim() ?? "";
+              const label =
+                c.title?.trim() ||
+                (first.endsWith(":") ? first.slice(0, -1) : "") ||
+                (i === 0 ? "DAVACI" : `TANIK ${i}`);
+              return { key: c.key, label, text: c.body };
+            })}
+          />
         </div>
       ) : null}
     </div>

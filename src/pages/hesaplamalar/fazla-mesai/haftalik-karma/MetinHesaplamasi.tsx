@@ -11,6 +11,7 @@ import {
   witnessWeeklyHolidayFromPlaintiffClaim,
 } from "./weeklyHours";
 import type { DayGroup, Witness } from "./model";
+import { MetinHesaplamasiPersonCards } from "../shared/MetinHesaplamasiPersonCards";
 import styles from "./HaftalikKarmaFmPage.module.css";
 
 export function MetinHesaplamasi({
@@ -26,11 +27,11 @@ export function MetinHesaplamasi({
 }) {
   const [open, setOpen] = useState(false);
 
-  const blocks = useMemo(() => {
-    const results: Array<{ label: string; text: string }> = [];
+  const cards = useMemo(() => {
+    const results: Array<{ key: string; label: string; text: string }> = [];
     const davaciGroups = toNumericDayGroups(dayGroups);
     const davaciText = generateWeeklyText(davaciGroups, "DAVACI", hasWeeklyHoliday, weeklyHolidayGroup);
-    if (davaciText) results.push({ label: davaciText.label, text: davaciText.text });
+    if (davaciText) results.push({ key: "davaci", label: davaciText.label, text: davaciText.text });
 
     witnesses.forEach((w, idx) => {
       const rawGroups = w.dayGroups?.length ? toNumericDayGroups(w.dayGroups) : davaciGroups;
@@ -43,7 +44,7 @@ export function MetinHesaplamasi({
         witnessDayGroups: clamped,
       });
       const wText = generateWeeklyText(clamped, wName, wHt.hasWeeklyHoliday, wHt.weeklyHolidayGroup);
-      if (wText) results.push({ label: wText.label, text: wText.text });
+      if (wText) results.push({ key: `witness-${w.id ?? idx}`, label: wText.label, text: wText.text });
     });
 
     return results;
@@ -63,17 +64,10 @@ export function MetinHesaplamasi({
         </button>
         {open ? (
           <div className={styles.accordionBody}>
-            {blocks.length > 0 ? (
-              blocks.map((b) => (
-                <div key={b.label}>
-                  <pre className={styles.metinText}>{b.text}</pre>
-                </div>
-              ))
-            ) : (
-              <p className={styles.emptyText}>
-                Gün gruplarını doldurarak haftalık fazla mesai metnini görebilirsiniz.
-              </p>
-            )}
+            <MetinHesaplamasiPersonCards
+              cards={cards}
+              emptyMessage="Gün gruplarını doldurarak haftalık fazla mesai metnini görebilirsiniz."
+            />
           </div>
         ) : null}
       </div>

@@ -72,7 +72,7 @@ export function snapshotKey(form: HaksizFesihForm): string {
 
 export const NOTE_BLOCKS: Array<{ text: string; emphasis?: "warning" }> = [
   {
-    text: "6098 sayılı Kanun kapsamında hizmet sözleşmesi ile çalışanlar kıdem tazminatı alacağına hak kazanamazken haksız fesih tazminatı alacağı talep edilebilirler; 6098 sayılı Kanun'un 438 inci maddesinde öngörülen şartlar gerçekleştiği takdirde bu tazminata hak kazanabilirler.",
+    text: "6098 sayılı Türk Borçlar Kanunu'na tabi hizmet sözleşmelerinde, haklı sebep olmaksızın derhâl fesih hâlinde TBK m.438 kapsamında tazminat talep edilebilir.",
   },
   {
     text: 'TBK nun "b. Haklı sebebe dayanmayan fesihte" başlıklı 438 maddesinde "İşveren, haklı sebep olmaksızın hizmet sözleşmesini derhâl feshederse işçi, belirsiz süreli sözleşmelerde, fesih bildirim süresine; belirli süreli sözleşmelerde ise, sözleşme süresine uyulmaması durumunda, bu sürelere uyulmuş olsaydı kazanabileceği miktarı, tazminat olarak isteyebilir.',

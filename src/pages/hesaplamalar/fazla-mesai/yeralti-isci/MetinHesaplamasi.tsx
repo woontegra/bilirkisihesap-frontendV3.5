@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { SevenDayMode, WitnessInput } from "./model";
+import { MetinHesaplamasiPersonCards } from "../shared/MetinHesaplamasiPersonCards";
 import styles from "./YeraltiFmPage.module.css";
 
 const WEEKLY_LIMIT_Y = 37.5;
@@ -206,14 +207,7 @@ export function MetinHesaplamasi({
             </div>
           ) : null}
           {cards.length > 0 ? (
-            <div className={styles.metinCards}>
-              {cards.map((kart) => (
-                <div key={kart.key} className={styles.metinCard}>
-                  <p className={styles.metinCardLabel}>{kart.label}</p>
-                  <p className={styles.metinCardText}>{kart.text}</p>
-                </div>
-              ))}
-            </div>
+            <MetinHesaplamasiPersonCards cards={cards} />
           ) : (
             <p className={styles.metinText}>
               İşe giriş/çıkış ve davacı saatlerini girin; tanık aralığı opsiyoneldir.

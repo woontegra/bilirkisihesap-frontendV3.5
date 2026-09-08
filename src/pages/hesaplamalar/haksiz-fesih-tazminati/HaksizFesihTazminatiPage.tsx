@@ -259,6 +259,14 @@ export default function HaksizFesihTazminatiPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  /** DraftTextInput blur/Enter beklemeden brüt ücreti forma işler (Hesapla). */
+  const handleCalculateWage = useCallback(() => {
+    const el = document.getElementById("hf-brut") as HTMLInputElement | null;
+    const next = (el?.value ?? form.brut).trim();
+    patch("brut", next);
+    el?.blur();
+  }, [form.brut, patch]);
+
   const validateDates = useCallback(
     (start: string, end: string) => {
       if (isDateOrderInvalid(start, end)) {
@@ -456,8 +464,9 @@ export default function HaksizFesihTazminatiPage() {
           <div style={{ minWidth: 0 }}>
             <h1 className={styles.title}>{PAGE_TITLE}</h1>
             <p className={styles.desc}>
-              TBK m.438 kapsamında haksız fesih tazminatı — 1–6 aylık katsayı tablosu, damga vergisi
-              (binde 7,59) ve mahsup hesabı. Hesaplama cihazınızda yapılır; kayıtlar hesabınıza yazılır.
+              TBK m.438/3 kapsamında hâkimin takdirine bağlı olarak belirlenebilen, işçinin altı aylık
+              ücretini aşamayacak tazminat hesabı. Damga vergisi (binde 7,59) ve mahsup hesabı.
+              Hesaplama cihazınızda yapılır; kayıtlar hesabınıza yazılır.
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={12} /> Veriler hesabınıza güvenli şekilde kaydedilir
@@ -588,15 +597,20 @@ export default function HaksizFesihTazminatiPage() {
                   value={form.brut}
                   onCommit={(value) => patch("brut", value)}
                 />
-                <p className={styles.helper}>Dava tarihindeki emsal brüt ücret yazılabilir.</p>
                 {result.asgariUcretHatasi ? (
                   <p className={styles.warn}>{result.asgariUcretHatasi}</p>
                 ) : null}
               </div>
             </div>
 
+            <div className={styles.calcActions}>
+              <Button type="button" variant="primary" size="sm" onClick={handleCalculateWage}>
+                <Calculator size={14} /> Hesapla
+              </Button>
+            </div>
+
             <div className={styles.coefTable}>
-              <div className={styles.coefTableHead}>Katsayı tablosu (1–6 ay)</div>
+              <div className={styles.coefTableHead}>Takdiri Tazminat (1–6 Aylık Ücret)</div>
               {result.coefRows.length === 0 ? (
                 <p className={styles.emptyCoef}>Brüt ücret girildiğinde satırlar listelenir.</p>
               ) : (

@@ -13,6 +13,7 @@ import {
 } from "./engine";
 import { STANDARD_DAILY_REFERENCE_HOURS, WEEKLY_WORK_LIMIT } from "./constants";
 import type { SevenDayMode, Witness } from "./model";
+import { MetinHesaplamasiPersonCards } from "../shared/MetinHesaplamasiPersonCards";
 import styles from "./TanikliStandartFmPage.module.css";
 
 function fmtH(n: number): string {
@@ -195,19 +196,23 @@ export function MetinHesaplamasi({
     return h === 7 || taniklar.some((t) => resolveWitnessWeeklyDays(t, h) === 7);
   }, [weeklyDays, taniklar]);
 
-  const fullText = useMemo(() => {
+  const cards = useMemo(() => {
     const davaci = buildDavaciBlock({
       inT: davaciIn,
       outT: davaciOut,
       weeklyDays,
       sevenDayMode,
     });
-    const blocks = [davaci.text];
+    const out: Array<{ key: string; label: string; text: string }> = [
+      { key: "davaci", label: "DAVACI", text: davaci.text },
+    ];
     taniklar.forEach((t, idx) => {
       const block = buildWitnessBlock(t, idx, davaciIn, davaciOut, Number(weeklyDays) || 6, sevenDayMode);
-      if (block) blocks.push(block);
+      if (!block) return;
+      const label = (t.name?.trim() || `TANIK ${idx + 1}`).toUpperCase();
+      out.push({ key: `witness-${t.id ?? idx}`, label, text: block });
     });
-    return blocks.join("\n\n");
+    return out;
   }, [davaciIn, davaciOut, weeklyDays, sevenDayMode, taniklar]);
 
   return (
@@ -236,7 +241,7 @@ export function MetinHesaplamasi({
               </button>
             </div>
           ) : null}
-          <pre className={styles.metinText}>{fullText}</pre>
+          <MetinHesaplamasiPersonCards cards={cards} />
         </div>
       ) : null}
     </div>
