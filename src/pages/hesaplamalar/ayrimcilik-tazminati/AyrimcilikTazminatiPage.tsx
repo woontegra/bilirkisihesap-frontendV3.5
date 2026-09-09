@@ -697,8 +697,7 @@ export default function AyrimcilikTazminatiPage() {
               <h2 className={styles.cardTitle}>Brütten nete</h2>
             </div>
             <p className={styles.cardHint}>
-              Brüt tutardan gelir vergisi ve binde 7,59 oranında damga vergisi kesintisi uygulanır
-              (İhbar Tazminatı ile aynı vergi mantığı).
+              Brüt tutardan gelir vergisi ve binde 7,59 oranında damga vergisi kesintisi uygulanır.
             </p>
             <div className={styles.fields} style={{ marginBottom: "0.65rem" }}>
               <div className={styles.field}>
