@@ -420,7 +420,9 @@ export default function AyrimcilikTazminatiPage() {
   }, [activeId, confirmDeleteId, reloadCases, showError, success]);
 
   const defaultBrutPlaceholder =
-    result.coefRows[result.coefRows.length - 1]?.value ?? result.brutVal ?? 0;
+    result.coefRows.find((row) => row.k === (form.netAyKatsayi ?? 4))?.value ??
+    result.brutVal ??
+    0;
 
   const previewSections = useMemo((): PreviewSection[] => {
     const sections: PreviewSection[] = [
@@ -455,6 +457,7 @@ export default function AyrimcilikTazminatiPage() {
       title: "Brütten Nete",
       headers: ["Kalem", "Tutar"],
       rows: [
+        ["Seçilen Süre", `${form.netAyKatsayi ?? 4} aylık`],
         ["Brüt Ayrımcılık Tazminatı", `${formatMoney(result.brutForNetConversion)} ₺`],
         [
           `Gelir Vergisi${result.gelirVergisiDilimleri ? ` ${result.gelirVergisiDilimleri}` : ""}`,
@@ -467,7 +470,7 @@ export default function AyrimcilikTazminatiPage() {
     });
 
     return sections;
-  }, [form.endDate, form.startDate, result]);
+  }, [form.endDate, form.netAyKatsayi, form.startDate, result]);
 
   return (
     <div className={styles.page}>
@@ -479,8 +482,7 @@ export default function AyrimcilikTazminatiPage() {
           <div style={{ minWidth: 0 }}>
             <h1 className={styles.title}>{PAGE_TITLE}</h1>
             <p className={styles.desc}>
-              1–4 aylık katsayı tablosu, gelir vergisi, damga vergisi (binde 7,59) ve net ayrımcılık
-              tazminatı — hesaplama cihazınızda yapılır; kayıtlar hesabınıza yazılır.
+              1–4 aylık ücret üzerinden ayrımcılık tazminatı hesabı ve brütten nete hesaplama
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={12} /> Veriler hesabınıza güvenli şekilde kaydedilir
@@ -644,7 +646,6 @@ export default function AyrimcilikTazminatiPage() {
                     value={form.brut}
                     onCommit={(value) => patch("brut", value)}
                   />
-                  <p className={styles.helper}>Dava tarihindeki emsal brüt ücret yazılabilir.</p>
                   {result.asgariUcretHatasi ? <p className={styles.warn}>{result.asgariUcretHatasi}</p> : null}
                 </div>
               </div>
@@ -654,7 +655,7 @@ export default function AyrimcilikTazminatiPage() {
               </Button>
 
               <div className={styles.coefTable}>
-                <div className={styles.coefTableHead}>Katsayı tablosu (1–4 ay)</div>
+                <div className={styles.coefTableHead}>Tazminat Tutarı (1–4 Aylık Ücret)</div>
                 {result.coefRows.length === 0 ? (
                   <p className={styles.emptyCoef}>Brüt ücret girildiğinde satırlar listelenir.</p>
                 ) : (
@@ -702,7 +703,7 @@ export default function AyrimcilikTazminatiPage() {
             <div className={styles.fields} style={{ marginBottom: "0.65rem" }}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="ay-brut-net-ops">
-                  Brüt tutar (opsiyonel)
+                  HÜKMEDİLEN BRÜT TAZMİNAT (OPSİYONEL)
                 </label>
                 <DraftTextInput
                   id="ay-brut-net-ops"
@@ -712,14 +713,32 @@ export default function AyrimcilikTazminatiPage() {
                   value={form.brutInputForNet}
                   onCommit={(value) => patch("brutInputForNet", value)}
                 />
-                <p className={styles.helper}>
-                  Boş bırakılırsa tablonun son satırı (4 aylık) kullanılır; tablo yoksa çıplak brüt.
-                </p>
+              </div>
+              <div className={styles.field}>
+                <span className={styles.label} id="ay-net-ay-label">
+                  Tazminat süresi
+                </span>
+                <div className={styles.monthPick} role="group" aria-labelledby="ay-net-ay-label">
+                  {([1, 2, 3, 4] as const).map((k) => {
+                    const active = (form.netAyKatsayi ?? 4) === k;
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        className={`${styles.monthPickBtn} ${active ? styles.monthPickBtnActive : ""}`}
+                        aria-pressed={active}
+                        onClick={() => patch("netAyKatsayi", k)}
+                      >
+                        {k} aylık
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
             <div className={styles.resultStack}>
               <div className={`${styles.resultCard} ${styles.resultCardAccent}`}>
-                <div className={styles.resultLabel}>Brüt ayrımcılık</div>
+                <div className={styles.resultLabel}>BRÜT AYRIMCILIK TAZMİNATI</div>
                 <div className={styles.resultValue}>
                   <AnimatedMoney value={result.brutForNetConversion} /> ₺
                 </div>
@@ -744,7 +763,7 @@ export default function AyrimcilikTazminatiPage() {
               </div>
 
               <div className={`${styles.resultCard} ${styles.resultCardStrong}`}>
-                <div className={styles.resultLabel}>Net tazminat</div>
+                <div className={styles.resultLabel}>NET AYRIMCILIK TAZMİNATI</div>
                 <div className={styles.resultValue}>
                   <AnimatedMoney value={result.netTazminat} /> ₺
                 </div>

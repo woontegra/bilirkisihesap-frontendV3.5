@@ -33,6 +33,8 @@ export type AyrimcilikForm = {
   endDate: string;
   brut: string; // çıplak brüt
   brutInputForNet: string; // opsiyonel net dönüşüm brütü
+  /** Opsiyonel brüt boşsa brütten nete için kullanılacak ay katsayısı (1–4). */
+  netAyKatsayi: 1 | 2 | 3 | 4;
 };
 
 export type SavedCase = {
@@ -49,12 +51,19 @@ export type SavedCase = {
   };
 };
 
+export function normalizeNetAyKatsayi(value: unknown): 1 | 2 | 3 | 4 {
+  const n = typeof value === "number" ? value : Number(value);
+  if (n === 1 || n === 2 || n === 3 || n === 4) return n;
+  return 4;
+}
+
 export function createEmptyForm(): AyrimcilikForm {
   return {
     startDate: "",
     endDate: "",
     brut: "",
     brutInputForNet: "",
+    netAyKatsayi: 4,
   };
 }
 
@@ -67,7 +76,7 @@ export function newLocalId(): string {
 
 export function snapshotKey(form: AyrimcilikForm): string {
   // dirty check için: sıfırdan geliştirilmiş local sayfa
-  return [form.startDate, form.endDate, form.brut, form.brutInputForNet].join("|");
+  return [form.startDate, form.endDate, form.brut, form.brutInputForNet, String(form.netAyKatsayi)].join("|");
 }
 
 export const NOTE_BLOCKS: Array<{ text: string; variant?: "alert" }> = [

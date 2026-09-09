@@ -13,7 +13,7 @@ import {
   type CalcSaveResult,
 } from "../shared/calcBackendCrud";
 import type { AyrimcilikForm, SavedCase } from "./model";
-import { createEmptyForm } from "./model";
+import { createEmptyForm, normalizeNetAyKatsayi } from "./model";
 
 export const AYRIMCILIK_TYPE = "ayrimcilik_tazminati" as const;
 
@@ -67,6 +67,9 @@ export function mapAyrimcilikFormFromBackend(data: unknown): AyrimcilikForm | nu
       brutInputForNet:
         str(form.brutInputForNet ?? form.brut_input_for_net ?? form.opsiyonelBrut) ||
         empty.brutInputForNet,
+      netAyKatsayi: normalizeNetAyKatsayi(
+        form.netAyKatsayi ?? form.net_ay_katsayi ?? form.ayKatsayi ?? empty.netAyKatsayi,
+      ),
     };
   } catch {
     return null;

@@ -14,6 +14,7 @@
 import { getAsgariUcretByDate } from "./asgariUcret";
 import { calculateIncomeTaxWithBrackets } from "./incomeTax";
 import type { AyrimcilikForm, AyrimcilikResult, CoefRow, WorkPeriod } from "./model";
+import { normalizeNetAyKatsayi } from "./model";
 
 export const DAMGA_ORAN = 0.00759; // V3 / İhbar sabiti
 
@@ -133,9 +134,12 @@ export function computeAyrimcilik(form: AyrimcilikForm): AyrimcilikResult {
   const coefRows = buildCoefRows(brutVal, form.brut.trim());
 
   const inputVal = parseNum(form.brutInputForNet);
-  // V3: opsiyonel brüt girilirse onu; değilse son satır (4 aylık) değerini al.
-  const last = coefRows[coefRows.length - 1]?.value || 0;
-  const brutForNetConversion = inputVal > 0 ? inputVal : last > 0 ? last : brutVal;
+  const netAy = normalizeNetAyKatsayi(form.netAyKatsayi);
+  const selectedCoef = coefRows.find((row) => row.k === netAy)?.value || 0;
+  // Opsiyonel brüt girilirse onu; değilse seçilen ay katsayısı satırı; tablo yoksa çıplak × ay.
+  const fromSelection =
+    selectedCoef > 0 ? selectedCoef : brutVal > 0 ? Math.round(brutVal * netAy * 100) / 100 : 0;
+  const brutForNetConversion = inputVal > 0 ? inputVal : fromSelection;
   const amount = Number.isFinite(brutForNetConversion) ? brutForNetConversion : 0;
 
   const selectedYear = resolveExitYear(form.endDate);
