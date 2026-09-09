@@ -2,12 +2,13 @@
  * Haksız Fesih Tazminatı — lokal hesaplama motoru.
  * Başka hesaplama sayfasından import yok. Ağ yok.
  * V3 ile kuruşu kuruşuna eşleşecek şekilde:
- *   katsayı 1–6 × çıplak brüt; varsayılan net dönüşümü 6 aylık;
+ *   katsayı 1–6 × çıplak brüt; opsiyonel brüt boşsa form.netAyKatsayi (1–6);
  *   DAMGA_ORAN = 0.00759; mahsup Math.max(0, net − ödenen).
  */
 
 import { getAsgariUcretByDate } from "./asgariUcret";
 import type { CoefRow, HaksizFesihForm, HaksizFesihResult, WorkPeriod } from "./model";
+import { normalizeNetAyKatsayi } from "./model";
 
 /** Binde 7,59 — V3 sabiti. */
 export const DAMGA_ORAN = 0.00759;
@@ -108,7 +109,10 @@ export function computeHaksizFesih(form: HaksizFesihForm): HaksizFesihResult {
   const brutVal = parseNum(form.brut);
   const coefRows = buildCoefRows(brutVal, form.brut.trim());
   const inputVal = parseNum(form.brutInputForNet);
-  const brutForNet = inputVal > 0 ? inputVal : coefRows[coefRows.length - 1]?.value || 0;
+  const netAy = normalizeNetAyKatsayi(form.netAyKatsayi);
+  const selectedCoef = coefRows.find((row) => row.k === netAy)?.value || 0;
+  const fromSelection = selectedCoef > 0 ? selectedCoef : brutVal > 0 ? brutVal * netAy : 0;
+  const brutForNet = inputVal > 0 ? inputVal : fromSelection;
 
   const damgaVergisi = Number.isFinite(brutForNet) ? brutForNet * DAMGA_ORAN : 0;
   const netTazminat = Number.isFinite(brutForNet) ? brutForNet * (1 - DAMGA_ORAN) : 0;

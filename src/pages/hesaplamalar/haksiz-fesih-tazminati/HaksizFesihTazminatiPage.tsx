@@ -36,6 +36,7 @@ import {
   resolveSavedCaseDisplayName,
 } from "./backendCase";
 import {
+  KATSAYILAR,
   clampYearInDateInput,
   computeHaksizFesih,
   formatDateTR,
@@ -398,7 +399,10 @@ export default function HaksizFesihTazminatiPage() {
     }
   }, [activeId, confirmDeleteId, reloadCases, showError, success]);
 
-  const defaultBrutPlaceholder = result.coefRows[result.coefRows.length - 1]?.value ?? 0;
+  const defaultBrutPlaceholder =
+    result.coefRows.find((row) => row.k === (form.netAyKatsayi ?? 6))?.value ??
+    result.brutVal ??
+    0;
 
   const previewSections = useMemo((): PreviewSection[] => {
     const sections: PreviewSection[] = [
@@ -433,6 +437,7 @@ export default function HaksizFesihTazminatiPage() {
     }
 
     const netRows: string[][] = [
+      ["Seçilen Süre", `${form.netAyKatsayi ?? 6} aylık`],
       ["Brüt Haksız Fesih Tazminatı", `${formatMoney(result.brutForNet)} ₺`],
       ["Damga Vergisi (Binde 7,59)", `−${formatMoney(result.damgaVergisi)} ₺`],
       ["Net Haksız Fesih Tazminatı", `${formatMoney(result.netTazminat)} ₺`],
@@ -452,7 +457,7 @@ export default function HaksizFesihTazminatiPage() {
     });
 
     return sections;
-  }, [form.endDate, form.startDate, result]);
+  }, [form.endDate, form.netAyKatsayi, form.startDate, result]);
 
   return (
     <div className={styles.page}>
@@ -685,9 +690,27 @@ export default function HaksizFesihTazminatiPage() {
                   value={form.brutInputForNet}
                   onCommit={(value) => patch("brutInputForNet", value)}
                 />
-                <p className={styles.helper}>
-                  Boş bırakılırsa tablonun son satırı (6 aylık) kullanılır.
-                </p>
+              </div>
+              <div className={styles.field}>
+                <span className={styles.label} id="hf-net-ay-label">
+                  Tazminat süresi
+                </span>
+                <div className={styles.monthPick} role="group" aria-labelledby="hf-net-ay-label">
+                  {KATSAYILAR.map((k) => {
+                    const active = (form.netAyKatsayi ?? 6) === k;
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        className={`${styles.monthPickBtn} ${active ? styles.monthPickBtnActive : ""}`}
+                        aria-pressed={active}
+                        onClick={() => patch("netAyKatsayi", k)}
+                      >
+                        {k} aylık
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
             <div className={styles.resultStack}>

@@ -34,6 +34,8 @@ export type HaksizFesihForm = {
   brut: string;
   odenenTutar: string;
   brutInputForNet: string;
+  /** Opsiyonel brüt boşsa brütten nete için kullanılacak ay katsayısı (1–6). */
+  netAyKatsayi: 1 | 2 | 3 | 4 | 5 | 6;
 };
 
 export type SavedCase = {
@@ -49,6 +51,12 @@ export type SavedCase = {
   };
 };
 
+export function normalizeNetAyKatsayi(value: unknown): 1 | 2 | 3 | 4 | 5 | 6 {
+  const n = typeof value === "number" ? value : Number(value);
+  if (n === 1 || n === 2 || n === 3 || n === 4 || n === 5 || n === 6) return n;
+  return 6;
+}
+
 export function createEmptyForm(): HaksizFesihForm {
   return {
     startDate: "",
@@ -56,6 +64,7 @@ export function createEmptyForm(): HaksizFesihForm {
     brut: "",
     odenenTutar: "",
     brutInputForNet: "",
+    netAyKatsayi: 6,
   };
 }
 
@@ -67,7 +76,14 @@ export function newLocalId(): string {
 }
 
 export function snapshotKey(form: HaksizFesihForm): string {
-  return [form.startDate, form.endDate, form.brut, form.odenenTutar, form.brutInputForNet].join("|");
+  return [
+    form.startDate,
+    form.endDate,
+    form.brut,
+    form.odenenTutar,
+    form.brutInputForNet,
+    String(form.netAyKatsayi),
+  ].join("|");
 }
 
 export const NOTE_BLOCKS: Array<{ text: string; emphasis?: "warning" }> = [

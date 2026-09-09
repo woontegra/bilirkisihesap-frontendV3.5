@@ -13,7 +13,7 @@ import {
   type CalcSaveResult,
 } from "../shared/calcBackendCrud";
 import type { HaksizFesihForm, SavedCase } from "./model";
-import { createEmptyForm } from "./model";
+import { createEmptyForm, normalizeNetAyKatsayi } from "./model";
 
 export const HAKSIZ_FESIH_TYPE = "haksiz_fesih_tazminati" as const;
 
@@ -68,6 +68,9 @@ export function mapHaksizFesihFormFromBackend(data: unknown): HaksizFesihForm | 
       brutInputForNet:
         str(form.brutInputForNet ?? form.brut_input_for_net ?? form.opsiyonelBrut) ||
         empty.brutInputForNet,
+      netAyKatsayi: normalizeNetAyKatsayi(
+        form.netAyKatsayi ?? form.net_ay_katsayi ?? form.ayKatsayi ?? empty.netAyKatsayi,
+      ),
     };
   } catch {
     return null;

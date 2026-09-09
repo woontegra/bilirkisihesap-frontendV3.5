@@ -6,7 +6,7 @@
  *   KATSAYILAR = [4,5,6,7,8]
  *   value = round2(brut × k)
  *   DAMGA_ORAN = 0.00759
- *   Varsayılan net brütü = tablonun son satırı (8 aylık) — V3 ile aynı
+ *   Opsiyonel brüt boşsa form.selectedKatsayi (4–8) satırı kullanılır
  *   Opsiyonel manuel brüt > 0 ise onu kullan
  *   Gelir vergisi / mahsup yok
  */
@@ -125,8 +125,12 @@ export function computeIseAlmama(form: IseAlmamaForm): IseAlmamaResult {
   const brutVal = parseNum(form.brut);
   const coefRows = buildCoefRows(brutVal);
   const inputVal = parseNum(form.brutInputForNet);
-  const defaultBrut = coefRows[coefRows.length - 1]?.value ?? 0;
-  const brutForNet = inputVal > 0 ? inputVal : defaultBrut;
+  const netAy = normalizeKatsayi(form.selectedKatsayi);
+  const selectedCoef = coefRows.find((row) => row.k === netAy)?.value || 0;
+  // Opsiyonel brüt girilirse onu; değilse seçilen ay katsayısı; tablo yoksa çıplak × ay.
+  const fromSelection =
+    selectedCoef > 0 ? selectedCoef : brutVal > 0 ? round2(brutVal * netAy) : 0;
+  const brutForNet = inputVal > 0 ? inputVal : fromSelection;
 
   const damgaVergisi = Number.isFinite(brutForNet) ? brutForNet * DAMGA_ORAN : 0;
   const netTazminat = Number.isFinite(brutForNet) ? brutForNet * (1 - DAMGA_ORAN) : 0;
@@ -149,7 +153,7 @@ export function computeIseAlmama(form: IseAlmamaForm): IseAlmamaResult {
   return {
     coefRows,
     brutVal,
-    selectedKatsayi: coefRows[coefRows.length - 1]?.k ?? 8,
+    selectedKatsayi: netAy,
     brutForNet: Number.isFinite(brutForNet) ? brutForNet : 0,
     damgaVergisi: Number.isFinite(damgaVergisi) ? damgaVergisi : 0,
     netTazminat: Number.isFinite(netTazminat) ? netTazminat : 0,

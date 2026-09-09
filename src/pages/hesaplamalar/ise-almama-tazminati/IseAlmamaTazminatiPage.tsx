@@ -36,6 +36,7 @@ import {
   resolveSavedCaseDisplayName,
 } from "./backendCase";
 import {
+  KATSAYILAR,
   clampYearInDateInput,
   computeIseAlmama,
   formatDateTR,
@@ -447,6 +448,7 @@ export default function IseAlmamaTazminatiPage() {
       title: "Brütten Nete",
       headers: ["Kalem", "Tutar"],
       rows: [
+        ["Seçilen Süre", `${form.selectedKatsayi ?? 8} aylık`],
         ["Brüt İşe Başlatmama Tazminatı", `${formatMoney(result.brutForNet)} ₺`],
         ["Damga Vergisi (Binde 7,59)", `−${formatMoney(result.damgaVergisi)} ₺`],
         ["Net İşe Başlatmama Tazminatı", `${formatMoney(result.netTazminat)} ₺`],
@@ -455,9 +457,12 @@ export default function IseAlmamaTazminatiPage() {
     });
 
     return sections;
-  }, [form.endDate, form.startDate, result]);
+  }, [form.endDate, form.selectedKatsayi, form.startDate, result]);
 
-  const defaultBrutPlaceholder = result.coefRows[result.coefRows.length - 1]?.value ?? 0;
+  const defaultBrutPlaceholder =
+    result.coefRows.find((row) => row.k === (form.selectedKatsayi ?? 8))?.value ??
+    result.brutVal ??
+    0;
 
   return (
     <div className={styles.page}>
@@ -635,29 +640,6 @@ export default function IseAlmamaTazminatiPage() {
                 )}
               </div>
 
-              <div className={styles.fields} style={{ marginTop: "0.75rem" }}>
-                <div className={styles.field}>
-                  <label className={styles.label} htmlFor="ia-brut-net-ops">
-                    Brüt tutar (opsiyonel)
-                  </label>
-                  <DraftTextInput
-                    id="ia-brut-net-ops"
-                    className={styles.input}
-                    inputMode="decimal"
-                    placeholder={
-                      result.coefRows.length
-                        ? `Varsayılan: ${formatMoney(defaultBrutPlaceholder)}`
-                        : "Varsayılan: 8 aylık"
-                    }
-                    value={form.brutInputForNet}
-                    onCommit={(value) => patch("brutInputForNet", value)}
-                  />
-                  <p className={styles.helper}>
-                    Boş bırakılırsa tablonun son satırı (8 aylık) kullanılır.
-                  </p>
-                </div>
-              </div>
-
               <Button type="submit" variant="primary" size="md" className={styles.calcSubmit}>
                 <Calculator size={16} /> Hesapla
               </Button>
@@ -686,12 +668,48 @@ export default function IseAlmamaTazminatiPage() {
         <aside className={styles.aside} style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
           <section className={styles.card}>
             <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Brüt / net sonuç</h2>
+              <h2 className={styles.cardTitle}>Brütten nete</h2>
             </div>
             <p className={styles.cardHint}>
               Brüt tutardan yalnızca binde 7,59 oranında damga vergisi kesintisi uygulanır. Gelir
               vergisi uygulanmaz.
             </p>
+            <div className={styles.fields} style={{ marginBottom: "0.65rem" }}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="ia-brut-net-ops">
+                  Hükmedilen brüt tazminat (opsiyonel)
+                </label>
+                <DraftTextInput
+                  id="ia-brut-net-ops"
+                  className={styles.input}
+                  inputMode="decimal"
+                  placeholder={`Varsayılan: ${formatMoney(defaultBrutPlaceholder)}`}
+                  value={form.brutInputForNet}
+                  onCommit={(value) => patch("brutInputForNet", value)}
+                />
+              </div>
+              <div className={styles.field}>
+                <span className={styles.label} id="ia-net-ay-label">
+                  Tazminat süresi
+                </span>
+                <div className={styles.monthPick} role="group" aria-labelledby="ia-net-ay-label">
+                  {KATSAYILAR.map((k) => {
+                    const active = (form.selectedKatsayi ?? 8) === k;
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        className={`${styles.monthPickBtn} ${active ? styles.monthPickBtnActive : ""}`}
+                        aria-pressed={active}
+                        onClick={() => patch("selectedKatsayi", k)}
+                      >
+                        {k} aylık
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
             <div className={styles.resultStack}>
               <div className={`${styles.resultCard} ${styles.resultCardAccent}`}>
                 <div className={styles.resultLabel}>Brüt işe başlatmama</div>
