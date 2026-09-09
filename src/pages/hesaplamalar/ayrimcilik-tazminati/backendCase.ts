@@ -89,6 +89,8 @@ export const ayrimcilikCaseCrud = createCalcBackendCrud({
 
 export function buildAyrimcilikSaveResult(result: {
   brutForNetConversion: number;
+  gelirVergisi: number;
+  damgaVergisi: number;
   netTazminat: number;
   maxAmount: number;
 }): CalcSaveResult {
@@ -96,6 +98,8 @@ export function buildAyrimcilikSaveResult(result: {
     brut: result.maxAmount,
     net: result.netTazminat,
     brutForNetConversion: result.brutForNetConversion,
+    gelirVergisi: result.gelirVergisi,
+    damgaVergisi: result.damgaVergisi,
     netTazminat: result.netTazminat,
     maxAmount: result.maxAmount,
   };
@@ -110,6 +114,8 @@ export function mapAyrimcilikRecordToSavedCase(record: SavedCaseRecord): SavedCa
     results?.brutForNetConversion ?? results?.brutForNet ?? payload.brut_total ?? results?.brut ?? 0,
   );
   const netTazminat = Number(results?.netTazminat ?? results?.net ?? payload.net_total ?? 0);
+  const gelirVergisi = Number(results?.gelirVergisi ?? 0);
+  const damgaVergisi = Number(results?.damgaVergisi ?? 0);
   return {
     id: String(record.id),
     name: resolveSavedCaseDisplayName(record),
@@ -118,6 +124,8 @@ export function mapAyrimcilikRecordToSavedCase(record: SavedCaseRecord): SavedCa
     form,
     results: {
       brutForNetConversion: Number.isFinite(brutForNetConversion) ? brutForNetConversion : 0,
+      gelirVergisi: Number.isFinite(gelirVergisi) ? gelirVergisi : 0,
+      damgaVergisi: Number.isFinite(damgaVergisi) ? damgaVergisi : 0,
       netTazminat: Number.isFinite(netTazminat) ? netTazminat : 0,
     },
   };

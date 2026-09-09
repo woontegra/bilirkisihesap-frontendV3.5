@@ -20,6 +20,8 @@ export type AyrimcilikResult = {
   coefRows: CoefRow[];
   brutVal: number;
   brutForNetConversion: number;
+  gelirVergisi: number;
+  gelirVergisiDilimleri: string;
   damgaVergisi: number;
   netTazminat: number;
   workPeriod: WorkPeriod | null;
@@ -41,6 +43,8 @@ export type SavedCase = {
   form: AyrimcilikForm;
   results: {
     brutForNetConversion: number;
+    gelirVergisi?: number;
+    damgaVergisi?: number;
     netTazminat: number;
   };
 };

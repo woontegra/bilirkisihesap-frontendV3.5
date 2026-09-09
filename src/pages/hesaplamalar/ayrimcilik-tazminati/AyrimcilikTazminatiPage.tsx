@@ -271,6 +271,34 @@ export default function AyrimcilikTazminatiPage() {
     [showError],
   );
 
+  /** Draft alanlardaki güncel değerleri forma yazar; motor aynı `computeAyrimcilik` ile çalışmaya devam eder. */
+  const handleCalculate = useCallback(() => {
+    const read = (id: string, fallback: string) => {
+      const el = document.getElementById(id);
+      return el instanceof HTMLInputElement ? el.value : fallback;
+    };
+
+    const startDate = clampYearInDateInput(read("ay-ise-giris", form.startDate));
+    const endDate = clampYearInDateInput(read("ay-isten-cikis", form.endDate));
+    const brut = read("ay-brut", form.brut);
+    const brutInputForNet = read("ay-brut-net-ops", form.brutInputForNet);
+
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+
+    setForm((prev) => ({
+      ...prev,
+      startDate,
+      endDate,
+      brut,
+      brutInputForNet,
+    }));
+
+    if (startDate && endDate) {
+      validateDates(startDate, endDate, "İşten çıkış tarihi, işe giriş tarihinden önce olamaz.");
+    }
+  }, [form.brut, form.brutInputForNet, form.endDate, form.startDate, validateDates]);
+
   const handleNew = useCallback(() => {
     if (dirty) {
       setConfirmNew(true);
@@ -308,6 +336,8 @@ export default function AyrimcilikTazminatiPage() {
           form,
           buildAyrimcilikSaveResult({
             brutForNetConversion: result.brutForNetConversion,
+            gelirVergisi: result.gelirVergisi,
+            damgaVergisi: result.damgaVergisi,
             netTazminat: result.netTazminat,
             maxAmount,
           }),
@@ -426,6 +456,10 @@ export default function AyrimcilikTazminatiPage() {
       headers: ["Kalem", "Tutar"],
       rows: [
         ["Brüt Ayrımcılık Tazminatı", `${formatMoney(result.brutForNetConversion)} ₺`],
+        [
+          `Gelir Vergisi${result.gelirVergisiDilimleri ? ` ${result.gelirVergisiDilimleri}` : ""}`,
+          `−${formatMoney(result.gelirVergisi)} ₺`,
+        ],
         ["Damga Vergisi (Binde 7,59)", `−${formatMoney(result.damgaVergisi)} ₺`],
         ["Net Ayrımcılık Tazminatı", `${formatMoney(result.netTazminat)} ₺`],
       ],
@@ -445,8 +479,8 @@ export default function AyrimcilikTazminatiPage() {
           <div style={{ minWidth: 0 }}>
             <h1 className={styles.title}>{PAGE_TITLE}</h1>
             <p className={styles.desc}>
-              1–4 aylık katsayı tablosu, damga vergisi (binde 7,59) ve net ayrımcılık tazminatı —
-              hesaplama cihazınızda yapılır; kayıtlar hesabınıza yazılır.
+              1–4 aylık katsayı tablosu, gelir vergisi, damga vergisi (binde 7,59) ve net ayrımcılık
+              tazminatı — hesaplama cihazınızda yapılır; kayıtlar hesabınıza yazılır.
             </p>
             <div className={styles.privacyBadge}>
               <ShieldCheck size={12} /> Veriler hesabınıza güvenli şekilde kaydedilir
@@ -506,126 +540,138 @@ export default function AyrimcilikTazminatiPage() {
 
       <div className={styles.layout}>
         <div style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
-          <section className={styles.card} data-tour="ayrimcilik-donem">
-            <div className={styles.cardHead}>
-              <Calculator size={16} />
-              <h2 className={styles.cardTitle}>Tarih bilgileri</h2>
-            </div>
-            <div className={styles.fields3}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="ay-ise-giris">
-                  İşe giriş
-                </label>
-                <DraftDateInput
-                  id="ay-ise-giris"
-                  max="9999-12-31"
-                  className={`${styles.input} ${dateError ? styles.inputError : ""}`}
-                  value={form.startDate}
-                  onCommit={(value) => {
-                    const next = clampYearInDateInput(value);
-                    patch("startDate", next);
-                    if (next && form.endDate) {
-                      validateDates(
-                        next,
-                        form.endDate,
-                        "İşe giriş tarihi, işten çıkış tarihinden sonra olamaz.",
-                      );
-                    }
-                  }}
-                  onBlur={() => {
-                    if (form.startDate && form.endDate) {
-                      validateDates(
-                        form.startDate,
-                        form.endDate,
-                        "İşe giriş tarihi, işten çıkış tarihinden sonra olamaz.",
-                      );
-                    }
-                  }}
-                />
+          <form
+            className={styles.calcForm}
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleCalculate();
+            }}
+          >
+            <section className={styles.card} data-tour="ayrimcilik-donem">
+              <div className={styles.cardHead}>
+                <Calculator size={16} />
+                <h2 className={styles.cardTitle}>Tarih bilgileri</h2>
               </div>
+              <div className={styles.fields3}>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="ay-ise-giris">
+                    İşe giriş
+                  </label>
+                  <DraftDateInput
+                    id="ay-ise-giris"
+                    max="9999-12-31"
+                    className={`${styles.input} ${dateError ? styles.inputError : ""}`}
+                    value={form.startDate}
+                    onCommit={(value) => {
+                      const next = clampYearInDateInput(value);
+                      patch("startDate", next);
+                      if (next && form.endDate) {
+                        validateDates(
+                          next,
+                          form.endDate,
+                          "İşe giriş tarihi, işten çıkış tarihinden sonra olamaz.",
+                        );
+                      }
+                    }}
+                    onBlur={() => {
+                      if (form.startDate && form.endDate) {
+                        validateDates(
+                          form.startDate,
+                          form.endDate,
+                          "İşe giriş tarihi, işten çıkış tarihinden sonra olamaz.",
+                        );
+                      }
+                    }}
+                  />
+                </div>
 
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="ay-isten-cikis">
-                  İşten çıkış
-                </label>
-                <DraftDateInput
-                  id="ay-isten-cikis"
-                  max="9999-12-31"
-                  className={`${styles.input} ${dateError ? styles.inputError : ""}`}
-                  value={form.endDate}
-                  onCommit={(value) => {
-                    const next = clampYearInDateInput(value);
-                    patch("endDate", next);
-                    if (form.startDate && next) {
-                      validateDates(
-                        form.startDate,
-                        next,
-                        "İşten çıkış tarihi, işe giriş tarihinden önce olamaz.",
-                      );
-                    }
-                  }}
-                  onBlur={() => {
-                    if (form.startDate && form.endDate) {
-                      validateDates(
-                        form.startDate,
-                        form.endDate,
-                        "İşten çıkış tarihi, işe giriş tarihinden önce olamaz.",
-                      );
-                    }
-                  }}
-                />
-              </div>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="ay-isten-cikis">
+                    İşten çıkış
+                  </label>
+                  <DraftDateInput
+                    id="ay-isten-cikis"
+                    max="9999-12-31"
+                    className={`${styles.input} ${dateError ? styles.inputError : ""}`}
+                    value={form.endDate}
+                    onCommit={(value) => {
+                      const next = clampYearInDateInput(value);
+                      patch("endDate", next);
+                      if (form.startDate && next) {
+                        validateDates(
+                          form.startDate,
+                          next,
+                          "İşten çıkış tarihi, işe giriş tarihinden önce olamaz.",
+                        );
+                      }
+                    }}
+                    onBlur={() => {
+                      if (form.startDate && form.endDate) {
+                        validateDates(
+                          form.startDate,
+                          form.endDate,
+                          "İşten çıkış tarihi, işe giriş tarihinden önce olamaz.",
+                        );
+                      }
+                    }}
+                  />
+                </div>
 
-              <div className={styles.field}>
-                <span className={styles.label}>Çalışma süresi</span>
-                <div className={styles.readonlyBox}>
-                  <FlashValue value={result.workPeriod?.label || "—"} />
+                <div className={styles.field}>
+                  <span className={styles.label}>Çalışma süresi</span>
+                  <div className={styles.readonlyBox}>
+                    <FlashValue value={result.workPeriod?.label || "—"} />
+                  </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section className={styles.card} data-tour="ayrimcilik-ucret">
-            <div className={styles.cardHead}>
-              <Calculator size={16} />
-              <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
-            </div>
-            <div className={styles.fields}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="ay-brut">
-                  Çıplak brüt ücret
-                </label>
-                <DraftTextInput
-                  id="ay-brut"
-                  className={`${styles.input} ${result.asgariUcretHatasi ? styles.inputError : ""}`}
-                  inputMode="decimal"
-                  placeholder="Örn: 25.000"
-                  value={form.brut}
-                  onCommit={(value) => patch("brut", value)}
-                />
-                <p className={styles.helper}>Dava tarihindeki emsal brüt ücret yazılabilir.</p>
-                {result.asgariUcretHatasi ? <p className={styles.warn}>{result.asgariUcretHatasi}</p> : null}
+            <section className={styles.card} data-tour="ayrimcilik-ucret">
+              <div className={styles.cardHead}>
+                <Calculator size={16} />
+                <h2 className={styles.cardTitle}>Ücret bilgileri</h2>
               </div>
-            </div>
-
-            <div className={styles.coefTable}>
-              <div className={styles.coefTableHead}>Katsayı tablosu (1–4 ay)</div>
-              {result.coefRows.length === 0 ? (
-                <p className={styles.emptyCoef}>Brüt ücret girildiğinde satırlar listelenir.</p>
-              ) : (
-                <div className={styles.coefTableBody}>
-                  {result.coefRows.map((row) => (
-                    <div key={row.k} className={styles.coefTableRow}>
-                      <span className={styles.coefTableLabel}>{row.label}</span>
-                      <span className={styles.coefTableVal}>
-                        <FlashValue value={`${formatMoney(row.value)} ₺`} />
-                      </span>
-                    </div>
-                  ))}
+              <div className={styles.fields}>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="ay-brut">
+                    Çıplak brüt ücret
+                  </label>
+                  <DraftTextInput
+                    id="ay-brut"
+                    className={`${styles.input} ${result.asgariUcretHatasi ? styles.inputError : ""}`}
+                    inputMode="decimal"
+                    placeholder="Örn: 25.000"
+                    value={form.brut}
+                    onCommit={(value) => patch("brut", value)}
+                  />
+                  <p className={styles.helper}>Dava tarihindeki emsal brüt ücret yazılabilir.</p>
+                  {result.asgariUcretHatasi ? <p className={styles.warn}>{result.asgariUcretHatasi}</p> : null}
                 </div>
-              )}
-            </div>
-          </section>
+              </div>
+
+              <Button type="submit" variant="primary" size="md" className={styles.calcSubmit}>
+                <Calculator size={16} /> Hesapla
+              </Button>
+
+              <div className={styles.coefTable}>
+                <div className={styles.coefTableHead}>Katsayı tablosu (1–4 ay)</div>
+                {result.coefRows.length === 0 ? (
+                  <p className={styles.emptyCoef}>Brüt ücret girildiğinde satırlar listelenir.</p>
+                ) : (
+                  <div className={styles.coefTableBody}>
+                    {result.coefRows.map((row) => (
+                      <div key={row.k} className={styles.coefTableRow}>
+                        <span className={styles.coefTableLabel}>{row.label}</span>
+                        <span className={styles.coefTableVal}>
+                          <FlashValue value={`${formatMoney(row.value)} ₺`} />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          </form>
 
           <section className={styles.card}>
             <div className={styles.cardHead}>
@@ -650,7 +696,8 @@ export default function AyrimcilikTazminatiPage() {
               <h2 className={styles.cardTitle}>Brütten nete</h2>
             </div>
             <p className={styles.cardHint}>
-              Brüt tutardan yalnızca binde 7,59 oranında damga vergisi kesintisi uygulanır.
+              Brüt tutardan gelir vergisi ve binde 7,59 oranında damga vergisi kesintisi uygulanır
+              (İhbar Tazminatı ile aynı vergi mantığı).
             </p>
             <div className={styles.fields} style={{ marginBottom: "0.65rem" }}>
               <div className={styles.field}>
@@ -679,6 +726,15 @@ export default function AyrimcilikTazminatiPage() {
               </div>
 
               <div className={styles.lineList}>
+                <div className={styles.line}>
+                  <span>
+                    Gelir vergisi
+                    {result.gelirVergisiDilimleri ? ` ${result.gelirVergisiDilimleri}` : ""}
+                  </span>
+                  <strong className={styles.deduction}>
+                    −<FlashValue value={formatMoney(result.gelirVergisi)} /> ₺
+                  </strong>
+                </div>
                 <div className={styles.line}>
                   <span>Damga vergisi (‰7,59)</span>
                   <strong className={styles.deduction}>
