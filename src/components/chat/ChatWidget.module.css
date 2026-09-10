@@ -934,9 +934,30 @@
   .launcherCard {
     max-width: 12.5rem;
   }
+
+  .miniFabIcon {
+    width: 3.25rem;
+    height: 3.25rem;
+  }
 }
 
 @media (max-width: 640px) {
+  .root {
+    right: 12px;
+  }
+
+  .miniFabIcon {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .onlineBadge {
+    width: 0.5rem;
+    height: 0.5rem;
+    top: 0;
+    right: 0;
+  }
+
   .overlay {
     padding: 0 12px var(--chat-launcher-bottom);
     justify-content: center;
