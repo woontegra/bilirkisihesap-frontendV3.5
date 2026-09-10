@@ -1066,10 +1066,6 @@ export default function BasinKidemPage() {
             </label>
           </section>
 
-          <section className={styles.card} style={{ animationDelay: "200ms" }}>
-            <h2 className={styles.cardTitle}>Notlar</h2>
-            <p className={styles.noteInfo}>{NOTE_INFO}</p>
-          </section>
         </div>
 
         {/* ── Sağ: sonuçlar ── */}
@@ -1185,6 +1181,11 @@ export default function BasinKidemPage() {
               </div>
             </article>
           ) : null}
+
+          <section className={styles.card} style={{ animationDelay: "200ms" }}>
+            <h2 className={styles.cardTitle}>Notlar</h2>
+            <p className={styles.noteInfo}>{NOTE_INFO}</p>
+          </section>
         </div>
       </div>
 

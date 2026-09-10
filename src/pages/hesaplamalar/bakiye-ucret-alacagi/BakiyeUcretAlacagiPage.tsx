@@ -1059,7 +1059,6 @@ export default function BakiyeUcretAlacagiPage() {
               <Calculator size={16} /> {CALCULATE_LABEL}
             </Button>
             </div>
-            <p className={styles.note}>{NOTE_TEXT}</p>
           </div>
         </section>
 
@@ -1151,6 +1150,13 @@ export default function BakiyeUcretAlacagiPage() {
               {grossFromNet ? <NetBreakdown data={grossFromNet} title="Netten brüte dökümü" /> : null}
             </div>
           </div>
+        </section>
+
+        <section className={styles.card}>
+          <div className={styles.cardHead}>
+            <h2 className={styles.cardTitle}>Notlar</h2>
+          </div>
+          <p className={styles.note}>{NOTE_TEXT}</p>
         </section>
       </div>
 

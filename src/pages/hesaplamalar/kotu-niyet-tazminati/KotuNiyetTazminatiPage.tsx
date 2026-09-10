@@ -806,19 +806,6 @@ export default function KotuNiyetTazminatiPage() {
             </Button>
             </div>
           </section>
-
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
-            </div>
-            <div className={styles.notes}>
-              {NOTE_BLOCKS.map((text, i) => (
-                <p key={i} className={styles.note}>
-                  {text}
-                </p>
-              ))}
-            </div>
-          </section>
         </div>
 
         <aside className={styles.aside} style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
@@ -875,6 +862,19 @@ export default function KotuNiyetTazminatiPage() {
               <div className={styles.resultValue}>
                 <AnimatedMoney value={result.netAmount} /> ₺
               </div>
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
+            </div>
+            <div className={styles.notes}>
+              {NOTE_BLOCKS.map((text, i) => (
+                <p key={i} className={styles.note}>
+                  {text}
+                </p>
+              ))}
             </div>
           </section>
         </aside>

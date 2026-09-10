@@ -645,24 +645,6 @@ export default function IseAlmamaTazminatiPage() {
               </Button>
             </section>
           </form>
-
-          {NOTE_BLOCKS.length > 0 ? (
-            <section className={styles.card}>
-              <div className={styles.cardHead}>
-                <h2 className={styles.cardTitle}>Hukuki notlar</h2>
-              </div>
-              <div className={styles.notes}>
-                {NOTE_BLOCKS.map((n, i) => (
-                  <p
-                    key={i}
-                    className={`${styles.note} ${n.emphasis === "warning" ? styles.noteWarn : ""}`}
-                  >
-                    {n.text}
-                  </p>
-                ))}
-              </div>
-            </section>
-          ) : null}
         </div>
 
         <aside className={styles.aside} style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
@@ -734,6 +716,24 @@ export default function IseAlmamaTazminatiPage() {
               </div>
             </div>
           </section>
+
+          {NOTE_BLOCKS.length > 0 ? (
+            <section className={styles.card}>
+              <div className={styles.cardHead}>
+                <h2 className={styles.cardTitle}>Hukuki notlar</h2>
+              </div>
+              <div className={styles.notes}>
+                {NOTE_BLOCKS.map((n, i) => (
+                  <p
+                    key={i}
+                    className={`${styles.note} ${n.emphasis === "warning" ? styles.noteWarn : ""}`}
+                  >
+                    {n.text}
+                  </p>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </aside>
       </div>
 

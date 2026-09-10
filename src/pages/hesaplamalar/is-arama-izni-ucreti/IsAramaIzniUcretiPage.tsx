@@ -718,19 +718,6 @@ export default function IsAramaIzniUcretiPage() {
               </div>
             ) : null}
           </section>
-
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
-            </div>
-            <div className={styles.notes}>
-              {NOTE_BLOCKS.map((n, i) => (
-                <p key={i} className={n.kind === "heading" ? styles.noteHeading : styles.note}>
-                  {n.text}
-                </p>
-              ))}
-            </div>
-          </section>
         </div>
 
         <aside className={styles.aside} style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
@@ -817,6 +804,19 @@ export default function IsAramaIzniUcretiPage() {
               <div className={styles.resultValue}>
                 <AnimatedMoney value={result.net} /> ₺
               </div>
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
+            </div>
+            <div className={styles.notes}>
+              {NOTE_BLOCKS.map((n, i) => (
+                <p key={i} className={n.kind === "heading" ? styles.noteHeading : styles.note}>
+                  {n.text}
+                </p>
+              ))}
             </div>
           </section>
         </aside>

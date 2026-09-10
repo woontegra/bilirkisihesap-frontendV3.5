@@ -911,11 +911,6 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
               </table>
             </div>
           </section>
-
-          <section className={styles.card}>
-            <h2 className={styles.sectionTitle}>Notlar</h2>
-            <ul className={styles.notes}>{config.notes.map((n) => <li key={n}>{n}</li>)}</ul>
-          </section>
         </div>
 
         <aside className={styles.sideCol}>
@@ -988,6 +983,11 @@ export function HaftaTatiliCalcPage<TForm extends HaftaTatiliBaseForm>({ config 
                 </div>
               </div>
             </div>
+          </section>
+
+          <section className={styles.card}>
+            <h2 className={styles.sectionTitle}>Notlar</h2>
+            <ul className={styles.notes}>{config.notes.map((n) => <li key={n}>{n}</li>)}</ul>
           </section>
         </aside>
       </div>

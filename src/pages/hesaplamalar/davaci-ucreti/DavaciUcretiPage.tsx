@@ -1057,14 +1057,6 @@ export default function DavaciUcretiPage() {
             </div>
           </section>
 
-          <section className={styles.card} style={{ animationDelay: "180ms" }}>
-            <h2 className={styles.cardTitle}>Notlar</h2>
-            {NOTE_INFO_LINES.map((line) => (
-              <p key={line} className={styles.noteInfo}>
-                {line}
-              </p>
-            ))}
-          </section>
         </div>
 
         {/* ── Sağ: sonuçlar ── */}
@@ -1146,6 +1138,15 @@ export default function DavaciUcretiPage() {
               )}
             </div>
           </article>
+
+          <section className={styles.card} style={{ animationDelay: "180ms" }}>
+            <h2 className={styles.cardTitle}>Notlar</h2>
+            {NOTE_INFO_LINES.map((line) => (
+              <p key={line} className={styles.noteInfo}>
+                {line}
+              </p>
+            ))}
+          </section>
         </div>
       </div>
 

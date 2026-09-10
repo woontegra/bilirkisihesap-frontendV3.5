@@ -1145,11 +1145,6 @@ export default function MevsimlikKidemPage() {
             <span>Toplam Brüt</span>
             <FlashValue value={`${fmtCurrency(result.toplamAylikBrut)} ₺`} />
           </div>
-
-          <section className={styles.card} style={{ animationDelay: "180ms" }}>
-            <h2 className={styles.cardTitle}>Notlar</h2>
-            <p className={styles.noteInfo}>{NOTE_INFO}</p>
-          </section>
         </div>
 
         {/* Sonuçlar */}
@@ -1242,6 +1237,11 @@ export default function MevsimlikKidemPage() {
               </div>
             </div>
           </article>
+
+          <section className={styles.card} style={{ animationDelay: "180ms" }}>
+            <h2 className={styles.cardTitle}>Notlar</h2>
+            <p className={styles.noteInfo}>{NOTE_INFO}</p>
+          </section>
         </div>
       </div>
 

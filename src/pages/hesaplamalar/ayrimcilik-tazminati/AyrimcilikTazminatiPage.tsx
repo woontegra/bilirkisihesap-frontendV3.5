@@ -673,22 +673,6 @@ export default function AyrimcilikTazminatiPage() {
               </div>
             </section>
           </form>
-
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
-            </div>
-            <div
-              className={styles.notes}
-              style={{ maxHeight: "min(50vh, 28rem)", overflowY: "auto", paddingRight: 2 }}
-            >
-              {NOTE_BLOCKS.map((n, i) => (
-                <p key={i} className={`${styles.note} ${n.variant === "alert" ? styles.noteWarn : ""}`}>
-                  {n.text}
-                </p>
-              ))}
-            </div>
-          </section>
         </div>
 
         <aside className={styles.aside} style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
@@ -767,6 +751,22 @@ export default function AyrimcilikTazminatiPage() {
                   <AnimatedMoney value={result.netTazminat} /> ₺
                 </div>
               </div>
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
+            </div>
+            <div
+              className={styles.notes}
+              style={{ maxHeight: "min(50vh, 28rem)", overflowY: "auto", paddingRight: 2 }}
+            >
+              {NOTE_BLOCKS.map((n, i) => (
+                <p key={i} className={`${styles.note} ${n.variant === "alert" ? styles.noteWarn : ""}`}>
+                  {n.text}
+                </p>
+              ))}
             </div>
           </section>
         </aside>

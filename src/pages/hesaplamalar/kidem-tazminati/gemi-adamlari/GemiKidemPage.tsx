@@ -1035,10 +1035,6 @@ export default function GemiKidemPage() {
             </section>
           )}
 
-          <section className={styles.card} style={{ animationDelay: "220ms" }}>
-            <h2 className={styles.cardTitle}>Notlar</h2>
-            <p className={styles.noteInfo}>{NOTE_INFO}</p>
-          </section>
         </div>
 
         <div className={styles.resultCol}>
@@ -1115,6 +1111,11 @@ export default function GemiKidemPage() {
               </div>
             </div>
           </article>
+
+          <section className={styles.card} style={{ animationDelay: "220ms" }}>
+            <h2 className={styles.cardTitle}>Notlar</h2>
+            <p className={styles.noteInfo}>{NOTE_INFO}</p>
+          </section>
         </div>
       </div>
 

@@ -543,15 +543,6 @@ export default function PrimAlacagiPage() {
               <Plus size={14} /> Satır Ekle
             </Button>
           </section>
-
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
-            </div>
-            <div className={styles.notes}>
-              <p className={styles.note}>{NOTE_TEXT}</p>
-            </div>
-          </section>
         </div>
 
         <aside className={styles.aside} style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
@@ -611,6 +602,15 @@ export default function PrimAlacagiPage() {
                   <AnimatedMoney value={result.netTotal} /> ₺
                 </div>
               </div>
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
+            </div>
+            <div className={styles.notes}>
+              <p className={styles.note}>{NOTE_TEXT}</p>
             </div>
           </section>
         </aside>

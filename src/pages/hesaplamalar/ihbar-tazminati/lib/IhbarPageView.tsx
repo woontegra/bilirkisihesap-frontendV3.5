@@ -659,31 +659,6 @@ export function IhbarPageView(props: IhbarPageViewProps) {
           </section>
 
           {props.extraCard}
-
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
-            </div>
-            <div className={styles.notes}>
-              {props.notes.map((n, i) => {
-                if (n.kind === "heading") {
-                  return (
-                    <p key={i} className={styles.noteHeading}>
-                      {n.text}
-                    </p>
-                  );
-                }
-                return (
-                  <p
-                    key={i}
-                    className={`${styles.note} ${n.kind === "li" ? styles.noteLi : ""} ${n.emphasis === "warning" ? styles.noteWarn : ""}`}
-                  >
-                    {n.text}
-                  </p>
-                );
-              })}
-            </div>
-          </section>
         </div>
 
         <aside className={styles.aside} style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
@@ -744,6 +719,31 @@ export function IhbarPageView(props: IhbarPageViewProps) {
                   <AnimatedMoney value={props.net} /> ₺
                 </div>
               </div>
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>Hukuki notlar</h2>
+            </div>
+            <div className={styles.notes}>
+              {props.notes.map((n, i) => {
+                if (n.kind === "heading") {
+                  return (
+                    <p key={i} className={styles.noteHeading}>
+                      {n.text}
+                    </p>
+                  );
+                }
+                return (
+                  <p
+                    key={i}
+                    className={`${styles.note} ${n.kind === "li" ? styles.noteLi : ""} ${n.emphasis === "warning" ? styles.noteWarn : ""}`}
+                  >
+                    {n.text}
+                  </p>
+                );
+              })}
             </div>
           </section>
         </aside>

@@ -772,15 +772,6 @@ export default function BostaGecenSureUcretiPage() {
               </Button>
             </section>
           </form>
-
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Notlar</h2>
-            </div>
-            <div className={styles.warn} style={{ margin: 0 }}>
-              {NOTE_TEXT}
-            </div>
-          </section>
         </div>
 
         <aside className={styles.aside} style={{ display: "grid", gap: "0.85rem", minWidth: 0 }}>
@@ -845,6 +836,15 @@ export default function BostaGecenSureUcretiPage() {
               <div className={styles.resultValue}>
                 <AnimatedMoney value={result.netAmount} /> ₺
               </div>
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>Notlar</h2>
+            </div>
+            <div className={styles.warn} style={{ margin: 0 }}>
+              {NOTE_TEXT}
             </div>
           </section>
         </aside>
