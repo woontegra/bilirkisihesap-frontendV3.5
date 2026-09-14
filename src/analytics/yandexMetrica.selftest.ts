@@ -2,9 +2,11 @@
  * Yandex Metrica güvenlik ve SPA davranış birim testleri.
  */
 import assert from "node:assert/strict";
+import { isPlatformAdminFromSources } from "@/auth/session";
 import {
   YANDEX_GOAL,
   YANDEX_TAG_JS,
+  TRACKED_PREFIXES,
   buildGoalParams,
   classifyTrackedAction,
   createYandexMetricaClient,
@@ -17,6 +19,7 @@ import {
   readYandexMetricaEnv,
   resolvePageTitle,
   sanitizePath,
+  shouldStartYandexTracker,
   yandexInitOptions,
 } from "./yandexMetrica";
 
@@ -25,11 +28,15 @@ function check(label: string, actual: unknown, expected: unknown) {
 }
 
 check("enabled only exact true", isEnabledFlag("true"), true);
+check("enabled trims whitespace", isEnabledFlag(" true \n"), true);
+check("enabled boolean true", isEnabledFlag(true), true);
 check("enabled false string", isEnabledFlag("false"), false);
 check("enabled missing", isEnabledFlag(undefined), false);
 check("enabled 1 not enough", isEnabledFlag("1"), false);
 
 check("counter numeric", parseCounterId("112580132"), 112580132);
+check("counter numeric type", parseCounterId(112580132), 112580132);
+check("counter trims", parseCounterId(" 112580132 "), 112580132);
 check("counter rejects text", parseCounterId("abc"), null);
 check("counter rejects empty", parseCounterId(""), null);
 check("counter rejects float", parseCounterId("12.3"), null);
@@ -48,19 +55,103 @@ check("sanitize trailing slash", sanitizePath("/dashboard/"), "/dashboard");
 check("blocked login", isBlockedPath("/login"), true);
 check("blocked login query ignored", isBlockedPath("/login?token=xyz"), true);
 check("blocked register", isBlockedPath("/register"), true);
+check("blocked signup", isBlockedPath("/signup"), true);
 check("blocked reset", isBlockedPath("/reset-password"), true);
+check("blocked sifre sifirla", isBlockedPath("/sifre-sifirla"), true);
 check("blocked activate", isBlockedPath("/activate/TOKEN"), true);
+check("blocked aktivasyon", isBlockedPath("/aktivasyon"), true);
 check("blocked admin", isBlockedPath("/admin/users"), true);
 check("blocked admin root", isBlockedPath("/admin"), true);
 
 check("tracked dashboard", isTrackedPath("/dashboard"), true);
+check("tracked kotu niyet", isTrackedPath("/kotu-niyet-tazminati"), true);
+check("tracked kidem", isTrackedPath("/kidem-tazminati/30isci"), true);
+check("tracked ihbar", isTrackedPath("/ihbar-tazminati/30isci"), true);
+check("tracked fazla mesai", isTrackedPath("/fazla-mesai/standart"), true);
+check("tracked yillik izin", isTrackedPath("/yillik-izin/standart"), true);
+check("tracked hafta tatili", isTrackedPath("/hafta-tatili/standard"), true);
 check("tracked calc with query", isTrackedPath("/kidem-tazminati/30isci?caseId=12"), true);
 check("not tracked profile", isTrackedPath("/profile"), false);
+check("not tracked profile tab", isTrackedPath("/profile?tab=saved"), false);
 check("not tracked login", isTrackedPath("/login"), false);
+check("not tracked register", isTrackedPath("/register"), false);
+check("not tracked reset", isTrackedPath("/reset-password"), false);
+check("not tracked activate", isTrackedPath("/activate"), false);
 check("not tracked admin", isTrackedPath("/admin/analytics"), false);
+
+for (const prefix of TRACKED_PREFIXES) {
+  check(`allow calc prefix ${prefix}`, isTrackedPath(prefix), true);
+}
+
+check(
+  "normal user calc mounts",
+  shouldStartYandexTracker({
+    enabled: true,
+    isPlatformAdmin: false,
+    pathname: "/kotu-niyet-tazminati",
+  }),
+  true,
+);
+check(
+  "platform admin never mounts",
+  shouldStartYandexTracker({
+    enabled: true,
+    isPlatformAdmin: true,
+    pathname: "/kotu-niyet-tazminati",
+  }),
+  false,
+);
+check(
+  "login never mounts",
+  shouldStartYandexTracker({ enabled: true, isPlatformAdmin: false, pathname: "/login" }),
+  false,
+);
+check(
+  "register never mounts",
+  shouldStartYandexTracker({ enabled: true, isPlatformAdmin: false, pathname: "/register" }),
+  false,
+);
+check(
+  "reset never mounts",
+  shouldStartYandexTracker({ enabled: true, isPlatformAdmin: false, pathname: "/reset-password" }),
+  false,
+);
+check(
+  "activate never mounts",
+  shouldStartYandexTracker({ enabled: true, isPlatformAdmin: false, pathname: "/aktivasyon" }),
+  false,
+);
+check(
+  "profile never mounts",
+  shouldStartYandexTracker({ enabled: true, isPlatformAdmin: false, pathname: "/profile" }),
+  false,
+);
+check(
+  "admin route never mounts",
+  shouldStartYandexTracker({ enabled: true, isPlatformAdmin: false, pathname: "/admin" }),
+  false,
+);
+check(
+  "env off never mounts",
+  shouldStartYandexTracker({
+    enabled: false,
+    isPlatformAdmin: false,
+    pathname: "/kotu-niyet-tazminati",
+  }),
+  false,
+);
+
+check("jwt user is not platform admin", isPlatformAdminFromSources("user", "user"), false);
+check("jwt customer is not platform admin", isPlatformAdminFromSources("user", "customer"), false);
+check("jwt wins over stale localStorage admin", isPlatformAdminFromSources("user", "admin"), false);
+check("jwt admin is platform admin", isPlatformAdminFromSources("admin", "user"), true);
+check("session admin fallback when jwt missing", isPlatformAdminFromSources(undefined, "admin"), true);
+check("session user fallback when jwt missing", isPlatformAdminFromSources(undefined, "user"), false);
+check("Kullanıcı display role is not admin", isPlatformAdminFromSources("user", "Kullanıcı"), false);
 
 check("module dashboard", moduleNameFromPath("/dashboard"), "dashboard");
 check("module kidem", moduleNameFromPath("/kidem-tazminati/30isci?x=1"), "kidem_30isci");
+check("module kotu niyet", moduleNameFromPath("/kotu-niyet-tazminati"), "kotu_niyet");
 check("goal params keys", Object.keys(buildGoalParams("/ucret-alacagi?email=a@b.com")).sort(), ["module", "route"]);
 check("goal params clean route", buildGoalParams("/ucret-alacagi?email=a@b.com").route, "/ucret-alacagi");
 check("goal params no email", JSON.stringify(buildGoalParams("/ucret-alacagi?email=a@b.com")).includes("email"), false);
@@ -95,19 +186,36 @@ type ScriptNode = {
   async: boolean;
   onerror: (() => void) | null;
   parentNode: { insertBefore: (node: ScriptNode, ref: ScriptNode) => void } | null;
+  getAttribute(name: string): string;
 };
 
 function createMockHost() {
-  const scripts: ScriptNode[] = [];
-  const bodyScripts: ScriptNode[] = [
+  const injected: ScriptNode[] = [];
+  const liveScripts: ScriptNode[] = [
     {
-      src: "/src/main.tsx",
+      src: "",
       async: false,
       onerror: null,
       parentNode: {
-        insertBefore(node) {
-          scripts.push(node);
+        insertBefore() {
+          throw new Error("insertBefore must not be used; append to head");
         },
+      },
+      getAttribute(name: string) {
+        return name === "src" ? this.src : "";
+      },
+    },
+    {
+      src: "https://panel.test/assets/index.js",
+      async: false,
+      onerror: null,
+      parentNode: {
+        insertBefore() {
+          throw new Error("insertBefore must not be used; append to head");
+        },
+      },
+      getAttribute(name: string) {
+        return name === "src" ? this.src : "";
       },
     },
   ];
@@ -118,9 +226,9 @@ function createMockHost() {
   };
 
   const doc = {
-    scripts: bodyScripts,
+    scripts: liveScripts,
     getElementsByTagName(tag: string) {
-      if (tag === "script") return bodyScripts;
+      if (tag === "script") return liveScripts;
       return [];
     },
     createElement(tag: string) {
@@ -130,14 +238,22 @@ function createMockHost() {
         async: false,
         onerror: null,
         parentNode: null,
+        getAttribute(name: string) {
+          return name === "src" ? this.src : "";
+        },
       } as ScriptNode;
     },
-    head: { appendChild(node: ScriptNode) { scripts.push(node); } },
-    body: { appendChild(node: ScriptNode) { scripts.push(node); } },
-    documentElement: { appendChild(node: ScriptNode) { scripts.push(node); } },
+    head: {
+      appendChild(node: ScriptNode) {
+        injected.push(node);
+        liveScripts.push(node);
+      },
+    },
+    body: { appendChild(node: ScriptNode) { injected.push(node); } },
+    documentElement: { appendChild(node: ScriptNode) { injected.push(node); } },
   };
 
-  return { win, doc, scripts };
+  return { win, doc, scripts: injected };
 }
 
 {
@@ -164,12 +280,31 @@ function createMockHost() {
   client.ensure();
   client.ensure();
   check("script injected once", scripts.filter((s) => s.src === YANDEX_TAG_JS).length, 1);
+  check("script src official tag.js", scripts[0]?.src, YANDEX_TAG_JS);
   check("init started once", client.initStarted, true);
   check(
     "ym init once",
     collected.filter((args) => args[1] === "init").length,
     1,
   );
+}
+
+{
+  const { win, doc, scripts } = createMockHost();
+  const collected: unknown[][] = [];
+  win.ym = (...args: unknown[]) => {
+    collected.push(args);
+  };
+  const client = createYandexMetricaClient({
+    enabled: true,
+    counterId: 112580132,
+    getWindow: () => win as never,
+    getDocument: () => doc as never,
+  });
+  client.hit("/kotu-niyet-tazminati", "Kötü Niyet Tazminatı");
+  client.hit("/kotu-niyet-tazminati", "Kötü Niyet Tazminatı");
+  check("strict-mode double hit is one", collected.filter((args) => args[1] === "hit").length, 1);
+  check("strict-mode still one script", scripts.filter((s) => s.src === YANDEX_TAG_JS).length, 1);
 }
 
 {
@@ -194,6 +329,7 @@ function createMockHost() {
   check("hit url is pathname only", hits[0]?.[2], "/kidem-tazminati/30isci");
   check("second route hit", hits[1]?.[2], "/fazla-mesai/standart");
   check("hit has no query", String(hits[0]?.[2]).includes("?"), false);
+  check("hit has no hash", String(hits[0]?.[2]).includes("#"), false);
   check("hit has no token", JSON.stringify(hits).includes("token"), false);
   check("hit has no email", JSON.stringify(hits).includes("email"), false);
   check("hit title turkish", (hits[0]?.[3] as { title?: string } | undefined)?.title, "Kıdem Tazminatı — İş Kanununa Göre");
@@ -210,12 +346,16 @@ function createMockHost() {
     getDocument: () => doc as never,
   });
   client.hit("/login", "Giriş");
+  client.hit("/register", "Kayıt");
+  client.hit("/reset-password", "Sıfırla");
+  client.hit("/activate", "Aktivasyon");
+  client.hit("/profile", "Profilim");
   client.hit("/admin/users", "Kullanıcı Yönetimi");
   client.goal("guide_open", "/admin");
   client.goal("calculation_start", "/login");
   const hits = collected.filter((args) => args[1] === "hit");
   const goals = collected.filter((args) => args[1] === "reachGoal");
-  check("no hit on login/admin", hits.length, 0);
+  check("no hit on auth/profile/admin", hits.length, 0);
   check("no goal on login/admin", goals.length, 0);
 }
 
@@ -246,9 +386,25 @@ function createMockHost() {
   client.ensure();
   const injected = scripts.find((s) => s.src === YANDEX_TAG_JS);
   assert.ok(injected, "tag.js injected");
+  assert.equal(injected?.src, "https://mc.yandex.ru/metrika/tag.js");
   assert.doesNotThrow(() => injected?.onerror?.());
   assert.doesNotThrow(() => client.hit("/dashboard", "Yönetim Paneli"));
   assert.doesNotThrow(() => client.goal("frontend_error", "/dashboard"));
+}
+
+{
+  const { win, doc, scripts } = createMockHost();
+  const collected: unknown[][] = [];
+  win.ym = (...args: unknown[]) => collected.push(args);
+  const client = createYandexMetricaClient({
+    enabled: false,
+    counterId: 112580132,
+    getWindow: () => win as never,
+    getDocument: () => doc as never,
+  });
+  client.hit("/kotu-niyet-tazminati", "Kötü Niyet Tazminatı");
+  check("env off no script", scripts.length, 0);
+  check("env off no ym calls", collected.length, 0);
 }
 
 console.log("yandexMetrica.selftest: ok");

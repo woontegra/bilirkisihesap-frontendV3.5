@@ -1,4 +1,4 @@
-import { readCurrentUser } from "@/auth/session";
+import { isPlatformAdmin } from "@/auth/session";
 
 export const YANDEX_TAG_JS = "https://mc.yandex.ru/metrika/tag.js";
 
@@ -25,7 +25,8 @@ type YmCallable = ((...args: unknown[]) => void) & {
 
 type YandexWindow = Window & { ym?: YmCallable };
 
-const TRACKED_PREFIXES = [
+/** Hesaplama/panel prefix'leri — modül adı ve testler için. İzleme denylist kullanır. */
+export const TRACKED_PREFIXES = [
   "/dashboard",
   "/kidem-tazminati",
   "/ihbar-tazminati",
@@ -61,6 +62,7 @@ const BLOCKED_PREFIXES = [
   "/activation",
   "/aktivasyon",
   "/verify-email",
+  "/professional-license-activation",
   "/admin",
 ] as const;
 
@@ -107,12 +109,13 @@ const MODULE_BY_PREFIX: Array<{ prefix: string; module: string }> = [
   { prefix: "/araclar/manuel-brut-ucret", module: "manuel_brut_ucret" },
 ];
 
-export function isEnabledFlag(raw: string | undefined): boolean {
-  return raw === "true";
+export function isEnabledFlag(raw: string | boolean | undefined): boolean {
+  if (raw === true) return true;
+  return String(raw ?? "").trim() === "true";
 }
 
-export function parseCounterId(raw: string | undefined): number | null {
-  const value = (raw ?? "").trim();
+export function parseCounterId(raw: string | number | undefined): number | null {
+  const value = String(raw ?? "").trim();
   if (!/^\d{2,16}$/.test(value)) return null;
   const id = Number(value);
   if (!Number.isSafeInteger(id) || id <= 0) return null;
@@ -150,7 +153,16 @@ export function isTrackedPath(pathname: string): boolean {
   const path = sanitizePath(pathname);
   if (isBlockedPath(path)) return false;
   if (path === "/profile" || path.startsWith("/profile/")) return false;
-  return TRACKED_PREFIXES.some((prefix) => matchesPrefix(path, prefix));
+  // Denylist: yeni hesaplama route'ları allowlist yüzünden sessizce düşmesin.
+  return true;
+}
+
+export function shouldStartYandexTracker(input: {
+  enabled: boolean;
+  isPlatformAdmin: boolean;
+  pathname: string;
+}): boolean {
+  return input.enabled && !input.isPlatformAdmin && isTrackedPath(input.pathname);
 }
 
 export function moduleNameFromPath(pathname: string): string {
@@ -272,7 +284,36 @@ export function yandexInitOptions(): Record<string, boolean> {
   };
 }
 
-function installOfficialLoader(win: YandexWindow, doc: Document, src: string): void {
+function yandexDebug(message: string, extra?: Record<string, unknown>): void {
+  if (import.meta.env.DEV) {
+    console.debug("[yandex-metrica]", message, extra ?? {});
+  }
+}
+
+function readScriptSrc(node: { src?: string; getAttribute?: (name: string) => string | null } | null): string {
+  if (!node) return "";
+  try {
+    if (node.src) return node.src;
+    if (typeof node.getAttribute === "function") return node.getAttribute("src") || "";
+  } catch {
+    /* ignore */
+  }
+  return "";
+}
+
+function scriptAlreadyPresent(doc: Document, src: string): boolean {
+  try {
+    const scripts = doc.getElementsByTagName("script");
+    for (let j = 0; j < scripts.length; j += 1) {
+      if (readScriptSrc(scripts[j]) === src) return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
+function installOfficialLoader(win: YandexWindow, doc: Document, src: string): boolean {
   win.ym =
     win.ym ||
     function ymQueue() {
@@ -282,10 +323,7 @@ function installOfficialLoader(win: YandexWindow, doc: Document, src: string): v
     };
   (win.ym as YmCallable).l = Date.now();
 
-  const scripts = doc.scripts;
-  for (let j = 0; j < scripts.length; j += 1) {
-    if (scripts[j]?.src === src) return;
-  }
+  if (scriptAlreadyPresent(doc, src)) return true;
 
   const tag = doc.createElement("script");
   tag.async = true;
@@ -293,12 +331,10 @@ function installOfficialLoader(win: YandexWindow, doc: Document, src: string): v
   tag.onerror = () => {
     /* Reklam engelleyici / ağ hatası uygulamayı bozmasın. */
   };
-  const first = doc.getElementsByTagName("script")[0];
-  if (first?.parentNode) {
-    first.parentNode.insertBefore(tag, first);
-    return;
-  }
-  (doc.head ?? doc.body ?? doc.documentElement).appendChild(tag);
+  const parent = doc.head || doc.body || doc.documentElement;
+  if (!parent) return false;
+  parent.appendChild(tag);
+  return scriptAlreadyPresent(doc, src) || tag.src === src;
 }
 
 export function createYandexMetricaClient(options: YandexMetricaClientOptions): YandexMetricaClient {
@@ -348,8 +384,14 @@ export function createYandexMetricaClient(options: YandexMetricaClientOptions): 
       if (!win || !doc) return false;
       if (client.initStarted) return true;
       client.initStarted = true;
-      installOfficialLoader(win, doc, scriptSrc);
+      const installed = installOfficialLoader(win, doc, scriptSrc);
+      if (!installed) {
+        client.initStarted = false;
+        yandexDebug("script-install-failed");
+        return false;
+      }
       callYm(client.counterId, "init", yandexInitOptions());
+      yandexDebug("script-installed", { src: scriptSrc, counterId: client.counterId ?? undefined });
       return true;
     } catch {
       client.initStarted = false;
@@ -391,18 +433,14 @@ export function createYandexMetricaClient(options: YandexMetricaClientOptions): 
 }
 
 function isAdminUser(): boolean {
-  try {
-    return readCurrentUser()?.role === "admin";
-  } catch {
-    return false;
-  }
+  return isPlatformAdmin();
 }
 
 let singleton: YandexMetricaClient | null = null;
 
 export function readYandexMetricaEnv(
-  enabledRaw: string | undefined = import.meta.env.VITE_YANDEX_METRICA_ENABLED,
-  idRaw: string | undefined = import.meta.env.VITE_YANDEX_METRICA_ID,
+  enabledRaw: string | boolean | undefined = import.meta.env.VITE_YANDEX_METRICA_ENABLED,
+  idRaw: string | number | undefined = import.meta.env.VITE_YANDEX_METRICA_ID,
 ): { enabled: boolean; counterId: number | null } {
   const counterId = parseCounterId(idRaw);
   return {
@@ -424,12 +462,18 @@ export function isYandexMetricaActive(): boolean {
 }
 
 export function trackYandexPageView(pathname: string, title: string): void {
-  if (isAdminUser()) return;
+  if (isAdminUser()) {
+    yandexDebug("skip-platform-admin", { path: sanitizePath(pathname) });
+    return;
+  }
   getSingleton().hit(pathname, title);
 }
 
 export function trackYandexGoal(name: YandexGoalName, pathname?: string): void {
-  if (isAdminUser()) return;
+  if (isAdminUser()) {
+    yandexDebug("skip-platform-admin-goal", { name });
+    return;
+  }
   const path =
     pathname ??
     (typeof window !== "undefined" ? window.location.pathname : "/");

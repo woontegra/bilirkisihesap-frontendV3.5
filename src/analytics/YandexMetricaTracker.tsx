@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { readIsAdmin } from "@/data/source";
+import { isPlatformAdmin } from "@/auth/session";
 import {
   captureYandexDomAction,
   isYandexMetricaActive,
   isTrackedPath,
+  shouldStartYandexTracker,
   trackYandexGoal,
   trackYandexPageView,
 } from "./yandexMetrica";
@@ -15,22 +16,39 @@ type Props = {
 
 /**
  * Giriş yapmış normal kullanıcının hesaplama kabuğunda Yandex Metrica.
- * Login AppShell dışındadır; admin kullanıcı ve /admin rotaları izlenmez.
+ * Login AppShell dışındadır; yalnızca JWT role === admin platform yöneticisi
+ * ve /login /profile /admin gibi kapalı rotalar izlenmez.
  */
 export function YandexMetricaTracker({ pageTitle }: Props) {
   const { pathname } = useLocation();
-  const isAdmin = readIsAdmin();
+  const [authTick, setAuthTick] = useState(0);
 
   useEffect(() => {
-    if (isAdmin || !isYandexMetricaActive()) return;
+    const onAuth = () => setAuthTick((n) => n + 1);
+    window.addEventListener("auth-changed", onAuth);
+    return () => window.removeEventListener("auth-changed", onAuth);
+  }, []);
+
+  useEffect(() => {
+    const enabled = isYandexMetricaActive();
+    const admin = isPlatformAdmin();
+    if (
+      !shouldStartYandexTracker({
+        enabled,
+        isPlatformAdmin: admin,
+        pathname,
+      })
+    ) {
+      return;
+    }
     const title =
       pageTitle.trim() ||
       (typeof document !== "undefined" ? document.title : "");
     trackYandexPageView(pathname, title);
-  }, [isAdmin, pathname, pageTitle]);
+  }, [pathname, pageTitle, authTick]);
 
   useEffect(() => {
-    if (isAdmin || !isYandexMetricaActive()) return;
+    if (!isYandexMetricaActive() || isPlatformAdmin()) return;
 
     const currentPath = () => window.location.pathname;
     let lastErrorAt = 0;
@@ -73,7 +91,7 @@ export function YandexMetricaTracker({ pageTitle }: Props) {
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
     };
-  }, [isAdmin]);
+  }, [authTick]);
 
   return null;
 }

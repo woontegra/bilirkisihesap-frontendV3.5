@@ -93,6 +93,27 @@ export function readCurrentUser(): AuthUser | null {
   }
 }
 
+/**
+ * Platform yöneticisi — backend `requireAdmin` ile aynı kaynak:
+ * JWT `role === "admin"`. `tenantId === 1` tek başına admin değildir.
+ * JWT rolü yoksa AdminOnly yedeği: `current_user.role === "admin"`.
+ */
+export function isPlatformAdminFromSources(
+  jwtRole: string | null | undefined,
+  sessionRole: string | null | undefined,
+): boolean {
+  if (jwtRole) return jwtRole === "admin";
+  return sessionRole === "admin";
+}
+
+export function isPlatformAdmin(): boolean {
+  try {
+    return isPlatformAdminFromSources(decodeAccessTokenClaims()?.role, readCurrentUser()?.role);
+  } catch {
+    return false;
+  }
+}
+
 /** /me veya login yanıtından tüm kimlik anahtarlarını atomik günceller. */
 export function applyAuthMeResponse(me: Record<string, unknown>): void {
   const claims = decodeAccessTokenClaims();
