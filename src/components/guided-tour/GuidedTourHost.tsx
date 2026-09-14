@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { trackYandexGoal } from "@/analytics/yandexMetrica";
 import {
   findTourTarget,
   pickPlacement,
@@ -211,6 +212,7 @@ export function GuidedTourHost({
   useEffect(() => {
     if (active && !wasActiveRef.current) {
       onTourStarted?.();
+      trackYandexGoal("guide_open");
       clearTimers();
       advancingRef.current = false;
       userEditedRef.current = false;
