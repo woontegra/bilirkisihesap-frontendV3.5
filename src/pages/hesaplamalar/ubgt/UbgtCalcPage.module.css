@@ -930,8 +930,77 @@
   background: color-mix(in srgb, var(--surface-muted) 92%, #dbeafe);
 }
 
+.resultTable th.moneyRight {
+  text-align: right;
+}
+
 .framedTable {
   min-width: 36rem;
+}
+
+.periodCetvelTable {
+  table-layout: auto;
+  min-width: 0;
+}
+
+.periodCetvelTable th,
+.periodCetvelTable td {
+  box-sizing: border-box;
+}
+
+.periodCetvelTable th.moneyRight,
+.periodCetvelTable td.moneyRight {
+  text-align: right;
+}
+
+.periodCetvelTable td.moneyRight .cellInput {
+  display: inline-block;
+  margin-left: auto;
+}
+
+.periodCetvelPeriodCol {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.periodCetvelTable .cellInput {
+  width: 6.5rem;
+  max-width: 6.5rem;
+  box-sizing: border-box;
+}
+
+.periodCetvelTable .dateCell .cellInput {
+  width: 9.85rem;
+  min-width: 9.85rem;
+  max-width: none;
+  flex: 0 0 auto;
+}
+
+.periodCetvelTable .cellInputNarrow {
+  width: 4.35rem;
+  max-width: 4.35rem;
+}
+
+.periodCetvelActionsHead,
+.periodCetvelActionsCell {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.periodCetvelTable .rowActions {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+}
+
+.periodCetvelTable .rowAddBtn,
+.periodCetvelTable .rowRemoveBtn {
+  flex: 0 0 auto;
 }
 
 .framedTable thead th {

@@ -66,29 +66,27 @@ export default function UbgtPeriodCetvelTable({
         </div>
       ) : (
         <div className={styles.tableWrap}>
-          <table className={`${styles.resultTable} ${styles.framedTable}`}>
+          <table className={`${styles.resultTable} ${styles.framedTable} ${styles.periodCetvelTable}`}>
             <thead>
               <tr>
-                <th>{periodCol}</th>
-                {mode === "bilirkisi" ? <th>Kişi(ler)</th> : null}
+                <th className={styles.periodCetvelPeriodCol}>{periodCol}</th>
                 <th className={styles.moneyRight}>Ücret (BRÜT)</th>
                 <th className={styles.moneyRight}>Katsayı</th>
                 <th className={styles.moneyRight}>{dailyCol}</th>
                 <th className={styles.moneyRight}>{daysCol}</th>
                 <th className={styles.moneyRight}>{payCol}</th>
-                <th aria-label="" />
+                <th className={styles.periodCetvelActionsHead} aria-label="" />
               </tr>
             </thead>
             <tbody>
               {rows.map((r, idx) => {
-                const autoDaysLocked = mode === "bilirkisi" && r.source === "auto";
                 return (
                   <tr
                     key={r.id}
                     className={r.source === "manual" ? styles.manualRow : undefined}
                     style={{ animationDelay: `${Math.min(idx, 24) * 18}ms` }}
                   >
-                    <td>
+                    <td className={styles.periodCetvelPeriodCol}>
                       {r.source === "manual" ? (
                         <div className={styles.dateCell}>
                           <DraftDateInput
@@ -109,10 +107,7 @@ export default function UbgtPeriodCetvelTable({
                         <span>{r.period}</span>
                       )}
                     </td>
-                    {mode === "bilirkisi" ? (
-                      <td>{r.persons?.length ? r.persons.join(", ") : "—"}</td>
-                    ) : null}
-                    <td>
+                    <td className={styles.moneyRight}>
                       <DraftTextInput
                         className={`${styles.cellInput} ${styles.moneyRight}`}
                         value={r.wageDisplay}
@@ -123,10 +118,9 @@ export default function UbgtPeriodCetvelTable({
                         aria-label="Ücret (BRÜT)"
                       />
                     </td>
-                    <td>
+                    <td className={styles.moneyRight}>
                       <DraftTextInput
-                        className={`${styles.cellInput} ${styles.moneyRight}`}
-                        style={{ width: "4.25rem" }}
+                        className={`${styles.cellInput} ${styles.cellInputNarrow} ${styles.moneyRight}`}
                         value={r.coefficientDisplay}
                         onCommit={(v) => {
                           if (r.source === "manual") onManualPatch(r.id, { coefficient: v });
@@ -138,28 +132,23 @@ export default function UbgtPeriodCetvelTable({
                     <td className={`${styles.moneyCell} ${styles.moneyRight}`}>
                       {formatMoney(r.dailyWage)}
                     </td>
-                    <td>
-                      {autoDaysLocked ? (
-                        <span className={styles.moneyRight}>{r.ubgtDaysDisplay}</span>
-                      ) : (
-                        <input
-                          className={`${styles.cellInput} ${styles.moneyRight}`}
-                          style={{ width: "4.25rem" }}
-                          value={r.ubgtDaysDisplay}
-                          onChange={(e) => {
-                            if (r.source === "manual")
-                              onManualPatch(r.id, { ubgtDays: e.target.value });
-                            else if (r.engineIndex != null)
-                              onAutoOverride(r.engineIndex, { ubgtDays: e.target.value });
-                          }}
-                          aria-label={daysCol}
-                        />
-                      )}
+                    <td className={styles.moneyRight}>
+                      <input
+                        className={`${styles.cellInput} ${styles.cellInputNarrow} ${styles.moneyRight}`}
+                        value={r.ubgtDaysDisplay}
+                        onChange={(e) => {
+                          if (r.source === "manual")
+                            onManualPatch(r.id, { ubgtDays: e.target.value });
+                          else if (r.engineIndex != null)
+                            onAutoOverride(r.engineIndex, { ubgtDays: e.target.value });
+                        }}
+                        aria-label={daysCol}
+                      />
                     </td>
                     <td className={`${styles.moneyCell} ${styles.moneyRight}`}>
                       {formatMoney(r.ubgtTotal)} ₺
                     </td>
-                    <td>
+                    <td className={styles.periodCetvelActionsCell}>
                       <div className={styles.rowActions}>
                         <button
                           type="button"
@@ -188,10 +177,7 @@ export default function UbgtPeriodCetvelTable({
             </tbody>
             <tfoot>
               <tr className={styles.totalsRow}>
-                <td
-                  colSpan={mode === "bilirkisi" ? 6 : 5}
-                  className={styles.footerLabelCell}
-                >
+                <td colSpan={5} className={styles.footerLabelCell}>
                   {footerLabel}
                 </td>
                 <td className={`${styles.moneyCell} ${styles.moneyRight}`}>

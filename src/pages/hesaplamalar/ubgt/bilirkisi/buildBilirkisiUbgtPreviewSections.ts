@@ -47,14 +47,13 @@ export function buildBilirkisiUbgtPreviewSections(opts: {
 
   const periodRows = displayPeriods.map((row) => [
     row.period,
-    row.persons?.length ? row.persons.join(", ") : "—",
     `${formatMoney(row.wage)} ₺`,
     row.coefficient.toFixed(4),
     `${formatMoney(row.dailyWage)} ₺`,
     String(row.ubgtDays),
     `${formatMoney(row.ubgtTotal)} ₺`,
   ]);
-  periodRows.push(["Toplam", "", "", "", "", "", `${formatMoney(displayBrutForNet)} ₺`]);
+  periodRows.push(["Toplam", "", "", "", "", `${formatMoney(displayBrutForNet)} ₺`]);
 
   return [
     {
@@ -68,7 +67,6 @@ export function buildBilirkisiUbgtPreviewSections(opts: {
       title: "UBGT hesaplama cetveli",
       headers: [
         "Dönem",
-        "Kişi(ler)",
         "Ücret (BRÜT)",
         "Katsayı",
         "Günlük ücret",

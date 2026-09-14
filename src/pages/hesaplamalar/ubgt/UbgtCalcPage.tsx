@@ -1052,25 +1052,7 @@ export default function UbgtCalcPage({ mode, title }: Props) {
                       ) : null}
                     </div>
                   </div>
-                  <div className={mode === "bilirkisi" ? styles.periodFields3 : styles.periodFields2}>
-                    {mode === "bilirkisi" ? (
-                      <label className={styles.field}>
-                        <span className={styles.fieldLabel}>Kişi(ler)</span>
-                        <input
-                          className={styles.input}
-                          placeholder="Davacı"
-                          value={row.person || ""}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              dateRanges: f.dateRanges.map((r, i) =>
-                                i === idx ? { ...r, person: e.target.value } : r,
-                              ),
-                            }))
-                          }
-                        />
-                      </label>
-                    ) : null}
+                  <div className={styles.periodFields2}>
                     <label className={styles.field}>
                       <span className={styles.fieldLabel}>Başlangıç</span>
                       <DraftDateInput
