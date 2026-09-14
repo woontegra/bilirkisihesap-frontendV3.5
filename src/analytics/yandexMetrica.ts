@@ -274,14 +274,29 @@ export type YandexMetricaClientOptions = {
 };
 
 export function yandexInitOptions(): Record<string, boolean> {
+  // `ssr: true` tag.js içinde $y.init eklentisini tetikler (K(args, "0.ssr")).
+  // Eklenti true dönerse Ya.Metrika2 kurulmaz; tag.js 200 olsa da /watch hiç gitmez.
+  // `defer: true` otomatik pageview'i kapatır; ilk hit aşağıda manuel gönderilir (query'siz pathname).
   return {
-    ssr: true,
     webvisor: true,
     clickmap: true,
     trackLinks: true,
     accurateTrackBounce: true,
     defer: true,
   };
+}
+
+export function yandexWatchRequestPath(counterId: number): string {
+  return `/watch/${counterId}`;
+}
+
+export function queuedYmCalls(ym: { a?: unknown[] } | undefined): unknown[][] {
+  return (ym?.a ?? []).map((item) => Array.from(item as ArrayLike<unknown>));
+}
+
+/** tag.js: `$y.init` eklentisi `options.ssr` true ise client constructor'ı atlar. */
+export function tagJsWouldSkipClientInit(initOptions: Record<string, unknown> | undefined): boolean {
+  return Boolean(initOptions?.ssr);
 }
 
 function yandexDebug(message: string, extra?: Record<string, unknown>): void {
@@ -317,11 +332,10 @@ function installOfficialLoader(win: YandexWindow, doc: Document, src: string): b
   win.ym =
     win.ym ||
     function ymQueue() {
-      const current = win.ym as YmCallable;
-      current.a = current.a || [];
-      current.a.push(arguments as unknown);
+      (win.ym as YmCallable).a = (win.ym as YmCallable).a || [];
+      (win.ym as YmCallable).a!.push(arguments);
     };
-  (win.ym as YmCallable).l = Date.now();
+  (win.ym as YmCallable).l = 1 * Date.now();
 
   if (scriptAlreadyPresent(doc, src)) return true;
 
@@ -407,7 +421,12 @@ export function createYandexMetricaClient(options: YandexMetricaClientOptions): 
       if (client.lastHitPath === url) return;
       client.lastHitPath = url;
       const pageTitle = resolvePageTitle(title, typeof document !== "undefined" ? document.title : "");
-      callYm(client.counterId, "hit", url, pageTitle ? { title: pageTitle } : undefined);
+      if (pageTitle) {
+        callYm(client.counterId, "hit", url, { title: pageTitle });
+      } else {
+        callYm(client.counterId, "hit", url);
+      }
+      yandexDebug("hit-queued", { url, counterId: client.counterId, watch: yandexWatchRequestPath(client.counterId) });
     } catch {
       /* yut */
     }

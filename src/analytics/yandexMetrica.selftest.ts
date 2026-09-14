@@ -20,7 +20,10 @@ import {
   resolvePageTitle,
   sanitizePath,
   shouldStartYandexTracker,
+  queuedYmCalls,
+  tagJsWouldSkipClientInit,
   yandexInitOptions,
+  yandexWatchRequestPath,
 } from "./yandexMetrica";
 
 function check(label: string, actual: unknown, expected: unknown) {
@@ -174,12 +177,15 @@ check("ignore hesaplama notu", classifyTrackedAction("Hesaplama Notu"), null);
 check("fold tr", foldLabel("  PDF  İndir  "), "pdf indir");
 
 const init = yandexInitOptions();
-check("init ssr", init.ssr, true);
+check("init must not set ssr", "ssr" in init, false);
+check("init ssr would not abort tag.js", tagJsWouldSkipClientInit(init), false);
+check("ssr true would abort constructor", tagJsWouldSkipClientInit({ ssr: true }), true);
 check("init webvisor", init.webvisor, true);
 check("init clickmap", init.clickmap, true);
 check("init trackLinks", init.trackLinks, true);
 check("init accurateTrackBounce", init.accurateTrackBounce, true);
 check("init defer", init.defer, true);
+check("watch path", yandexWatchRequestPath(112580132), "/watch/112580132");
 
 type ScriptNode = {
   src: string;
@@ -405,6 +411,89 @@ function createMockHost() {
   client.hit("/kotu-niyet-tazminati", "Kötü Niyet Tazminatı");
   check("env off no script", scripts.length, 0);
   check("env off no ym calls", collected.length, 0);
+}
+
+{
+  const { win, doc, scripts } = createMockHost();
+  type YmStub = ((...args: unknown[]) => void) & { a?: unknown[]; l?: number };
+  const client = createYandexMetricaClient({
+    enabled: true,
+    counterId: 112580132,
+    getWindow: () => win as never,
+    getDocument: () => doc as never,
+  });
+  client.hit("/kotu-niyet-tazminati?token=abc&email=a@b.com", "Kötü Niyet Tazminatı");
+  client.hit("/kotu-niyet-tazminati", "Kötü Niyet Tazminatı");
+  client.hit("/kidem-tazminati/30isci#top", "Kıdem Tazminatı — İş Kanununa Göre");
+  client.goal("guide_open", "/kidem-tazminati/30isci?userId=9");
+
+  const ym = win.ym as YmStub;
+  assert.equal(typeof ym, "function");
+  assert.ok(Array.isArray(ym.a), "ym.a queue exists before tag.js runs");
+  assert.equal(typeof ym.l, "number");
+  check("real stub injects tag.js once", scripts.filter((s) => s.src === YANDEX_TAG_JS).length, 1);
+
+  const queued = queuedYmCalls(ym);
+  check("queue has init, first hit, spa hit, goal", queued.length, 4);
+  check("queue init method", queued[0]?.[1], "init");
+  check("queue init id is number", queued[0]?.[0], 112580132);
+  check("queue init id type", typeof queued[0]?.[0], "number");
+  const initOpts = queued[0]?.[2] as Record<string, unknown>;
+  check("queued init does not skip constructor", tagJsWouldSkipClientInit(initOpts), false);
+  check("queued init has defer", initOpts.defer, true);
+  check("queued init has webvisor", initOpts.webvisor, true);
+  check("queue first hit method", queued[1]?.[1], "hit");
+  check("queue first hit path", queued[1]?.[2], "/kotu-niyet-tazminati");
+  check("queue spa hit path", queued[2]?.[2], "/kidem-tazminati/30isci");
+  check("queue goal method", queued[3]?.[1], "reachGoal");
+  check("queue goal name", queued[3]?.[2], "guide_open");
+  check("queue has no query", JSON.stringify(queued).includes("?"), false);
+  check("queue has no token", JSON.stringify(queued).includes("token"), false);
+  check("queue has no email", JSON.stringify(queued).includes("email"), false);
+  check("queue has no userId", JSON.stringify(queued).includes("userId"), false);
+
+  const watchRequests: string[] = [];
+  const applied: unknown[][] = [];
+  let counter: { hit: (...args: unknown[]) => void; reachGoal: (...args: unknown[]) => void } | null = null;
+
+  const replayLikeTagJs = (item: unknown) => {
+    const args = Array.from(item as ArrayLike<unknown>);
+    const id = args[0];
+    const method = args[1];
+    const rest = args.slice(2);
+    if (method === "init") {
+      if (tagJsWouldSkipClientInit(rest[0] as Record<string, unknown>)) return;
+      if (typeof id !== "number" || id !== 112580132) throw new Error("bad counter id");
+      counter = {
+        hit(...hitArgs: unknown[]) {
+          applied.push(["hit", ...hitArgs]);
+          watchRequests.push(yandexWatchRequestPath(id));
+        },
+        reachGoal(...goalArgs: unknown[]) {
+          applied.push(["reachGoal", ...goalArgs]);
+        },
+      };
+      return;
+    }
+    if (!counter) return;
+    const fn = (counter as Record<string, ((...args: unknown[]) => void) | undefined>)[String(method)];
+    fn?.(...rest);
+  };
+
+  for (const item of ym.a ?? []) replayLikeTagJs(item);
+
+  check("tag.js replay created counter", counter != null, true);
+  check("replay first hit produced", applied[0]?.[0], "hit");
+  check("replay first hit url", applied[0]?.[1], "/kotu-niyet-tazminati");
+  check("replay spa hit url", applied[1]?.[1], "/kidem-tazminati/30isci");
+  check("replay goal", applied[2], [
+    "reachGoal",
+    "guide_open",
+    { route: "/kidem-tazminati/30isci", module: "kidem_30isci" },
+  ]);
+  check("watch request after first hit", watchRequests[0], "/watch/112580132");
+  check("watch request after spa hit", watchRequests[1], "/watch/112580132");
+  check("two counted visits", watchRequests.length, 2);
 }
 
 console.log("yandexMetrica.selftest: ok");
