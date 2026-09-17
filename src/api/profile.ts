@@ -494,18 +494,23 @@ export function parseRenewalRedirect(payload: unknown): string {
   const source = unwrapPayload(payload);
   const checkout = asRecord(firstValue(source, ["checkout", "redirect", "payment"]));
   const redirectUrl = asString(
-    firstValue(source, ["redirectUrl", "redirectURL", "url"]) ??
+    firstValue(source, ["redirectUrl", "redirectURL", "url", "checkoutUrl"]) ??
       firstValue(checkout, ["redirectUrl", "redirectURL", "url"]),
   );
   if (!redirectUrl) throw new Error("Yenileme yönlendirme adresi alınamadı.");
 
   const url = new URL(redirectUrl);
-  const allowedHosts = new Set(["bilirkisihesap.com", "www.bilirkisihesap.com"]);
-  if (
-    url.protocol !== "https:" ||
-    !allowedHosts.has(url.hostname) ||
-    url.pathname !== "/abonelik-yenile"
-  ) {
+  const allowedHosts = new Set([
+    "woontegra.com",
+    "www.woontegra.com",
+    // legacy BH website (in-flight / fallback only)
+    "bilirkisihesap.com",
+    "www.bilirkisihesap.com",
+  ]);
+  const pathOk =
+    url.pathname === "/yazilimlar/bilirkisi-hesap/satin-al" ||
+    url.pathname === "/abonelik-yenile";
+  if (url.protocol !== "https:" || !allowedHosts.has(url.hostname) || !pathOk) {
     throw new Error("Geçersiz yenileme yönlendirme adresi.");
   }
   if (!url.searchParams.get("renew")) {
