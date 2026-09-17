@@ -490,8 +490,22 @@ export function normalizeRenewalOptions(payload: unknown): RenewalOptions {
   };
 }
 
+const WOONTEGRA_RENEWAL_CHECKOUT_ORIGIN = "https://www.woontegra.com";
+const WOONTEGRA_RENEWAL_CHECKOUT_PATH = "/yazilimlar/bilirkisi-hesap/satin-al";
+
+function buildWoontegraRenewalCheckoutUrl(token: string): string {
+  return `${WOONTEGRA_RENEWAL_CHECKOUT_ORIGIN}${WOONTEGRA_RENEWAL_CHECKOUT_PATH}?renew=${encodeURIComponent(token)}`;
+}
+
 export function parseRenewalRedirect(payload: unknown): string {
   const source = unwrapPayload(payload);
+  // Prefer opaque renewal token → always open Woontegra central checkout.
+  // Do not depend on server redirectUrl shape (avoids stale FE allowlist / env mismatches).
+  const renewalToken = asString(firstValue(source, ["renewalToken", "token"]));
+  if (renewalToken) {
+    return buildWoontegraRenewalCheckoutUrl(renewalToken);
+  }
+
   const checkout = asRecord(firstValue(source, ["checkout", "redirect", "payment"]));
   const redirectUrl = asString(
     firstValue(source, ["redirectUrl", "redirectURL", "url", "checkoutUrl"]) ??
