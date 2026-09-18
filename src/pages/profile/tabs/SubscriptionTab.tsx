@@ -6,6 +6,7 @@ import {
   formatProductType,
   getOptionPricing,
   startRenewal,
+  startDemoUpgrade,
   type RenewalOption,
   type RenewalOptions,
 } from "@/api/profile";
@@ -23,7 +24,6 @@ import {
 import styles from "./profileTabShared.module.css";
 
 const CUSTOMER_RENEWAL_URL = "https://bilirkisihesap.com/abonelik-yenile";
-const PURCHASE_URL = "https://bilirkisihesap.com/satin-al";
 
 function formatSubscriptionDate(value: string | null) {
   return formatDate(value);
@@ -343,6 +343,7 @@ export default function SubscriptionTab() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [renewalStarting, setRenewalStarting] = useState(false);
+  const [demoUpgradeStarting, setDemoUpgradeStarting] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [subscriptionDates, setSubscriptionDates] = useState<{
     startsAt: string | null;
@@ -447,9 +448,22 @@ export default function SubscriptionTab() {
     }
   }, [renewalStarting, selectedOption, toast]);
 
+  const startDemoPurchase = useCallback(async () => {
+    if (demoUpgradeStarting) return;
+    setDemoUpgradeStarting(true);
+    try {
+      const url = await startDemoUpgrade({ productType: "annual", period: "1" });
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Satın alma oturumu oluşturulamadı.");
+    } finally {
+      setDemoUpgradeStarting(false);
+    }
+  }, [demoUpgradeStarting, toast]);
+
   const handlePrimaryAction = () => {
     if (isDemo) {
-      window.open(PURCHASE_URL, "_blank", "noopener,noreferrer");
+      void startDemoPurchase();
       return;
     }
     if (hasRenewalUi && selectedOption) {
@@ -462,14 +476,16 @@ export default function SubscriptionTab() {
   };
 
   const primaryActionLabel = isDemo
-    ? "Abonelik Satın Al"
+    ? demoUpgradeStarting
+      ? "Hazırlanıyor..."
+      : "Abonelik Satın Al"
     : renewalStarting
       ? "Hazırlanıyor..."
       : "Aboneliği Uzat";
 
   const primaryActionDisabled =
     isDemo
-      ? false
+      ? demoUpgradeStarting
       : hasRenewalUi
         ? !selectedOption || renewalStarting
         : !customerCode;

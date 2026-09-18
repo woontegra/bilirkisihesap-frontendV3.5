@@ -7,6 +7,7 @@ import { PAGE_TITLES } from "./navConfig";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import ChatWidget from "@/components/chat/ChatWidget";
+import { ForcePasswordChangeModal } from "@/components/auth/ForcePasswordChangeModal";
 import { YandexMetricaTracker } from "@/analytics/YandexMetricaTracker";
 import { CalculationPageViewTracker } from "@/telemetry/CalculationPageViewTracker";
 import styles from "./AppShell.module.css";
@@ -94,6 +95,7 @@ export function AppShell() {
         </main>
       </div>
       <ChatWidget />
+      <ForcePasswordChangeModal />
     </div>
   );
 }

@@ -43,6 +43,8 @@ export type AuthMe = {
   profilePictureUrl?: string | null;
   emailNotifications?: boolean;
   loginAlerts?: boolean;
+  /** Demo / geçici şifre — ilk girişte zorunlu şifre değişimi */
+  mustChangePassword?: boolean;
   [key: string]: unknown;
 };
 
@@ -203,7 +205,7 @@ export async function fetchAuthMe(): Promise<AuthMe> {
 }
 
 export async function changePassword(body: {
-  oldPassword: string;
+  oldPassword?: string;
   newPassword: string;
 }): Promise<void> {
   await apiClient("/api/auth/change-password", {
@@ -555,6 +557,21 @@ export async function startRenewal(body: {
   const data = await apiClient<unknown>("/api/subscription/renewal/start", {
     method: "POST",
     body,
+  });
+  return parseRenewalRedirect(data);
+}
+
+/** Demo → paid: opaque upgrade token → Woontegra checkout (?renew=). */
+export async function startDemoUpgrade(body?: {
+  productType?: string;
+  period?: RenewalPeriod;
+}): Promise<string> {
+  const data = await apiClient<unknown>("/api/subscription/demo-upgrade/start", {
+    method: "POST",
+    body: {
+      productType: body?.productType || "annual",
+      period: body?.period ?? "1",
+    },
   });
   return parseRenewalRedirect(data);
 }

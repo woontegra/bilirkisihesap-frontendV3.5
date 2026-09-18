@@ -22,6 +22,7 @@ const AUTH_KEYS = [
   "user",
   "v3_session",
   "v35_session",
+  "must_change_password",
 ] as const;
 
 export type AuthUser = {
@@ -155,6 +156,11 @@ export function applyAuthMeResponse(me: Record<string, unknown>): void {
   localStorage.setItem("email", email);
   localStorage.setItem("user_id", String(id));
   localStorage.setItem("user_role", role ?? "");
+  if (typeof me.mustChangePassword === "boolean") {
+    setMustChangePasswordRequired(me.mustChangePassword === true);
+  } else if (me.requirePasswordChange === true) {
+    setMustChangePasswordRequired(true);
+  }
   window.dispatchEvent(new Event("auth-changed"));
 }
 
@@ -181,7 +187,28 @@ export type LoginResponse = {
     license_key?: string;
     expires_at?: string;
   };
+  /** Backend: User.must_change_password — demo/geçici şifre ilk giriş */
+  requirePasswordChange?: boolean;
 };
+
+const MUST_CHANGE_PASSWORD_KEY = "must_change_password";
+
+export function setMustChangePasswordRequired(required: boolean): void {
+  try {
+    if (required) localStorage.setItem(MUST_CHANGE_PASSWORD_KEY, "1");
+    else localStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isMustChangePasswordRequired(): boolean {
+  try {
+    return localStorage.getItem(MUST_CHANGE_PASSWORD_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 function decodeTokenExpiry(token: string): number | null {
   const payload = decodeJwtPayload(token);
@@ -314,6 +341,8 @@ export async function loginWithPassword(email: string, password: string): Promis
   };
 
   saveSession(payload.accessToken, payload.refreshToken, userWithMeta);
+
+  setMustChangePasswordRequired(payload.requirePasswordChange === true);
 
   try {
     trackAppEnteredOnce();

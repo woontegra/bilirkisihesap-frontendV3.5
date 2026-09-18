@@ -71,6 +71,7 @@ export function buildSubscriptionProgress(source: SubscriptionDateSource): Subsc
 export function calculateSubscription(
   startRaw?: string | null,
   endRaw?: string | null,
+  nowRaw: Date | string | number = new Date(),
 ): SubscriptionProgress {
   if (!startRaw || !endRaw) {
     return {
@@ -87,9 +88,13 @@ export function calculateSubscription(
 
   const startDate = new Date(startRaw);
   const endDate = new Date(endRaw);
-  const now = new Date();
+  const now = nowRaw instanceof Date ? nowRaw : new Date(nowRaw);
 
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+  if (
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime()) ||
+    Number.isNaN(now.getTime())
+  ) {
     return {
       hasSubscription: false,
       startDate: null,
@@ -104,22 +109,20 @@ export function calculateSubscription(
 
   const msDay = 86_400_000;
 
-  const toLocalDayStart = (date: Date) =>
-    new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  /**
+   * Tam gün (elapsed) hesabı — takvim inclusive (+1) YOK.
+   * Backend `calculateRemainingDays` ile aynı mantık: ceil(remainingMs / DAY_MS).
+   * Demo: start + 7*24h → total=7; oluşturma anında used=0, remaining=7.
+   * Timezone/takvim günü kayması usedDays'i artırmaz.
+   */
+  const totalMs = endDate.getTime() - startDate.getTime();
+  const totalDays = Math.max(1, Math.round(totalMs / msDay));
 
-  const calendarDayDiff = (from: Date, to: Date) =>
-    Math.round((toLocalDayStart(to).getTime() - toLocalDayStart(from).getTime()) / msDay);
+  const remainingMs = endDate.getTime() - now.getTime();
+  const daysRemaining =
+    remainingMs <= 0 ? 0 : Math.min(totalDays, Math.max(0, Math.ceil(remainingMs / msDay)));
+  const daysUsed = Math.min(totalDays, Math.max(0, totalDays - daysRemaining));
 
-  // Başlangıç ve bitiş günleri dahil (5 Ağu 2026 → 4 Ağu 2027 = 365 gün)
-  const totalDays = Math.max(1, calendarDayDiff(startDate, endDate) + 1);
-
-  const startDay = toLocalDayStart(startDate);
-  const nowDay = toLocalDayStart(now);
-  const daysUsed =
-    nowDay < startDay
-      ? 0
-      : Math.min(totalDays, calendarDayDiff(startDate, now) + 1);
-  const daysRemaining = Math.max(0, totalDays - daysUsed);
   const usedPct = Math.min(100, Math.max(0, (daysUsed / totalDays) * 100));
   const remainingPct = Math.min(100, Math.max(0, (daysRemaining / totalDays) * 100));
 
