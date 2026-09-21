@@ -30,7 +30,7 @@ export function ForcePasswordChangeModal() {
       try {
         const me = await fetchAuthMe();
         if (cancelled) return;
-        const required = me.mustChangePassword === true || isMustChangePasswordRequired();
+        const required = me.mustChangePassword === true;
         setMustChangePasswordRequired(required);
         setOpen(required);
       } catch {
@@ -75,9 +75,18 @@ export function ForcePasswordChangeModal() {
     setLoading(true);
     try {
       // Forced flow: backend eski şifre istemez (mustChangePassword === true)
-      await changePassword({ newPassword });
-      setMustChangePasswordRequired(false);
-      setOpen(false);
+      const result = await changePassword({ newPassword });
+      try {
+        await fetchAuthMe({ force: true });
+      } catch {
+        /* session refresh is best-effort; the write already succeeded */
+      }
+      const closed =
+        result && typeof result.mustChangePassword === "boolean"
+          ? result.mustChangePassword !== true
+          : true;
+      setMustChangePasswordRequired(!closed);
+      setOpen(!closed);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Şifre değiştirilemedi.");
     } finally {

@@ -76,6 +76,8 @@ type Props = {
 
   isAdmin?: boolean;
 
+  paidAccessAllowed?: boolean;
+
 };
 
 
@@ -117,6 +119,8 @@ export function Topbar({
   userRole,
 
   isAdmin = false,
+
+  paidAccessAllowed = true,
 
 }: Props) {
 
@@ -617,6 +621,7 @@ export function Topbar({
 
                 </Link>
 
+                {paidAccessAllowed ? (
                 <Link
 
                   to="/profile?tab=saved"
@@ -634,6 +639,7 @@ export function Topbar({
                   <span>Kayıtlı Hesaplamalarım</span>
 
                 </Link>
+                ) : null}
 
                 <Link
 

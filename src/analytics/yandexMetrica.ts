@@ -63,6 +63,7 @@ const BLOCKED_PREFIXES = [
   "/aktivasyon",
   "/verify-email",
   "/professional-license-activation",
+  "/subscription-expired",
   "/admin",
 ] as const;
 

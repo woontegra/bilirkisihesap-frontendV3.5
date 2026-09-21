@@ -88,17 +88,27 @@ import YillikKismiPage from "@/pages/hesaplamalar/yillik-izin/kismi/YillikKismiP
 import YillikBelirliPage from "@/pages/hesaplamalar/yillik-izin/belirli/YillikBelirliPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import LoginPage from "@/pages/login/LoginPage";
+import ForgotPasswordPage from "@/pages/forgot-password/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/reset-password/ResetPasswordPage";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 import { AdminOnly } from "@/routes/AdminOnly";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
+import { SubscriptionGate } from "@/routes/SubscriptionGate";
+import { LicenseAccessProvider } from "@/context/LicenseAccessContext";
 import { AppShell } from "@/shell/AppShell";
+import SubscriptionExpiredPage from "@/pages/subscription-expired/SubscriptionExpiredPage";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route element={<ProtectedRoute />}>
+        <Route element={<LicenseAccessProvider />}>
+          <Route path="subscription-expired" element={<SubscriptionExpiredPage />} />
+          <Route element={<SubscriptionGate />}>
         <Route
           element={
             <DashboardProvider>
@@ -205,6 +215,8 @@ export default function App() {
           </Route>
 
           <Route path="*" element={<PlaceholderPage />} />
+        </Route>
+          </Route>
         </Route>
       </Route>
     </Routes>

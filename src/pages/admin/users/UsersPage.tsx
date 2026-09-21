@@ -22,7 +22,7 @@ import { StatusBadge, statusToneFromRaw } from "@/components/admin/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { StatePanel } from "@/components/ui/StatePanel";
 import { useToast } from "@/context/ToastContext";
-import { formatDateTr, getStatusLabel, getSubscriptionTypeLabel } from "@/utils/adminLabels";
+import { formatDateTr, getAccountStatusLabel, getStatusLabel, getSubscriptionAccessTone, getSubscriptionTypeLabel } from "@/utils/adminLabels";
 import { formatUserRoleLabel } from "@/utils/userRole";
 import styles from "./UsersPage.module.css";
 
@@ -35,6 +35,12 @@ type AdminUser = {
   subscriptionEndsAt: string | null;
   status: string;
   createdAt: string;
+  subscriptionAccess?: {
+    allowed?: boolean;
+    code?: string;
+    label?: string;
+    expiresAt?: string | null;
+  };
 };
 
 function roleLabel(role: string): string {
@@ -121,7 +127,7 @@ export default function UsersPage() {
       {!loading && !error ? (
         <div className={styles.stats}>
           <StatCard label="Toplam" value={stats.total} icon={Users} index={0} />
-          <StatCard label="Aktif" value={stats.active} icon={UserCheck} tone="green" index={1} />
+          <StatCard label="Hesap aktif" value={stats.active} icon={UserCheck} tone="green" index={1} />
           <StatCard label="Askıda" value={stats.suspended} icon={UserMinus} tone="amber" index={2} />
           <StatCard label="Deneme" value={stats.trial} icon={Zap} tone="blue" index={3} />
         </div>
@@ -232,11 +238,16 @@ export default function UsersPage() {
                   },
                   {
                     key: "status",
-                    header: "Durum",
+                    header: "Hesap / Abonelik",
                     render: (row) => (
-                      <StatusBadge tone={statusToneFromRaw(row.status)}>
-                        {getStatusLabel(row.status)}
-                      </StatusBadge>
+                      <div className={styles.rowActions}>
+                        <StatusBadge tone={statusToneFromRaw(row.status)}>
+                          {getAccountStatusLabel(row.status)}
+                        </StatusBadge>
+                        <StatusBadge tone={getSubscriptionAccessTone(row.subscriptionAccess?.code)}>
+                          {row.subscriptionAccess?.label || getStatusLabel(row.subscriptionAccess?.code)}
+                        </StatusBadge>
+                      </div>
                     ),
                   },
                   {
@@ -267,7 +278,7 @@ export default function UsersPage() {
                         <p className={styles.cardEmail}>{row.email}</p>
                       </div>
                       <StatusBadge tone={statusToneFromRaw(row.status)}>
-                        {getStatusLabel(row.status)}
+                        {getAccountStatusLabel(row.status)}
                       </StatusBadge>
                     </div>
                     <div className={styles.cardMeta}>
@@ -276,6 +287,9 @@ export default function UsersPage() {
                       </StatusBadge>
                       <StatusBadge tone="neutral">
                         {getSubscriptionTypeLabel(row.subscriptionType)}
+                      </StatusBadge>
+                      <StatusBadge tone={getSubscriptionAccessTone(row.subscriptionAccess?.code)}>
+                        {row.subscriptionAccess?.label || "Abonelik yok"}
                       </StatusBadge>
                     </div>
                     <p className={styles.cardEmail}>Bitiş: {formatDateTr(row.subscriptionEndsAt)}</p>

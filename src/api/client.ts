@@ -7,6 +7,10 @@ import {
   refreshAccessToken,
 } from "@/auth/session";
 import { API_BASE_URL } from "@/config/apiBase";
+import {
+  isLicenseDeniedCode,
+  LICENSE_DENIED_EVENT,
+} from "@/license/access";
 
 export { API_BASE_URL };
 
@@ -138,20 +142,12 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
   const data = await parseBody(response);
 
   if (!response.ok && response.status === 403 && !options.skipAuth) {
-    const licenseCode =
-      typeof data === "object" && data
-        ? String((data as { error?: unknown; code?: unknown }).error ?? (data as { code?: unknown }).code ?? "")
-        : "";
-    if (licenseCode === "DEMO_EXPIRED") {
-      window.dispatchEvent(new CustomEvent("demo-expired"));
+    const payload = typeof data === "object" && data ? (data as { error?: unknown; code?: unknown; licenseStatus?: unknown }) : null;
+    const licenseCode = String(payload?.code ?? payload?.error ?? payload?.licenseStatus ?? "");
+    if (isLicenseDeniedCode(licenseCode)) {
+      window.dispatchEvent(new CustomEvent(LICENSE_DENIED_EVENT, { detail: { code: licenseCode.toUpperCase() } }));
     } else if (licenseCode === "DEVICE_LIMIT_EXCEEDED") {
       window.dispatchEvent(new CustomEvent("device-limit-exceeded"));
-    } else if (licenseCode === "activation_required") {
-      if (!window.location.pathname.startsWith("/professional-license-activation")) {
-        window.location.href = "/professional-license-activation";
-      }
-    } else if (licenseCode === "expired" || licenseCode === "INACTIVE") {
-      window.location.href = "/professional-license-activation?expired=true";
     }
   }
 
