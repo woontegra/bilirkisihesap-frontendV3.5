@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import {
   Calculator,
   Eye,
@@ -383,6 +383,10 @@ export default function LoginPage() {
                     )}
                   </span>
                 </button>
+
+                <Link to="/forgot-password" className={styles.forgotLink}>
+                  Şifremi unuttum
+                </Link>
               </form>
 
               <footer className={styles.footer}>
