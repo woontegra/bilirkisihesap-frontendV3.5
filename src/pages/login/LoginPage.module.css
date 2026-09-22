@@ -1,4 +1,4 @@
-/* ── Page shell ── */
+﻿/* ── Page shell ── */
 .page {
   --mx: 0;
   --my: 0;
@@ -718,37 +718,6 @@
 .submit:disabled {
   opacity: 0.65;
   cursor: not-allowed;
-}
-
-.forgotLink {
-  display: block;
-  width: fit-content;
-  margin: 0.15rem auto 0;
-  padding: 0.2rem 0.45rem;
-  text-align: center;
-  color: rgba(159, 220, 230, 0.88);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  text-decoration: none;
-  border-radius: 0.4rem;
-  transition: color 0.2s ease;
-}
-
-.forgotLink:hover {
-  color: #7ee8f8;
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
-}
-
-.forgotLink:focus {
-  outline: none;
-}
-
-.forgotLink:focus-visible {
-  color: #7ee8f8;
-  outline: 2px solid rgba(126, 232, 248, 0.8);
-  outline-offset: 3px;
 }
 
 .submitShine {

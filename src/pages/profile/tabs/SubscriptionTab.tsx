@@ -15,7 +15,6 @@ import { FormField } from "@/components/admin/FormField";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/context/ToastContext";
 import { formatDate } from "@/utils/format";
-import { assertSafeCheckoutUrl, RENEWAL_FAILURE_MESSAGE } from "@/license/renewalSafety";
 import {
   buildSubscriptionProgress,
   resolveSubscriptionEndsAt,
@@ -23,6 +22,8 @@ import {
   type SubscriptionDateSource,
 } from "@/utils/subscription";
 import styles from "./profileTabShared.module.css";
+
+const CUSTOMER_RENEWAL_URL = "https://bilirkisihesap.com/abonelik-yenile";
 
 function formatSubscriptionDate(value: string | null) {
   return formatDate(value);
@@ -40,6 +41,12 @@ function formatMoney(value: number | null, currency: string) {
   } catch {
     return `${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(value)} ${currency}`;
   }
+}
+
+function buildCustomerRenewalUrl(customerCode: string) {
+  const url = new URL(CUSTOMER_RENEWAL_URL);
+  url.searchParams.set("customer", customerCode);
+  return url.toString();
 }
 
 function subscriptionExpiryWarningThreshold(productType: string | null) {
@@ -429,15 +436,13 @@ export default function SubscriptionTab() {
     if (!selectedOption || renewalStarting) return;
     setRenewalStarting(true);
     try {
-      const url = assertSafeCheckoutUrl(
-        await startRenewal({
-          productType: selectedOption.productType,
-          period: selectedOption.period,
-        }),
-      );
+      const url = await startRenewal({
+        productType: selectedOption.productType,
+        period: selectedOption.period,
+      });
       window.open(url, "_blank", "noopener,noreferrer");
-    } catch {
-      toast.error(RENEWAL_FAILURE_MESSAGE);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Yenileme oturumu oluşturulamadı.");
     } finally {
       setRenewalStarting(false);
     }
@@ -447,12 +452,10 @@ export default function SubscriptionTab() {
     if (demoUpgradeStarting) return;
     setDemoUpgradeStarting(true);
     try {
-      const url = assertSafeCheckoutUrl(
-        await startDemoUpgrade({ productType: "annual", period: "1" }),
-      );
+      const url = await startDemoUpgrade({ productType: "annual", period: "1" });
       window.open(url, "_blank", "noopener,noreferrer");
-    } catch {
-      toast.error(RENEWAL_FAILURE_MESSAGE);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Satın alma oturumu oluşturulamadı.");
     } finally {
       setDemoUpgradeStarting(false);
     }
@@ -465,6 +468,10 @@ export default function SubscriptionTab() {
     }
     if (hasRenewalUi && selectedOption) {
       void startSelectedRenewal();
+      return;
+    }
+    if (customerCode) {
+      window.open(buildCustomerRenewalUrl(customerCode), "_blank", "noopener,noreferrer");
     }
   };
 
@@ -479,7 +486,9 @@ export default function SubscriptionTab() {
   const primaryActionDisabled =
     isDemo
       ? demoUpgradeStarting
-      : !hasRenewalUi || !selectedOption || renewalStarting;
+      : hasRenewalUi
+        ? !selectedOption || renewalStarting
+        : !customerCode;
 
   return (
     <div className={styles.stack}>

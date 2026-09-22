@@ -7,9 +7,9 @@ import { PAGE_TITLES } from "./navConfig";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import ChatWidget from "@/components/chat/ChatWidget";
+import { ForcePasswordChangeModal } from "@/components/auth/ForcePasswordChangeModal";
 import { YandexMetricaTracker } from "@/analytics/YandexMetricaTracker";
 import { CalculationPageViewTracker } from "@/telemetry/CalculationPageViewTracker";
-import { useLicenseAccessOptional } from "@/context/LicenseAccessContext";
 import styles from "./AppShell.module.css";
 
 const COLLAPSE_KEY = "v35_sidebarCollapsed";
@@ -19,8 +19,6 @@ export function AppShell() {
   const isDesktop = useMediaQuery(DESKTOP_MQ);
   const isAdmin = readIsAdmin();
   const { userInfo } = useDashboard();
-  const license = useLicenseAccessOptional();
-  const paidAccessAllowed = license?.isAdmin || license?.allowed !== false;
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -67,10 +65,9 @@ export function AppShell() {
           : "Bilirkişi Hesap");
 
   return (
-    <div className={styles.shell} data-collapsed={collapsed && isDesktop ? "true" : "false"} data-restricted={paidAccessAllowed ? "false" : "true"}>
-      {paidAccessAllowed ? <CalculationPageViewTracker /> : null}
+    <div className={styles.shell} data-collapsed={collapsed && isDesktop ? "true" : "false"}>
+      <CalculationPageViewTracker />
       <YandexMetricaTracker pageTitle={title} />
-      {paidAccessAllowed ? (
       <Sidebar
         collapsed={collapsed}
         mobileOpen={mobileOpen}
@@ -79,7 +76,6 @@ export function AppShell() {
         onToggleCollapse={() => setCollapsed((v) => !v)}
         onCloseMobile={() => setMobileOpen(false)}
       />
-      ) : null}
 
       <div className={styles.mainCol}>
         <Topbar
@@ -91,7 +87,6 @@ export function AppShell() {
           userEmail={userInfo?.email}
           userRole={userInfo?.role}
           isAdmin={isAdmin}
-          paidAccessAllowed={paidAccessAllowed}
         />
         <main className={styles.content}>
           <div className={styles.contentInner}>
@@ -100,6 +95,7 @@ export function AppShell() {
         </main>
       </div>
       <ChatWidget />
+      <ForcePasswordChangeModal />
     </div>
   );
 }

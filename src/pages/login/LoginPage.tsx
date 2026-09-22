@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import {
   Calculator,
   Eye,
@@ -12,7 +12,6 @@ import {
   Zap,
 } from "lucide-react";
 import { isAuthenticated, loginWithPassword } from "@/auth/session";
-import { postLoginPath } from "@/license/access";
 import { usePanelBranding } from "@/context/PanelBrandingContext";
 import { PANEL_FALLBACK_LOGO_URL } from "@/types/panelBranding";
 import styles from "./LoginPage.module.css";
@@ -23,10 +22,6 @@ const SUCCESS_REDIRECT_MS = 2200;
 
 type SuccessTransition = {
   userName: string;
-  role?: string | null;
-  licenseActive?: boolean | null;
-  licenseAccessCode?: string | null;
-  licenseStatus?: string | null;
 };
 
 function resolveWelcomeName(name?: string | null, email?: string): string {
@@ -133,13 +128,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (!successTransition) return;
     const timer = window.setTimeout(() => {
-      const target = postLoginPath({
-        role: successTransition.role,
-        licenseActive: successTransition.licenseActive,
-        licenseAccessCode: successTransition.licenseAccessCode,
-        licenseStatus: successTransition.licenseStatus,
-      });
-      navigate(target, { replace: true });
+      navigate("/dashboard", { replace: true });
     }, SUCCESS_REDIRECT_MS);
     return () => window.clearTimeout(timer);
   }, [navigate, successTransition]);
@@ -161,10 +150,6 @@ export default function LoginPage() {
       }
       setSuccessTransition({
         userName: resolveWelcomeName(payload.user.name, payload.user.email),
-        role: payload.user.role,
-        licenseActive: payload.licenseActive,
-        licenseAccessCode: payload.licenseAccessCode,
-        licenseStatus: payload.licenseStatus,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Giriş başarısız");
@@ -398,10 +383,6 @@ export default function LoginPage() {
                     )}
                   </span>
                 </button>
-
-                <Link to="/forgot-password" className={styles.forgotLink}>
-                  Şifremi unuttum
-                </Link>
               </form>
 
               <footer className={styles.footer}>
