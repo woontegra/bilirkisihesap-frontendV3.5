@@ -6,16 +6,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  clearLicenseAccessSnapshot,
   isLicenseDeniedCode,
   isLicenseFreePath,
-  isPaymentOrRenewalReturn,
-  LICENSE_ACCESS_CACHE_KEY,
   paidAccessAllowedFromMe,
   postLoginPath,
-  readLicenseAccessSnapshot,
   SUBSCRIPTION_EXPIRED_PATH,
-  writeLicenseAccessSnapshot,
 } from "@/license/access";
 import {
   assertSafeCheckoutUrl,
@@ -71,10 +66,6 @@ check("client listens for license denied codes", clientSrc.includes("LICENSE_DEN
 
 const loginSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../pages/login/LoginPage.tsx"), "utf8");
 check("login uses postLoginPath", loginSrc.includes("postLoginPath"), true);
-check("login shows LicenseLoadingScreen during check", loginSrc.includes("LicenseLoadingScreen"), true);
-check("login writes license snapshot", loginSrc.includes("writeLicenseAccessSnapshot"), true);
-check("login fetches /me once after password", loginSrc.includes("fetchAuthMe({ force: true })"), true);
-check("login checkingLicense gate", loginSrc.includes("checkingLicense"), true);
 
 const gateSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../routes/SubscriptionGate.tsx"), "utf8");
 check("gate redirects to expired", gateSrc.includes("SUBSCRIPTION_EXPIRED_PATH"), true);
@@ -88,20 +79,11 @@ const profileSrc = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../api/profile.ts"),
   "utf8",
 );
-const sessionSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../auth/session.ts"), "utf8");
-
-check("provider never mounts LicenseLoadingScreen", providerSrc.includes("LicenseLoadingScreen"), false);
-check("provider has no showBootScreen", providerSrc.includes("showBootScreen"), false);
-check("provider hydrates from snapshot", providerSrc.includes("readLicenseAccessSnapshot"), true);
-check("provider writes snapshot", providerSrc.includes("writeLicenseAccessSnapshot"), true);
-check("provider clears snapshot on logout path", providerSrc.includes("clearLicenseAccessSnapshot"), true);
-check("provider has no visibilitychange auto /me", providerSrc.includes("visibilitychange"), false);
-check("provider has no mount auto refresh silent false", /useEffect\(\(\) => \{\s*void refresh\(\{ silent: false \}\)/.test(providerSrc), false);
-check("provider supports silent refresh API", providerSrc.includes("silent"), true);
-check("provider payment return silent refresh", providerSrc.includes("isPaymentOrRenewalReturn"), true);
+check("loading blocks outlet", providerSrc.includes("LicenseLoadingScreen"), true);
+check("boot screen only before hydrate", providerSrc.includes("showBootScreen"), true);
+check("silent refresh supported", providerSrc.includes("silent"), true);
 check("gate uses hydrated not loading", gateSrc.includes("hydrated"), true);
 check("profile fetchAuthMe is cacheable", profileSrc.includes("readAuthMeCache"), true);
-check("session clear drops license snapshot", sessionSrc.includes("clearLicenseAccessSnapshot"), true);
 
 check("support path is tickets", RENEWAL_SUPPORT_PATH, "/profile?tab=tickets");
 check(
@@ -134,7 +116,6 @@ check("expired page has no customerCode fallback", expiredPage.includes("custome
 check("expired page uses backend checkout", expiredPage.includes("startExpiredSubscriptionCheckout"), true);
 check("expired page uses support path", expiredPage.includes("RENEWAL_SUPPORT_PATH"), true);
 check("expired purchase does not force-navigate support", expiredPage.includes("navigate(RENEWAL_SUPPORT_PATH)"), false);
-check("expired check button silent refresh", expiredPage.includes("refresh({ silent: true })"), true);
 const shellSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../shell/AppShell.tsx"), "utf8");
 const forcePwSrc = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/auth/ForcePasswordChangeModal.tsx"),
@@ -176,53 +157,6 @@ try {
     true,
   );
 }
-
-check("payment return success", isPaymentOrRenewalReturn("?payment=success"), true);
-check("payment return renewal", isPaymentOrRenewalReturn("renewal=1"), true);
-check("payment return unrelated", isPaymentOrRenewalReturn("?tab=tickets"), false);
-
-// Per-user snapshot: A → B karışmaz; logout temizler
-const memory = new Map<string, string>();
-const localStorageMock = {
-  getItem: (k: string) => memory.get(k) ?? null,
-  setItem: (k: string, v: string) => {
-    memory.set(k, v);
-  },
-  removeItem: (k: string) => {
-    memory.delete(k);
-  },
-};
-(globalThis as { localStorage?: typeof localStorageMock }).localStorage = localStorageMock;
-
-writeLicenseAccessSnapshot({
-  userId: 1,
-  allowed: true,
-  isAdmin: false,
-  code: null,
-  licenseType: "yearly",
-  subscriptionType: "yearly",
-  expiresAt: "2099-01-01",
-});
-check("snapshot read for user 1", readLicenseAccessSnapshot(1)?.allowed, true);
-check("snapshot not for user 2", readLicenseAccessSnapshot(2), null);
-writeLicenseAccessSnapshot({
-  userId: 2,
-  allowed: false,
-  isAdmin: false,
-  code: "LICENSE_EXPIRED",
-  licenseType: "monthly",
-  subscriptionType: "monthly",
-  expiresAt: "2020-01-01",
-});
-check("user 2 overwrites cache", readLicenseAccessSnapshot(2)?.allowed, false);
-check("user 1 cache gone after user 2 write", readLicenseAccessSnapshot(1), null);
-clearLicenseAccessSnapshot();
-check("logout clears license cache", readLicenseAccessSnapshot(2), null);
-check("cache key constant", LICENSE_ACCESS_CACHE_KEY, "v35_license_access_v1");
-
-// Bozuk şema yok sayılır
-memory.set(LICENSE_ACCESS_CACHE_KEY, JSON.stringify({ v: 999, userId: 9, allowed: true }));
-check("corrupt schema ignored", readLicenseAccessSnapshot(9), null);
 
 void (async () => {
   const url = await startExpiredSubscriptionCheckout({

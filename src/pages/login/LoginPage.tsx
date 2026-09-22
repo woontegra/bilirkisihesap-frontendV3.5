@@ -11,20 +11,8 @@ import {
   TrendingUp,
   Zap,
 } from "lucide-react";
-import { fetchAuthMe } from "@/api/profile";
-import {
-  decodeAccessTokenClaims,
-  isAuthenticated,
-  loginWithPassword,
-  logout,
-} from "@/auth/session";
-import {
-  licenseDecisionFromMe,
-  postLoginPath,
-  readLicenseAccessSnapshot,
-  writeLicenseAccessSnapshot,
-} from "@/license/access";
-import { LicenseLoadingScreen } from "@/license/LicenseLoadingScreen";
+import { isAuthenticated, loginWithPassword } from "@/auth/session";
+import { postLoginPath } from "@/license/access";
 import { usePanelBranding } from "@/context/PanelBrandingContext";
 import { PANEL_FALLBACK_LOGO_URL } from "@/types/panelBranding";
 import styles from "./LoginPage.module.css";
@@ -91,7 +79,6 @@ export default function LoginPage() {
   const [loginLogoAttempt, setLoginLogoAttempt] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [successTransition, setSuccessTransition] = useState<SuccessTransition | null>(null);
-  const [checkingLicense, setCheckingLicense] = useState(false);
 
   const rotatingWord = useRotatingWord(HERO_WORDS);
   const emailId = useId();
@@ -157,18 +144,7 @@ export default function LoginPage() {
     return () => window.clearTimeout(timer);
   }, [navigate, successTransition]);
 
-  if (isAuthenticated() && !successTransition && !checkingLicense) {
-    const userId = decodeAccessTokenClaims()?.userId ?? null;
-    const snap = readLicenseAccessSnapshot(userId);
-    if (snap) {
-      const target = postLoginPath({
-        role: snap.isAdmin ? "admin" : "user",
-        licenseActive: snap.allowed,
-        licenseAccessCode: snap.code,
-        licenseStatus: snap.code,
-      });
-      return <Navigate to={target} replace />;
-    }
+  if (isAuthenticated() && !successTransition) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -183,79 +159,18 @@ export default function LoginPage() {
       } else {
         localStorage.removeItem("remember_email");
       }
-
-      setLoading(false);
-      setCheckingLicense(true);
-
-      let role = payload.user.role;
-      let licenseActive = payload.licenseActive ?? null;
-      let licenseAccessCode = payload.licenseAccessCode ?? null;
-      let licenseStatus = payload.licenseStatus ?? null;
-      let licenseType = payload.licenseType ?? null;
-      let subscriptionEndsAt = payload.subscriptionEndsAt ?? null;
-      let userId = Number(payload.user.id);
-
-      try {
-        const me = await fetchAuthMe({ force: true });
-        role = me.role ?? role;
-        licenseActive = me.licenseActive ?? licenseActive;
-        licenseAccessCode = me.licenseAccessCode ?? licenseAccessCode;
-        licenseStatus = me.licenseStatus ?? licenseStatus;
-        licenseType = me.licenseType ?? licenseType;
-        subscriptionEndsAt = me.subscriptionEndsAt ?? subscriptionEndsAt;
-        userId = Number(me.id ?? userId);
-      } catch {
-        // Giriş yanıtındaki lisans alanları yeterli değilse oturumu kapat.
-        if (licenseActive == null && !licenseAccessCode && !licenseStatus && String(role || "").toLowerCase() !== "admin") {
-          logout();
-          setCheckingLicense(false);
-          setError("Abonelik durumu doğrulanamadı. Lütfen tekrar giriş yapın.");
-          return;
-        }
-      }
-
-      const decision = licenseDecisionFromMe(
-        {
-          id: userId,
-          role,
-          licenseActive,
-          licenseAccessCode,
-          licenseStatus,
-          licenseType,
-          subscriptionEndsAt,
-        },
-        userId,
-      );
-      if (decision.userId) {
-        writeLicenseAccessSnapshot({
-          userId: decision.userId,
-          allowed: decision.allowed,
-          isAdmin: decision.isAdmin,
-          code: decision.code,
-          licenseType: decision.licenseType,
-          subscriptionType: decision.subscriptionType,
-          expiresAt: decision.expiresAt,
-        });
-      }
-
-      setCheckingLicense(false);
       setSuccessTransition({
         userName: resolveWelcomeName(payload.user.name, payload.user.email),
-        role,
-        licenseActive,
-        licenseAccessCode,
-        licenseStatus,
+        role: payload.user.role,
+        licenseActive: payload.licenseActive,
+        licenseAccessCode: payload.licenseAccessCode,
+        licenseStatus: payload.licenseStatus,
       });
     } catch (err) {
-      setCheckingLicense(false);
       setError(err instanceof Error ? err.message : "Giriş başarısız");
     } finally {
       setLoading(false);
     }
-  }
-
-  if (checkingLicense) {
-    return <LicenseLoadingScreen />;
   }
 
   return (

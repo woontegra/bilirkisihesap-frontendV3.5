@@ -103,13 +103,8 @@ export default function SubscriptionExpiredPage() {
             <LogOut size={16} />
             Çıkış Yap
           </button>
-          <button
-            type="button"
-            className={styles.ghost}
-            disabled={license.loading}
-            onClick={() => void license.refresh({ silent: true })}
-          >
-            {license.loading ? "Kontrol ediliyor…" : "Aboneliğimi kontrol et"}
+          <button type="button" className={styles.ghost} onClick={() => void license.refresh()}>
+            Aboneliğimi kontrol et
           </button>
         </div>
       </div>

@@ -1,5 +1,4 @@
 import { API_BASE_URL } from "@/config/apiBase";
-import { clearLicenseAccessSnapshot } from "@/license/access";
 import { trackAppEnteredOnce } from "@/telemetry/trackUsageEvent";
 
 const ACCESS_TOKEN_KEY = "access_token";
@@ -274,7 +273,6 @@ export function saveSession(accessToken: string, refreshToken: string, user: Aut
 
 export function clearSession(): void {
   invalidateAuthMeCache();
-  clearLicenseAccessSnapshot();
   for (const key of AUTH_KEYS) {
     localStorage.removeItem(key);
   }
