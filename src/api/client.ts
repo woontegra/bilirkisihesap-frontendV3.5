@@ -6,6 +6,11 @@ import {
   isTokenExpired,
   refreshAccessToken,
 } from "@/auth/session";
+import {
+  SUBSCRIPTION_EXPIRED,
+  parseSubscriptionDeniedPayload,
+  stashSubscriptionLoginCode,
+} from "@/auth/subscriptionLogin";
 import { API_BASE_URL } from "@/config/apiBase";
 
 export { API_BASE_URL };
@@ -142,7 +147,15 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
       typeof data === "object" && data
         ? String((data as { error?: unknown; code?: unknown }).error ?? (data as { code?: unknown }).code ?? "")
         : "";
-    if (licenseCode === "DEMO_EXPIRED") {
+    const subscriptionCode = parseSubscriptionDeniedPayload(data);
+    if (subscriptionCode === SUBSCRIPTION_EXPIRED) {
+      stashSubscriptionLoginCode(SUBSCRIPTION_EXPIRED);
+      clearSession();
+      if (!window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login";
+      }
+      throw new ApiError(messageForStatusBody(data, response.status), 403);
+    } else if (licenseCode === "DEMO_EXPIRED") {
       window.dispatchEvent(new CustomEvent("demo-expired"));
     } else if (licenseCode === "DEVICE_LIMIT_EXCEEDED") {
       window.dispatchEvent(new CustomEvent("device-limit-exceeded"));
@@ -156,16 +169,20 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
   }
 
   if (!response.ok) {
-    const message =
-      typeof data === "object" && data && "message" in data
-        ? String((data as { message: unknown }).message)
-        : typeof data === "object" && data && "error" in data
-          ? String((data as { error: unknown }).error)
-          : `İstek başarısız (${response.status})`;
-    throw new ApiError(message, response.status);
+    throw new ApiError(messageForStatusBody(data, response.status), response.status);
   }
 
   return data as T;
+}
+
+function messageForStatusBody(data: unknown, status: number): string {
+  if (typeof data === "object" && data && "message" in data) {
+    return String((data as { message: unknown }).message);
+  }
+  if (typeof data === "object" && data && "error" in data) {
+    return String((data as { error: unknown }).error);
+  }
+  return `İstek başarısız (${status})`;
 }
 
 /** Ticket endpointleri için x-user-id başlığı ekler. */

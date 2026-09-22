@@ -12,6 +12,13 @@ import {
   Zap,
 } from "lucide-react";
 import { isAuthenticated, loginWithPassword } from "@/auth/session";
+import {
+  LoginSubscriptionError,
+  buildSubscriptionRenewUrl,
+  buildSubscriptionSupportUrl,
+  consumeSubscriptionLoginCode,
+  messageForSubscriptionCode,
+} from "@/auth/subscriptionLogin";
 import { usePanelBranding } from "@/context/PanelBrandingContext";
 import { PANEL_FALLBACK_LOGO_URL } from "@/types/panelBranding";
 import styles from "./LoginPage.module.css";
@@ -69,6 +76,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [subscriptionBlock, setSubscriptionBlock] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [logoVisible, setLogoVisible] = useState(true);
   const [loginLogoAttempt, setLoginLogoAttempt] = useState(0);
@@ -105,6 +113,11 @@ export default function LoginPage() {
       setEmail(remembered);
       setRememberMe(true);
     }
+    const stashed = consumeSubscriptionLoginCode();
+    if (stashed) {
+      setSubscriptionBlock(stashed);
+      setError(messageForSubscriptionCode(stashed));
+    }
     const frame = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(frame);
   }, []);
@@ -140,6 +153,7 @@ export default function LoginPage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    setSubscriptionBlock(null);
     setLoading(true);
     try {
       const payload = await loginWithPassword(email.trim(), password);
@@ -152,7 +166,12 @@ export default function LoginPage() {
         userName: resolveWelcomeName(payload.user.name, payload.user.email),
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Giriş başarısız");
+      if (err instanceof LoginSubscriptionError) {
+        setSubscriptionBlock(err.code);
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : "Giriş başarısız");
+      }
     } finally {
       setLoading(false);
     }
@@ -364,6 +383,27 @@ export default function LoginPage() {
                   <p className={styles.error} role="alert">
                     {error}
                   </p>
+                ) : null}
+
+                {subscriptionBlock ? (
+                  <div className={styles.subscriptionActions} role="group" aria-label="Abonelik seçenekleri">
+                    <a
+                      className={styles.subscriptionPrimary}
+                      href={buildSubscriptionRenewUrl()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Aboneliği Yenile
+                    </a>
+                    <a
+                      className={styles.subscriptionSecondary}
+                      href={buildSubscriptionSupportUrl()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Destek
+                    </a>
+                  </div>
                 ) : null}
 
                 <button type="submit" className={styles.submit} disabled={loading}>

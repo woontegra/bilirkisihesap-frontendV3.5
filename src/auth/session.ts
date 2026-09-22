@@ -1,5 +1,10 @@
 import { API_BASE_URL } from "@/config/apiBase";
 import { trackAppEnteredOnce } from "@/telemetry/trackUsageEvent";
+import {
+  LoginSubscriptionError,
+  isSubscriptionAccessCode,
+  messageForSubscriptionCode,
+} from "@/auth/subscriptionLogin";
 
 const ACCESS_TOKEN_KEY = "access_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
@@ -325,10 +330,15 @@ export async function loginWithPassword(email: string, password: string): Promis
 
   const payload = (await response.json().catch(() => ({}))) as LoginResponse & {
     error?: string;
+    code?: string;
     message?: string;
   };
 
   if (!response.ok) {
+    const code = String(payload.code ?? payload.error ?? "");
+    if (isSubscriptionAccessCode(code)) {
+      throw new LoginSubscriptionError(code, messageForSubscriptionCode(code));
+    }
     throw new Error(payload.error || payload.message || "Giriş başarısız");
   }
 
